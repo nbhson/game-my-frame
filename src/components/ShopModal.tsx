@@ -1,6 +1,6 @@
 import {
   ANIMALS, BAIT_PRO_PRICE, BAIT_PRICE, CROPS, FEED_PRO_PRICE, FEED_PRICE, FISHES,
-  MAX_CAP, MAX_PLOTS, MAX_POND, START_CAP, START_PLOTS, START_POND,
+  MAX_CAP, MAX_PLOTS, MAX_POND, PEST_PRICE, START_CAP, START_PLOTS, START_POND,
   capCost, capReq, itemName, plotCost, plotReq, pondCost, pondReq, sellPrice,
 } from '../game/data';
 import { useGame } from '../game/store';
@@ -123,6 +123,12 @@ export default function ShopModal() {
             <div className="flex gap-1 justify-center">
               <button disabled={s.level < 10} className="pixel-btn !text-[10px] !px-2 !py-2" onClick={() => s.buyBait('baitPro', 1)}>Mua</button>
               <button disabled={s.level < 10} className="pixel-btn !text-[10px] !px-2 !py-2" onClick={() => s.buyBait('baitPro', 5)}>x5</button>
+            </div>
+          </Card>
+          <Card icon="pesticide" title="Thuốc trừ sâu" desc="Cây bị sâu sẽ ngừng lớn — bấm E vào cây để phun" price={<Coin v={PEST_PRICE} />}>
+            <div className="flex gap-1 justify-center">
+              <button className="pixel-btn !text-[10px] !px-2 !py-2" onClick={() => s.buyPesticide(1)}>Mua</button>
+              <button className="pixel-btn !text-[10px] !px-2 !py-2" onClick={() => s.buyPesticide(5)}>x5</button>
             </div>
           </Card>
           <Card icon="gem" title="Đổi gem" desc="5 gem = 500 xu" price={<span className="inline-flex items-center gap-0.5">5<GameIcon name="gem" size={13} /></span>}>

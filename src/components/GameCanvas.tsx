@@ -246,6 +246,7 @@ export default function GameCanvas({ target, onTarget }: Props) {
           : nearestInteract({
             px: playerRef.x, py: playerRef.y,
             plots: (visitSnap?.plots ?? st.plots), fishes: (visitSnap?.fishes ?? st.fishes), pondSlots: st.pondSlots, animals: (visitSnap?.animals ?? st.animals),
+            pesticide: st.inv.pesticide || 0,
             now: nowMs, t,
           });
       const prev = targetRef.current;

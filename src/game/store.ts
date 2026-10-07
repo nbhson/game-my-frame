@@ -4,6 +4,7 @@ import type { Animal, AnimalType, CoopCap, ModalKind, Plot, PondFish, SceneKind,
 import {
   ANIMALS, BITE_MAX, BITE_MIN, BITE_WINDOW, CROPS, DAY_LENGTH, FEED_PRO_PRICE, FEED_PRICE,
   BAIT_PRO_PRICE, BAIT_PRICE, FISHES, MAX_CAP, MAX_PLOTS, MAX_POND, QUESTS,
+  PEST_PRICE, PEST_RATE,
   START_CAP, START_PLOTS, START_POND, capCost, capReq, plotCost, plotReq, pondCost, pondReq,
   rollRiverCatch, sellPrice,
 } from './data';
@@ -85,6 +86,7 @@ interface GameState {
   buyAnimal: (id: string) => void;
   buyFeed: (feedId: string, n: number) => void;
   buyBait: (baitId: string, n: number) => void;
+  buyPesticide: (n: number) => void;
   exchangeGem: () => void;
   sell: (pid: string, all: boolean) => void;
   startRiverFishing: (pier: number, baitId: string) => void;
@@ -97,7 +99,7 @@ interface GameState {
 function freshPlots(): Plot[] {
   return Array.from({ length: MAX_PLOTS }, (_, i) => ({
     state: 'grass' as const, crop: null, progress: 0,
-    watered: false, waterLeft: 0, locked: i >= START_PLOTS,
+    watered: false, waterLeft: 0, locked: i >= START_PLOTS, pest: false,
   }));
 }
 function freshCap(): CoopCap {
@@ -112,12 +114,12 @@ function migratePlots(old: Plot[] | undefined): Plot[] {
   const fresh = freshPlots();
   if (!old || !old.length) return fresh;
   if (old.length >= MAX_PLOTS) {
-    return fresh.map((p, i) => ({ ...(old[i] ?? p), locked: old[i]?.locked ?? false }));
+    return fresh.map((p, i) => ({ ...(old[i] ?? p), locked: old[i]?.locked ?? false, pest: old[i]?.pest ?? false }));
   }
   // save cũ 12 ô đều dùng được → giữ 12 ô đầu mở, còn lại khóa
   const keepOpen = Math.max(START_PLOTS, Math.min(12, old.length));
   return fresh.map((p, i) => (i < old.length
-    ? { state: old[i].state, crop: old[i].crop, progress: old[i].progress, watered: old[i].watered, waterLeft: old[i].waterLeft ?? 0, locked: i >= keepOpen }
+    ? { state: old[i].state, crop: old[i].crop, progress: old[i].progress, watered: old[i].watered, waterLeft: old[i].waterLeft ?? 0, locked: i >= keepOpen, pest: old[i].pest ?? false }
     : p));
 }
 function migrateFishes(old: PondFish[] | undefined, uidSeqRef: { v: number }): PondFish[] {
@@ -264,13 +266,15 @@ export const useGame = create<GameState>()(
         const growthMul = weather === 'snow' ? 0.5 : 1;
         // cây
         let changed = false;
+        let pestToast: string | null = null;
         const plots = s.plots.map((pl) => {
           if (pl.locked || pl.state !== 'growing' || !pl.crop) return pl;
           const c = CROPS[pl.crop];
           if (!c) return pl;
-          let { progress, watered, waterLeft } = pl;
+          let { progress, watered, waterLeft, pest } = pl;
           if (raining) { watered = true; waterLeft = Math.max(waterLeft, 12); }
-          if (watered) {
+          // cây bị sâu thì ngừng lớn cho tới khi phun thuốc
+          if (watered && !pest) {
             waterLeft -= dt;
             if (waterLeft <= 0) { watered = false; waterLeft = 0; }
             else {
@@ -282,10 +286,21 @@ export const useGame = create<GameState>()(
                 return { ...pl, state: 'ready' as const, progress, watered, waterLeft };
               }
             }
+          } else if (watered) {
+            waterLeft -= dt;
+            if (waterLeft <= 0) { watered = false; waterLeft = 0; }
           }
-          if (progress !== pl.progress || watered !== pl.watered) { changed = true; return { ...pl, progress, watered, waterLeft }; }
+          // sâu xuất hiện ngẫu nhiên trên cây đang lớn (chưa bị + đã lên mầm)
+          if (!pest && progress > 0.05 && Math.random() < dt * PEST_RATE) {
+            pest = true;
+            changed = true;
+            if (!pestToast) pestToast = `${c.name} bị sâu! Bấm E để phun thuốc`;
+            return { ...pl, progress, watered, waterLeft, pest };
+          }
+          if (progress !== pl.progress || watered !== pl.watered) { changed = true; return { ...pl, progress, watered, waterLeft, pest }; }
           return pl;
         });
+        if (pestToast) get().toast(pestToast);
         const fishes = s.fishes.map((f) => {
           if (f.grown) return f;
           const F = FISHES[f.type];
@@ -327,7 +342,15 @@ export const useGame = create<GameState>()(
         } else if (pl.state === 'soil') {
           set({ modal: { name: 'seed', plot: i } });
         } else if (pl.state === 'growing') {
-          if (!pl.watered) {
+          if (pl.pest) {
+            // cây bị sâu: phun thuốc trước, hết thuốc thì mở shop
+            if ((s.inv.pesticide || 0) <= 0) { sfx.error(); get().toast('Hết thuốc trừ sâu! Mua ở cửa hàng'); set({ modal: 'shop', shopTab: 'food' }); return; }
+            get().addInv('pesticide', -1);
+            const plots = s.plots.slice(); plots[i] = { ...pl, pest: false };
+            set({ plots });
+            sfx.spray(); get().toast('Đã phun thuốc, cây hết sâu!');
+            get().addXP(2); get().checkQuest();
+          } else if (!pl.watered) {
             const plots = s.plots.slice(); plots[i] = { ...pl, watered: true, waterLeft: 45 };
             set((st) => ({ plots, stats: { ...st.stats, watered: st.stats.watered + 1 } }));
             sfx.water(); get().toast('Đã tưới nước!'); get().addXP(2); get().checkQuest();
@@ -336,7 +359,7 @@ export const useGame = create<GameState>()(
           const c = CROPS[pl.crop];
           if (!c) return;
           get().addInv(pl.crop, 1);
-          const plots = s.plots.slice(); plots[i] = { ...pl, state: 'soil', crop: null, progress: 0, watered: false, waterLeft: 0 };
+          const plots = s.plots.slice(); plots[i] = { ...pl, state: 'soil', crop: null, progress: 0, watered: false, waterLeft: 0, pest: false };
           set((st) => ({ plots, stats: { ...st.stats, harvested: st.stats.harvested + 1 } }));
           sfx.harvest(); get().toast(`Thu hoạch +1 ${c.name}!`); get().addXP(c.xp); get().checkQuest();
         }
@@ -529,6 +552,13 @@ export const useGame = create<GameState>()(
         const cost = price * n;
         if (s.xu < cost) { sfx.error(); get().toast('Không đủ xu!'); return; }
         set({ xu: s.xu - cost }); get().addInv(baitId, n); sfx.coin();
+      },
+      buyPesticide: (n) => {
+        const s = get();
+        const cost = PEST_PRICE * n;
+        if (s.xu < cost) { sfx.error(); get().toast('Không đủ xu!'); return; }
+        set({ xu: s.xu - cost }); get().addInv('pesticide', n); sfx.coin();
+        get().toast(`Mua ${n} thuốc trừ sâu!`);
       },
       exchangeGem: () => {
         const s = get();

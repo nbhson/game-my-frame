@@ -11,6 +11,7 @@ export interface Plot {
   watered: boolean;
   waterLeft: number; // giây còn ướt
   locked: boolean; // chưa mở khóa (mua bằng xu + cấp)
+  pest: boolean; // đang bị sâu (ngừng lớn cho tới khi phun thuốc)
 }
 
 export type AnimalType = 'chicken' | 'duck' | 'cow' | 'pig' | 'sheep';

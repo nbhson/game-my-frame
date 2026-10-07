@@ -6,10 +6,11 @@ import { FARM_GATE, TOWN_PROPS, farmGateCenter } from './town';
 
 export interface InteractCtx {
   px: number; py: number;
-  plots: { state: string; crop: string | null; watered: boolean; locked: boolean }[];
+  plots: { state: string; crop: string | null; watered: boolean; locked: boolean; pest?: boolean }[];
   fishes: PondFish[];
   pondSlots: number;
   animals: Animal[];
+  pesticide: number; // số thuốc trừ sâu trong kho (hiện trong nhãn)
   now: number; t: number;
 }
 
@@ -106,7 +107,9 @@ export function nearestInteract(c: InteractCtx): InteractTarget | null {
       if (pl.locked) label = `Mở ô ${i + 1} (${plotCost(i)} xu, Lv${plotReq(i)})`;
       else if (pl.state === 'grass') label = `Cuốc đất ô ${i + 1}`;
       else if (pl.state === 'soil') label = `Gieo hạt ô ${i + 1}`;
-      else if (pl.state === 'growing') label = pl.watered ? `${pl.crop ? CROPS[pl.crop].name : ''} đang lớn…` : `Tưới ${pl.crop ? CROPS[pl.crop].name : ''}`;
+      else if (pl.state === 'growing') label = pl.pest
+        ? (c.pesticide > 0 ? `Phun thuốc ${pl.crop ? CROPS[pl.crop].name : ''} (còn ${c.pesticide})` : 'Hết thuốc! Mua ở cửa hàng')
+        : pl.watered ? `${pl.crop ? CROPS[pl.crop].name : ''} đang lớn…` : `Tưới ${pl.crop ? CROPS[pl.crop].name : ''}`;
       else label = `Thu hoạch ${pl.crop ? CROPS[pl.crop].name : ''} ${pl.crop ? CROPS[pl.crop].emoji : ''}`;
       bd = d; best = { kind: 'plot', index: i, label };
     }

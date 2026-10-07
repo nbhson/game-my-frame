@@ -11,6 +11,7 @@ chơi chung, chat và qua **thăm farm nhau**.
 - **45 ô ruộng** (9×5), khởi đầu 6 ô — bấm E vào ô 🔒 để mở bằng xu + cấp (ô sau đắt hơn, ô 45 cần ~Lv31)
 - **15 loại cây** từ Lv1 (Lúa) đến Lv95 (Nhân sâm): cải xanh, khoai tây, dưa leo, cà tím, dâu, nho, cà phê, nấm linh chi...
 - Vòng đời đầy đủ: cuốc đất → gieo hạt → tưới nước (đất khô sau 45s, cây ngừng lớn) → chín → thu hoạch
+- **Sâu bệnh:** cây đang lớn có thể bị sâu ngẫu nhiên (ngừng lớn, thanh đỏ, có sâu bò trên cây) — mua **thuốc trừ sâu** ở shop (tab Thức ăn, 20 xu) rồi bấm E vào cây để phun
 
 ### 🐟 Ao cá vuông tự nhiên + 🎣 sông câu cá
 - Ao **hình vuông, không chia ngăn**, cá bơi tự do khắp hồ — khởi đầu nuôi 3 con, mở rộng tối đa **15** bằng xu + cấp

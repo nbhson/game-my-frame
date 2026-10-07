@@ -34,6 +34,7 @@ export const sfx = {
   coin() { beep(900, 0.08); later(() => beep(1400, 0.12), 70); },
   plant() { beep(400, 0.1, 'triangle'); },
   water() { beep(500, 0.15, 'sine', 0.2, -200); },
+  spray() { beep(1300, 0.15, 'sine', 0.14, -700); later(() => beep(1000, 0.15, 'sine', 0.1, -500), 130); },
   harvest() { [523, 659, 784, 1046].forEach((f, i) => later(() => beep(f, 0.12), i * 80)); },
   error() { beep(160, 0.2, 'sawtooth'); },
   eat() { beep(300, 0.08); later(() => beep(350, 0.08), 90); },

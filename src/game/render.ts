@@ -2606,6 +2606,34 @@ function drawTownGate(ctx: CanvasRenderingContext2D, cam: { x: number; y: number
   axGrassTuft(ctx, X + 46, Y + 44, 1, t, 9);
 }
 
+/** Sâu bò trên cây bị bệnh: 3 con tằm xanh ngọ nguậy + dấu "!" đỏ */
+function drawPests(ctx: CanvasRenderingContext2D, X: number, Y: number, t: number, seed: number) {
+  // biển cảnh báo đỏ treo trên cây
+  const bob = Math.sin(t * 4 + seed) * 2;
+  ctx.fillStyle = '#e53935';
+  ctx.beginPath(); ctx.arc(X + 30, Y - 44 + bob, 8, 0, 7); ctx.fill();
+  ctx.lineWidth = 2; ctx.strokeStyle = '#4a3226'; ctx.stroke();
+  txt(ctx, '!', X + 30, Y - 38 + bob, 11, '#fff');
+  for (let k = 0; k < 3; k++) {
+    const wig = Math.sin(t * 6 + seed * 2 + k * 2.1);
+    const px = X + [-22, 2, 24][k] + wig * 2.5;
+    const py = Y - 12 - (k % 2) * 12 + Math.cos(t * 5 + k) * 1.5;
+    // thân tằm: 3 đốt xanh + viền nâu
+    ctx.fillStyle = '#7cb342';
+    ctx.beginPath(); ctx.ellipse(px, py, 7, 4.5, wig * 0.2, 0, 7); ctx.fill();
+    ctx.lineWidth = 1.6; ctx.strokeStyle = '#4a3226'; ctx.stroke();
+    ctx.strokeStyle = 'rgba(46,90,20,.7)'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(px - 2, py - 4); ctx.lineTo(px - 2, py + 4); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(px + 2, py - 4); ctx.lineTo(px + 2, py + 4); ctx.stroke();
+    // đầu + râu
+    ctx.fillStyle = '#33691e';
+    ctx.beginPath(); ctx.arc(px + 7, py - 1, 2.6, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#33691e'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(px + 8, py - 3); ctx.lineTo(px + 10, py - 6 + wig); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(px + 9, py - 3); ctx.lineTo(px + 12, py - 5 - wig); ctx.stroke();
+  }
+}
+
 export function renderWorld(ctx: CanvasRenderingContext2D, W: number, H: number, cam: { x: number; y: number }, s: RenderState, t: number) {
   ctx.clearRect(0, 0, W, H);
   drawGrassBase(ctx, cam, W, H, t);
@@ -2685,10 +2713,11 @@ export function renderWorld(ctx: CanvasRenderingContext2D, W: number, H: number,
       drawPlotSoil(ctx, X, Y, pp.w, pp.h, pl.watered, t, i);
       const stage = pl.state === 'ready' ? 4 : cropStage(pl.progress);
       drawCropPlant(ctx, X, Y + 10, pl.crop, stage, t, i);
+      if (pl.pest) drawPests(ctx, X, Y + 10, t, i);
       // thanh tăng trưởng anime + nhãn pill
       const bw = pp.w - 10;
-      axBar(ctx, X, Y + pp.h / 2 - 10, bw, pl.state === 'ready' ? 1 : Math.min(1, pl.progress), pl.state === 'ready' ? '#ffeb3b' : stage <= 1 ? '#8cff49' : stage === 2 ? '#39d353' : '#00e0b0');
-      const label = pl.state === 'ready' ? `${c.name} chín!` : `${c.name} · ${cropStageName(pl.progress)} ${Math.round(pl.progress * 100)}%`;
+      axBar(ctx, X, Y + pp.h / 2 - 10, bw, pl.state === 'ready' ? 1 : Math.min(1, pl.progress), pl.pest ? '#e53935' : pl.state === 'ready' ? '#ffeb3b' : stage <= 1 ? '#8cff49' : stage === 2 ? '#39d353' : '#00e0b0');
+      const label = pl.pest ? `${c.name} BỊ SÂU!` : pl.state === 'ready' ? `${c.name} chín!` : `${c.name} · ${cropStageName(pl.progress)} ${Math.round(pl.progress * 100)}%`;
       axNamePill(ctx, X, Y - pp.h / 2 - 22, label);
       if (pl.state === 'ready') {
         const b = Math.sin(t * 4 + i) * 2.5;

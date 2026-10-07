@@ -64,6 +64,10 @@ export const FEED_PRICE = 15;
 export const FEED_PRO_PRICE = 50;
 export const BAIT_PRICE = 10;
 export const BAIT_PRO_PRICE = 45;
+/** Thuốc trừ sâu: phun khi cây bị sâu (cây ngừng lớn khi có sâu) */
+export const PEST_PRICE = 20;
+/** Tỉ lệ sâu ngẫu nhiên mỗi giây trên mỗi cây đang lớn (trung bình ~7 phút/cây) */
+export const PEST_RATE = 0.0025;
 
 export const PRODUCT_NAMES: Record<string, [string, string]> = {
   trung: ['Trứng', ''],
@@ -75,6 +79,7 @@ export const PRODUCT_NAMES: Record<string, [string, string]> = {
   feedPro: ['Cám cao cấp', ''],
   bait: ['Mồi thường', ''],
   baitPro: ['Mồi ngon', ''],
+  pesticide: ['Thuốc trừ sâu', ''],
   ung: ['Ủng cũ', ''],
   rong: ['Rong biển', ''],
 };
@@ -103,6 +108,7 @@ export function sellPrice(pid: string): number {
   if (pid === 'feedPro') return 25;
   if (pid === 'bait') return 5;
   if (pid === 'baitPro') return 22;
+  if (pid === 'pesticide') return 10;
   if (pid === 'ung') return 3;
   if (pid === 'rong') return 2;
   return 1;
