@@ -17,7 +17,7 @@ chơi chung, chat và qua **thăm farm nhau**.
 - Ao **hình vuông, không chia ngăn**, cá bơi tự do khắp hồ — khởi đầu nuôi 3 con, mở rộng tối đa **15** bằng xu + cấp
 - Bấm E vào **hòm thư 📮** trước ao để xem đàn cá, cho ăn/thu hoạch từng con, mở thêm chỗ nuôi
 - **8 loại cá** từ Lv1 (Rô) đến Lv50 (Cá mập): chép, tôm, cua, lóc, Koi, bạch tuộc...
-- **Sông câu cá** cuối map với 3 bến gỗ: nhân vật **ngồi câu thật** (cần + phao + gợn sóng), thấy ❗ thì bấm E giật ngay — chậm là cá chạy! Không câu ở ao nuôi
+- **Sông câu cá** cuối map với 3 bến gỗ: nhân vật **ngồi câu thật** (cần + phao + gợn sóng), thấy ❗ thì bấm **dãy phím mũi tên ↑↓←→** hiện trên màn hình cho đúng thứ tự trong **3s** mới dính — cá càng đắt thì dãy càng dài (3–8 phím), bấm sai hoặc chậm là cá chạy! Không câu ở ao nuôi
 - 2 loại mồi: thường (cá rẻ dễ dính) và mồi ngon 🔒Lv10 (cá hiếm x5, ít dính rác như ủng cũ 🥾)
 
 ### 🐔🦆🐄🐷🐑 Chăn nuôi
@@ -114,7 +114,8 @@ npm run preview
 | Phím | Tác dụng |
 |---|---|
 | WASD / mũi tên / click bản đồ / joystick | Di chuyển |
-| `E` / Space | Tương tác với ô gần nhất (khi đang câu: giật cần / thu cần) |
+| `E` / Space | Tương tác với ô gần nhất (khi đang câu: thu cần; khi cá cắn phải bấm dãy mũi tên trong 3s) |
+| Phím mũi tên `↑↓←→` | Giật cá khi cắn câu: bấm đúng thứ tự trên màn hình (cá đắt → nhiều phím hơn) |
 | `B` / `Q` / `H` / `V` | Kho / Nhiệm vụ / Trợ giúp / Làng (không dùng `S` vì trùng phím đi xuống) |
 | `Esc` | Đóng modal / thu cần câu |
 

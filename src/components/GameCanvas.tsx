@@ -27,7 +27,7 @@ export const joyRef = { x: 0, y: 0 };
 
 export function doInteractWith(t: InteractTarget | null | undefined) {
   const s = useGame.getState();
-  // đang ngồi câu: E = giật cần / thu cần
+  // đang ngồi câu: E = thu cần (khi cá cắn phải bấm dãy mũi tên, E không giật được)
   if (s.fishingSpot) { s.reelRiver(); return; }
   const v = useVillage.getState();
   if (!t) return;
@@ -156,6 +156,12 @@ export default function GameCanvas({ target, onTarget }: Props) {
         return;
       }
       if (st.modal) return;
+      // Mini-game giật cá: dãy mũi tên thay cho E (cá giá trị cao → dãy dài hơn, 3s)
+      if (st.fishingSpot && (k === 'arrowup' || k === 'arrowdown' || k === 'arrowleft' || k === 'arrowright')) {
+        const dir = k === 'arrowup' ? 'up' : k === 'arrowdown' ? 'down' : k === 'arrowleft' ? 'left' : 'right';
+        st.pressBiteKey(dir as 'up' | 'down' | 'left' | 'right');
+        return;
+      }
       if (k === 'e' || k === ' ') doInteractWith(targetRef.current);
       // NOTE: không dùng S làm shortcut shop vì S là phím đi xuống (WASD)
       if (k === 'b') st.setModal('bag');
@@ -230,8 +236,8 @@ export default function GameCanvas({ target, onTarget }: Props) {
       const village = useVillage.getState();
       if (!village.visiting) st.tick(dt);
 
-      // cá chạy mất nếu không giật kịp (tự thu cần sau 2.5s quá giờ)
-      if (st.fishingSpot && st.biteUntil && nowMs > st.biteUntil + 2500) st.reelRiver();
+      // Hết 3s chưa bấm xong dãy mũi tên → cá chạy (reelRiver xử lý fail)
+      if (st.fishingSpot && st.biteUntil && nowMs > st.biteUntil) st.reelRiver();
 
       // phát vị trí cho làng (để bạn bè thấy mình đi lại, kèm map + emote)
       village.pushPosition(playerRef.x, playerRef.y, playerRef.dir, playerRef.moving);
@@ -336,7 +342,7 @@ export default function GameCanvas({ target, onTarget }: Props) {
     const MW = inTown ? TOWN.w : WORLD.w, MH = inTown ? TOWN.h : WORLD.h;
     const wx = Math.max(20, Math.min(MW - 20, sx + cam.current.x));
     const wy = Math.max(60, Math.min(MH - 20, sy + cam.current.y));
-    // đang câu: click = giật cần
+    // đang câu: click = thu cần (khi cá cắn phải bấm dãy mũi tên)
     if (st.fishingSpot) { st.reelRiver(); return; }
     const blocked = inTown ? isTownBlocked(wx, wy) : isBlocked(wx, wy);
     if (!blocked) { playerRef.tx = wx; playerRef.ty = wy; }
@@ -377,23 +383,70 @@ export default function GameCanvas({ target, onTarget }: Props) {
   );
 }
 
-/** Hint khi đang ngồi câu: cập nhật theo nhịp cắn câu */
+/** Hint khi đang ngồi câu: chờ cắn → hiện dãy mũi tên phải bấm trong 3s */
 function RiverHint() {
   const spot = useGame((s) => s.fishingSpot);
   const biteAt = useGame((s) => s.biteAt);
   const biteUntil = useGame((s) => s.biteUntil);
+  const combo = useGame((s) => s.biteCombo);
+  const progress = useGame((s) => s.biteProgress);
+  const pressBiteKey = useGame((s) => s.pressBiteKey);
   const [, force] = useState(0);
   useEffect(() => {
     if (!spot) return;
-    const id = setInterval(() => force((x) => x + 1), 250);
+    const id = setInterval(() => force((x) => x + 1), 100);
     return () => clearInterval(id);
   }, [spot]);
   if (!spot) return null;
   const now = Date.now();
   const biting = biteAt != null && biteUntil != null && now >= biteAt && now <= biteUntil;
+  if (!biting) {
+    return (
+      <div className="absolute bottom-20 left-1/2 -translate-x-1/2 border-[3px] border-[#2b2117] rounded-full px-5 py-2 font-extrabold shadow-pixel whitespace-nowrap z-[5] bg-[#fff8dc] animate-pulse">
+        Đang đợi cá… (E: thu cần)
+      </div>
+    );
+  }
+  const remainMs = Math.max(0, (biteUntil ?? now) - now);
+  const totalMs = Math.max(1, (biteUntil ?? now) - (biteAt ?? now));
+  const remainS = (remainMs / 1000).toFixed(1);
+  const pct = Math.round((remainMs / totalMs) * 100);
+  const urgent = remainMs < 1000;
+  const pads: { dir: 'up' | 'down' | 'left' | 'right'; label: string }[] = [
+    { dir: 'up', label: '↑' },
+    { dir: 'down', label: '↓' },
+    { dir: 'left', label: '←' },
+    { dir: 'right', label: '→' },
+  ];
   return (
-    <div className={`absolute bottom-20 left-1/2 -translate-x-1/2 border-[3px] border-[#2b2117] rounded-full px-5 py-2 font-extrabold shadow-pixel whitespace-nowrap z-[5] ${biting ? 'bg-red-400 text-white animate-bounce text-lg' : 'bg-[#fff8dc] animate-pulse'}`}>
-      {biting ? 'GIẬT NGAY (E)!' : 'Đang đợi cá… (E: thu cần)'}
+    <div className={`absolute bottom-24 left-1/2 -translate-x-1/2 border-[3px] border-[#2b2117] rounded-2xl px-4 py-3 font-extrabold shadow-pixel z-[5] text-center ${urgent ? 'bg-red-400 text-white' : 'bg-[#fff8dc]'}`}>
+      <div className="text-base animate-bounce">🎣 CÁ CẮN CÂU! Bấm theo thứ tự ({remainS}s)</div>
+      <div className="flex gap-1.5 justify-center mt-2">
+        {(combo ?? []).map((d, i) => (
+          <span
+            key={i}
+            className={`w-9 h-9 flex items-center justify-center text-xl rounded-lg border-[3px] border-[#2b2117] ${i < progress ? 'bg-green-400' : i === progress ? 'bg-yellow-300 animate-pulse scale-110' : 'bg-white'}`}
+          >
+            {d === 'up' ? '↑' : d === 'down' ? '↓' : d === 'left' ? '←' : '→'}
+          </span>
+        ))}
+      </div>
+      <div className="h-2 mt-2 rounded-full bg-black/20 overflow-hidden">
+        <div className={`h-full ${urgent ? 'bg-red-600' : 'bg-green-500'}`} style={{ width: `${pct}%` }} />
+      </div>
+      {/* D-pad cho mobile / click chuột — desktop bấm phím mũi tên */}
+      <div className="flex gap-2 justify-center mt-2">
+        {pads.map((p) => (
+          <button
+            key={p.dir}
+            onPointerDown={(e) => { e.stopPropagation(); pressBiteKey(p.dir); }}
+            className="w-11 h-11 text-xl rounded-xl bg-sky-300 border-[3px] border-[#2b2117] active:scale-90 font-black"
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+      <div className="text-[11px] mt-1 opacity-80">Bấm sai 1 phím hoặc hết giờ là cá chạy!</div>
     </div>
   );
 }

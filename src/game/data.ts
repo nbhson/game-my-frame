@@ -159,7 +159,29 @@ export function capReq(type: string, next: number): number {
 // ---------- Câu sông: thời gian cắn câu + bảng cá ----------
 export const BITE_MIN = 3;      // giây chờ tối thiểu
 export const BITE_MAX = 9;      // giây chờ tối đa
-export const BITE_WINDOW = 1.4; // thời gian giật cần (giây)
+export const BITE_WINDOW = 3;   // thời gian hoàn thành dãy mũi tên (giây)
+
+// Mini-game giật cá: khi cá cắn câu hiện dãy phím mũi tên, bấm đúng + kịp giờ mới dính.
+// Cá giá trị càng lớn → dãy càng dài.
+export type BiteDir = 'up' | 'down' | 'left' | 'right';
+export const BITE_ARROWS: Record<BiteDir, string> = { up: '↑', down: '↓', left: '←', right: '→' };
+
+/** Số phím phải bấm theo giá bán của con cá (rác = 3, Cá mập = 8) */
+export function comboLengthFor(sell: number): number {
+  if (sell <= 100) return 3;
+  if (sell <= 400) return 4;
+  if (sell <= 1200) return 5;
+  if (sell <= 2500) return 6;
+  if (sell <= 4000) return 7;
+  return 8;
+}
+
+/** Sinh dãy mũi tên ngẫu nhiên, độ dài theo giá trị cá */
+export function genBiteCombo(sell: number): BiteDir[] {
+  const n = comboLengthFor(sell);
+  const dirs: BiteDir[] = ['up', 'down', 'left', 'right'];
+  return Array.from({ length: n }, () => dirs[(Math.random() * dirs.length) | 0]);
+}
 
 /** Bảng cá sông: cá rẻ dễ dính, cá đắt hiếm; mồi ngon x5 tỉ lệ cá hiếm, ít rác */
 export function riverTable(level: number, premium: boolean): { id: string; w: number }[] {

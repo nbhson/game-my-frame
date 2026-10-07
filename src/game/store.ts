@@ -4,7 +4,8 @@ import type { Animal, AnimalType, CoopCap, ModalKind, Plot, PondFish, SceneKind,
 import {
   ANIMALS, BITE_MAX, BITE_MIN, BITE_WINDOW, CROPS, DAY_LENGTH, FEED_PRO_PRICE, FEED_PRICE,
   BAIT_PRO_PRICE, BAIT_PRICE, FISHES, MAX_CAP, MAX_PLOTS, MAX_POND, QUESTS,
-  PEST_PRICE, PEST_RATE,
+  PEST_PRICE, PEST_RATE, genBiteCombo,
+  type BiteDir,
   START_CAP, START_PLOTS, START_POND, capCost, capReq, plotCost, plotReq, pondCost, pondReq,
   rollRiverCatch, sellPrice,
 } from './data';
@@ -51,6 +52,10 @@ interface GameState {
   biteAt: number | null;
   biteUntil: number | null;
   fishingBait: string | null;
+  // mini-game giật cá: con cá đã roll sẵn + dãy mũi tên phải bấm trong 3s
+  biteCatchId: string | null;
+  biteCombo: BiteDir[] | null;
+  biteProgress: number;
   toasts: Toast[];
 
   // actions
@@ -91,6 +96,7 @@ interface GameState {
   sell: (pid: string, all: boolean) => void;
   startRiverFishing: (pier: number, baitId: string) => void;
   reelRiver: () => void;
+  pressBiteKey: (dir: BiteDir) => void;
   cancelRiver: (silent?: boolean) => void;
   checkQuest: () => void;
   reset: () => void;
@@ -178,6 +184,7 @@ export const useGame = create<GameState>()(
       questIdx: 0, uidSeq: 1,
       modal: null, shopTab: 'seed', scene: 'farm',
       fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null,
+      biteCatchId: null, biteCombo: null, biteProgress: 0,
       toasts: [],
 
       loadAccount: (name, avatar, data) => {
@@ -199,7 +206,7 @@ export const useGame = create<GameState>()(
             pondSlots: Math.min(MAX_POND, Math.max(START_POND, data.pondSlots ?? (data.fishes?.length >= 6 ? 6 : START_POND))),
             animals: data.animals, coopCap: cap,
             stats: data.stats, questIdx: data.questIdx, uidSeq: uidRef.v,
-            modal: null, fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null, scene: 'farm',
+            modal: null, fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null, biteCatchId: null, biteCombo: null, biteProgress: 0, scene: 'farm',
           });
         } else {
           set({
@@ -210,7 +217,7 @@ export const useGame = create<GameState>()(
             plots: freshPlots(), pondSlots: START_POND, fishes: [], animals: [],
             coopCap: freshCap(),
             stats: freshStats(), questIdx: 0, uidSeq: 1,
-            modal: null, fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null, scene: 'farm',
+            modal: null, fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null, biteCatchId: null, biteCombo: null, biteProgress: 0, scene: 'farm',
           });
         }
       },
@@ -583,44 +590,76 @@ export const useGame = create<GameState>()(
         if (!p) return;
         const wait = BITE_MIN * 1000 + Math.random() * (BITE_MAX - BITE_MIN) * 1000;
         const biteAt = Date.now() + wait;
+        // Roll sẵn con cá sẽ cắn + sinh dãy mũi tên theo giá trị của nó.
+        // Cá giá trị càng lớn → dãy càng dài (3–8 phím), phải bấm đúng trong 3s.
+        const premium = baitId === 'baitPro';
+        const pending = rollRiverCatch(s.level, premium);
+        const combo = genBiteCombo(sellPrice(pending));
         set({
           fishingSpot: { pier, x: p.x, y: p.sitY, bx: p.x + 14, by: p.bobY },
           biteAt, biteUntil: biteAt + BITE_WINDOW * 1000,
           fishingBait: baitId, modal: null,
+          biteCatchId: pending, biteCombo: combo, biteProgress: 0,
         });
-        sfx.splash(); get().toast('Đã thả cần… đợi cá cắn câu! (E để giật / thu cần)');
+        sfx.splash(); get().toast('Đã thả cần… đợi cá cắn câu! (E: thu cần)');
       },
       reelRiver: () => {
         const s = get();
         if (!s.fishingSpot) return;
         const now = Date.now();
-        if (s.biteAt != null && s.biteUntil != null && now >= s.biteAt && now <= s.biteUntil) {
-          // DÍNH!
+        const biting = s.biteAt != null && s.biteUntil != null && now >= s.biteAt && now <= s.biteUntil;
+        if (biting) {
+          // Đang cắn câu: E không giật được nữa — phải bấm dãy mũi tên.
+          sfx.error();
+          get().toast('Cá cắn câu! Bấm phím mũi tên theo thứ tự trên màn hình!');
+          return;
+        }
+        if (s.biteUntil != null && now > s.biteUntil) {
+          set({ fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null, biteCatchId: null, biteCombo: null, biteProgress: 0 });
+          sfx.splash(); get().toast('Chậm tay quá, cá chạy mất!');
+        } else {
+          set({ fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null, biteCatchId: null, biteCombo: null, biteProgress: 0 });
+          sfx.click(); get().toast('Thu cần về.');
+        }
+      },
+      pressBiteKey: (dir) => {
+        const s = get();
+        if (!s.fishingSpot) return;
+        const now = Date.now();
+        const biting = s.biteAt != null && s.biteUntil != null && now >= s.biteAt && now <= s.biteUntil;
+        if (!biting || !s.biteCombo || !s.biteCatchId) return;
+        const expected = s.biteCombo[s.biteProgress];
+        if (dir !== expected) {
+          // Bấm sai 1 phím → sảy cá (không tốn mồi)
+          set({ fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null, biteCatchId: null, biteCombo: null, biteProgress: 0 });
+          sfx.splash(); get().toast('Bấm sai phím! Cá chạy mất!');
+          return;
+        }
+        const next = s.biteProgress + 1;
+        if (next >= s.biteCombo.length) {
+          // Hoàn thành dãy trong 3s → DÍNH!
           const baitId = s.fishingBait ?? 'bait';
-          if ((s.inv[baitId] || 0) <= 0) { sfx.error(); get().toast('Hết mồi rồi!'); set({ fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null }); return; }
+          if ((s.inv[baitId] || 0) <= 0) { sfx.error(); get().toast('Hết mồi rồi!'); set({ fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null, biteCatchId: null, biteCombo: null, biteProgress: 0 }); return; }
           get().addInv(baitId, -1);
-          const premium = baitId === 'baitPro';
-          const id = rollRiverCatch(s.level, premium);
+          const id = s.biteCatchId;
           const nm = id === 'ung' ? 'Ủng cũ' : id === 'rong' ? 'Rong biển' : `${FISHES[id].name}`;
           get().addInv(id, 1);
           const xp = FISHES[id] ? FISHES[id].xp : 2;
           set((st) => ({
             fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null,
+            biteCatchId: null, biteCombo: null, biteProgress: 0,
             stats: { ...st.stats, fished: st.stats.fished + 1 },
           }));
           sfx.catch_(); sfx.coin();
           get().toast(`Giật dính ${nm}!`);
           get().addXP(xp); get().checkQuest();
-        } else if (s.biteUntil != null && now > s.biteUntil) {
-          set({ fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null });
-          sfx.splash(); get().toast('Chậm tay quá, cá chạy mất!');
         } else {
-          set({ fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null });
-          sfx.click(); get().toast('Thu cần về.');
+          set({ biteProgress: next });
+          sfx.click();
         }
       },
       cancelRiver: (silent) => {
-        set({ fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null });
+        set({ fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null, biteCatchId: null, biteCombo: null, biteProgress: 0 });
         if (!silent) get().toast('Thu cần về.');
       },
 
@@ -654,7 +693,7 @@ export const useGame = create<GameState>()(
           plots: freshPlots(), pondSlots: START_POND, fishes: [], animals: [],
           coopCap: freshCap(),
           stats: freshStats(), questIdx: 0, uidSeq: 1,
-          modal: null, fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null, toasts: [], scene: 'farm',
+          modal: null, fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null, biteCatchId: null, biteCombo: null, biteProgress: 0, toasts: [], scene: 'farm',
         });
       },
     }),
