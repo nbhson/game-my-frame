@@ -223,7 +223,7 @@ export const useCasino = create<CasinoStore>()((set, get) => ({
     if (g.xu < bet) { g.toast(`Cần ít nhất ${bet} xu để chơi!`); return; }
     const me = myPlayer();
     if (get().transport === 'socket' && !withBot) {
-      socket?.emit('casino:create', { game, bet, player: { name: me.name, avatar: me.avatar } });
+      socket?.emit('casino:create', { pid: me.pid, game, bet, player: { name: me.name, avatar: me.avatar } });
       set({ lockedBet: bet, deducted: false, settledKey: '', solo: false, error: '' });
       return;
     }
@@ -256,7 +256,7 @@ export const useCasino = create<CasinoStore>()((set, get) => ({
     if (info && g.xu < info.bet) { g.toast(`Cần ít nhất ${info.bet} xu!`); return; }
     if (get().transport === 'socket' && !get().solo) {
       const me = myPlayer();
-      socket?.emit('casino:join', { roomId: target, player: { name: me.name, avatar: me.avatar } });
+      socket?.emit('casino:join', { pid: me.pid, roomId: target, player: { name: me.name, avatar: me.avatar } });
       set({ lockedBet: info?.bet ?? 0, deducted: false, settledKey: '', error: '' });
       return;
     }
@@ -269,7 +269,7 @@ export const useCasino = create<CasinoStore>()((set, get) => ({
   leaveRoom() {
     const { room, lockedBet, deducted } = get();
     if (get().transport === 'socket' && !get().solo) {
-      socket?.emit('casino:leave');
+      socket?.emit('casino:leave', { pid: myPid() });
     } else if (room) {
       if (localHostRooms.has(room.id)) {
         localHostRooms.delete(room.id);
@@ -291,7 +291,7 @@ export const useCasino = create<CasinoStore>()((set, get) => ({
     const { room } = get();
     if (!room) return;
     if (get().transport === 'socket' && !get().solo) {
-      socket?.emit('casino:addbot');
+      socket?.emit('casino:addbot', { pid: myPid() });
       return;
     }
     const host = localHostRooms.get(room.id);
@@ -313,7 +313,7 @@ export const useCasino = create<CasinoStore>()((set, get) => ({
     if (g.xu < room.bet && !get().deducted) { g.toast(`Cần ít nhất ${room.bet} xu!`); return; }
     void lockedBet;
     if (get().transport === 'socket' && !get().solo) {
-      socket?.emit('casino:start');
+      socket?.emit('casino:start', { pid: myPid() });
       return;
     }
     const host = localHostRooms.get(room.id);
@@ -332,7 +332,7 @@ export const useCasino = create<CasinoStore>()((set, get) => ({
     const { room } = get();
     if (!room) return;
     if (get().transport === 'socket' && !get().solo) {
-      socket?.emit('casino:rematch');
+      socket?.emit('casino:rematch', { pid: myPid() });
       return;
     }
     const host = localHostRooms.get(room.id);
@@ -350,7 +350,7 @@ export const useCasino = create<CasinoStore>()((set, get) => ({
     const { room } = get();
     if (!room || room.status !== 'playing') return;
     if (get().transport === 'socket' && !get().solo) {
-      socket?.emit('casino:action', { type: 'play', cards: cards.map((c) => c.id) });
+      socket?.emit('casino:action', { pid: myPid(), type: 'play', cards: cards.map((c) => c.id) });
       return;
     }
     const host = localHostRooms.get(room.id);
@@ -374,7 +374,7 @@ export const useCasino = create<CasinoStore>()((set, get) => ({
     const { room } = get();
     if (!room || room.status !== 'playing') return;
     if (get().transport === 'socket' && !get().solo) {
-      socket?.emit('casino:action', { type: 'pass' });
+      socket?.emit('casino:action', { pid: myPid(), type: 'pass' });
       return;
     }
     const host = localHostRooms.get(room.id);
@@ -392,7 +392,7 @@ export const useCasino = create<CasinoStore>()((set, get) => ({
     const { room } = get();
     if (!room || room.status !== 'playing') return;
     if (get().transport === 'socket' && !get().solo) {
-      socket?.emit('casino:action', { type: 'reveal' });
+      socket?.emit('casino:action', { pid: myPid(), type: 'reveal' });
       return;
     }
     const host = localHostRooms.get(room.id);
@@ -411,7 +411,7 @@ export const useCasino = create<CasinoStore>()((set, get) => ({
     const { room } = get();
     if (!room || room.status !== 'playing') return;
     if (get().transport === 'socket' && !get().solo) {
-      socket?.emit('casino:action', { type: 'move', r, c });
+      socket?.emit('casino:action', { pid: myPid(), type: 'move', r, c });
       return;
     }
     const host = localHostRooms.get(room.id);

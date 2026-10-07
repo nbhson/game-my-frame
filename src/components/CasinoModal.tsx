@@ -153,7 +153,7 @@ function Waiting() {
           </div>
         ))}
         {room.players.length < max && (
-          <div className="text-xs text-gray-500 text-center">Đang chờ thêm {max - room.players.length} người… (mã phòng: <b>#{room.id}</b> — bạn bè bấm Vào)</div>
+          <div className="text-xs text-gray-500 text-center">Đủ 2 người là bắt đầu được • mã phòng: <b>#{room.id}</b> — bạn bè bấm Vào</div>
         )}
       </div>
       <div className="flex gap-2">

@@ -156,10 +156,20 @@ function casinoRoomId() {
 function casinoMax(game) { return game === 'caro' ? 2 : 4; }
 function casinoMin(game) { return 2; }
 function pidOf(myId) { return myId || 'anon'; }
+// pid casino: client gửi kèm trong từng sự kiện (kết nối casino là socket riêng,
+// không gửi hello nên myId của nó luôn null — không được dùng myId ở đây).
+// Nhớ pid theo socket để dọn phòng khi mất kết nối.
+const casinoPidBySocket = new Map(); // socket.id -> pid
+function ccPid(socket, myId, p) {
+  const direct = String(p?.pid || '').trim().slice(0, 80);
+  if (direct) { casinoPidBySocket.set(socket.id, direct); return direct; }
+  return casinoPidBySocket.get(socket.id) || pidOf(myId);
+}
 function casinoPlayerFrom(socket, myId, p = {}) {
-  const pl = players.get(myId);
+  const pid = ccPid(socket, myId, p);
+  const pl = players.get(pid) || players.get(myId);
   return {
-    pid: pidOf(myId),
+    pid,
     sid: socket.id,
     name: String(p.name || pl?.name || 'Bạn').slice(0, 12),
     avatar: Number(p.avatar ?? pl?.avatar ?? 0),
@@ -177,14 +187,13 @@ function casinoNewRoom(game, bet, me) {
   const id = casinoRoomId();
   return { id, game, bet, hostPid: me.pid, players: [me], status: 'waiting', state: null, winners: null, createdAt: Date.now(), updatedAt: Date.now() };
 }
-function leaveCasinoRoom(socket, myId, notify = false) {
+function leaveCasinoRoom(socket, pid, notify = false) {
   const roomId = socketToRoom.get(socket.id);
   if (!roomId) return;
   const room = casinoRooms.get(roomId);
   socketToRoom.delete(socket.id);
   try { socket.leave('casino:' + roomId); } catch { /* ignore */ }
   if (!room) return;
-  const pid = pidOf(myId);
   room.players = room.players.filter((x) => x.pid !== pid);
   if (!room.players.length) { casinoRooms.delete(roomId); }
   else {
@@ -576,8 +585,8 @@ io.on('connection', (socket) => {
   socket.on('casino:create', (p = {}) => {
     const game = ['tienlen', 'baicao', 'caro'].includes(p.game) ? p.game : 'tienlen';
     const bet = Math.max(10, Math.min(100, Number(p.bet) || 10));
-    const me = casinoPlayerFrom(socket, myId, p.player);
-    leaveCasinoRoom(socket, myId);
+    const me = casinoPlayerFrom(socket, myId, { ...(p.player || {}), pid: p.pid });
+    leaveCasinoRoom(socket, me.pid);
     const room = casinoNewRoom(game, bet, me);
     casinoRooms.set(room.id, room);
     socket.join('casino:' + room.id);
@@ -587,7 +596,7 @@ io.on('connection', (socket) => {
   });
   socket.on('casino:join', (p = {}) => {
     const room = casinoRooms.get(String(p.roomId || '').toUpperCase());
-    const me = casinoPlayerFrom(socket, myId, p.player);
+    const me = casinoPlayerFrom(socket, myId, { ...(p.player || {}), pid: p.pid });
     if (!room) { socket.emit('casino:error', { msg: 'Phòng không tồn tại' }); return; }
     if (room.status !== 'waiting') { socket.emit('casino:error', { msg: 'Phòng đang chơi rồi' }); return; }
     if (room.players.length >= casinoMax(room.game)) { socket.emit('casino:error', { msg: 'Phòng đầy' }); return; }
@@ -597,7 +606,7 @@ io.on('connection', (socket) => {
       socket.emit('casino:state', room);
       return;
     }
-    leaveCasinoRoom(socket, myId);
+    leaveCasinoRoom(socket, me.pid);
     room.players.push(me);
     room.updatedAt = Date.now();
     socket.join('casino:' + room.id);
@@ -605,15 +614,15 @@ io.on('connection', (socket) => {
     io.to('casino:' + room.id).emit('casino:state', room);
     io.emit('casino:rooms', casinoPublic());
   });
-  socket.on('casino:leave', () => {
-    leaveCasinoRoom(socket, myId, true);
+  socket.on('casino:leave', (p = {}) => {
+    leaveCasinoRoom(socket, ccPid(socket, myId, p), true);
     socket.emit('casino:state', null);
   });
-  socket.on('casino:addbot', () => {
+  socket.on('casino:addbot', (p = {}) => {
     const roomId = socketToRoom.get(socket.id);
     const room = roomId && casinoRooms.get(roomId);
     if (!room) return;
-    if (room.hostPid !== pidOf(myId)) { socket.emit('casino:error', { msg: 'Chỉ chủ phòng thêm máy' }); return; }
+    if (room.hostPid !== ccPid(socket, myId, p)) { socket.emit('casino:error', { msg: 'Chỉ chủ phòng thêm máy' }); return; }
     if (room.status !== 'waiting') return;
     if (room.players.length >= casinoMax(room.game)) return;
     const n = room.players.filter((x) => x.bot).length + 1;
@@ -622,11 +631,11 @@ io.on('connection', (socket) => {
     io.to('casino:' + room.id).emit('casino:state', room);
     io.emit('casino:rooms', casinoPublic());
   });
-  socket.on('casino:start', () => {
+  socket.on('casino:start', (p = {}) => {
     const roomId = socketToRoom.get(socket.id);
     const room = roomId && casinoRooms.get(roomId);
     if (!room) return;
-    if (room.hostPid !== pidOf(myId)) { socket.emit('casino:error', { msg: 'Chỉ chủ phòng bắt đầu' }); return; }
+    if (room.hostPid !== ccPid(socket, myId, p)) { socket.emit('casino:error', { msg: 'Chỉ chủ phòng bắt đầu' }); return; }
     const err = casinoStartRoom(room);
     if (err) { socket.emit('casino:error', { msg: err }); return; }
     io.to('casino:' + room.id).emit('casino:state', room);
@@ -637,18 +646,18 @@ io.on('connection', (socket) => {
     const roomId = socketToRoom.get(socket.id);
     const room = roomId && casinoRooms.get(roomId);
     if (!room || room.status !== 'playing') return;
-    const pid = pidOf(myId);
+    const pid = ccPid(socket, myId, p);
     const err = casinoAction(room, pid, p);
     if (err) { socket.emit('casino:error', { msg: err }); return; }
     io.to('casino:' + room.id).emit('casino:state', room);
     io.emit('casino:rooms', casinoPublic());
     casinoMaybeBot(room);
   });
-  socket.on('casino:rematch', () => {
+  socket.on('casino:rematch', (p = {}) => {
     const roomId = socketToRoom.get(socket.id);
     const room = roomId && casinoRooms.get(roomId);
     if (!room) return;
-    if (room.hostPid !== pidOf(myId)) { socket.emit('casino:error', { msg: 'Chỉ chủ phòng mở ván mới' }); return; }
+    if (room.hostPid !== ccPid(socket, myId, p)) { socket.emit('casino:error', { msg: 'Chỉ chủ phòng mở ván mới' }); return; }
     if (room.status !== 'finished') return;
     room.status = 'waiting';
     room.state = null;
@@ -659,7 +668,9 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    leaveCasinoRoom(socket, myId, true);
+    const cpid = casinoPidBySocket.get(socket.id);
+    if (cpid) { leaveCasinoRoom(socket, cpid, true); casinoPidBySocket.delete(socket.id); }
+    else leaveCasinoRoom(socket, pidOf(myId), true);
     if (myId) { players.delete(myId); myId = null; emitSoon(); }
   });
 });
