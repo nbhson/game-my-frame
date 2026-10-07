@@ -4,6 +4,7 @@ import { useVillage } from '../net/village';
 import { normalizeCode } from '../net/session';
 import { useGame } from '../game/store';
 import { sfx } from '../game/audio';
+import { GameIcon } from './GameIcon';
 
 type Tab = 'online' | 'chat' | 'visit';
 
@@ -15,7 +16,7 @@ export default function VillageModal() {
 
   const copyCode = async () => {
     const link = `${window.location.origin}${window.location.pathname}?visit=${v.myCode}`;
-    try { await navigator.clipboard.writeText(link); useGame.getState().toast('📋 Đã copy link mời!'); }
+    try { await navigator.clipboard.writeText(link); useGame.getState().toast('Đã copy link mời!'); }
     catch { useGame.getState().toast('Mã của bạn: ' + v.myCode); }
     sfx.coin();
   };
@@ -36,17 +37,19 @@ export default function VillageModal() {
     <div>
       {/* mã của mình + trạng thái */}
       <div className="flex items-center gap-2 bg-white border-2 border-[#2b2117] rounded-lg p-2 mb-2 flex-wrap">
-        <span className="text-sm">🆔 Mã farm bạn: <b className="font-pixel text-xs bg-yellow-200 px-2 py-1 rounded">{v.myCode}</b></span>
+        <span className="text-sm">Mã farm bạn: <b className="font-pixel text-xs bg-yellow-200 px-2 py-1 rounded">{v.myCode}</b></span>
         <button onClick={copyCode} className="pixel-btn !text-[10px] !px-2 !py-1.5 flex items-center gap-1"><Copy size={12} /> Copy link mời</button>
-        <span className="text-[11px] text-stone-500">
-          {v.mode === 'supabase' ? '☁️ Cloud Supabase' : v.mode === 'socket' ? '🌐 LAN server' : '📡 Làng local (multi-tab)'} • {v.cloud === 'synced' ? '🟢 đã đồng bộ' : v.cloud === 'local' ? '🟡 local' : v.cloud === 'syncing' ? '⏳ đang sync…' : '🔴 mất kết nối'}
+        <span className="text-[11px] text-stone-500 flex items-center gap-1">
+          {v.mode === 'supabase' ? 'Cloud Supabase' : v.mode === 'socket' ? 'LAN server' : 'Làng local (multi-tab)'} •
+          <span className="inline-block w-2.5 h-2.5 rounded-full border border-black" style={{ background: v.cloud === 'synced' ? '#4ade80' : v.cloud === 'local' ? '#facc15' : v.cloud === 'syncing' ? '#f97316' : '#ef4444' }} />
+          {v.cloud === 'synced' ? 'đã đồng bộ' : v.cloud === 'local' ? 'local' : v.cloud === 'syncing' ? 'đang sync…' : 'mất kết nối'}
         </span>
       </div>
 
       <div className="flex gap-1.5 mb-2">
-        {([['online', '👥 Online'], ['chat', '💬 Chat'], ['visit', '🛵 Thăm bạn']] as [Tab, string][]).map(([k, l]) => (
-          <button key={k} onClick={() => setTab(k)} className={`px-3 py-2 border-[3px] border-[#2b2117] rounded-lg font-extrabold text-[13px] ${tab === k ? 'bg-[#2b2117] text-yellow-300' : 'bg-white'}`}>
-            {l} {k === 'online' && `(${v.players.length + (v.demoBots ? 2 : 0)})`} {k === 'chat' && v.chat.length > 0 && `(${v.chat.length})`}
+        {([['online', 'Online', <Users key="i" size={14} />], ['chat', 'Chat', <MessageCircle key="i" size={14} />], ['visit', 'Thăm bạn', <Search key="i" size={14} />]] as [Tab, string, React.ReactNode][]).map(([k, l, ic]) => (
+          <button key={k} onClick={() => setTab(k)} className={`px-3 py-2 border-[3px] border-[#2b2117] rounded-lg font-extrabold text-[13px] flex items-center gap-1.5 ${tab === k ? 'bg-[#2b2117] text-yellow-300' : 'bg-white'}`}>
+            {ic}{l} {k === 'online' && `(${v.players.length + (v.demoBots ? 2 : 0)})`} {k === 'chat' && v.chat.length > 0 && `(${v.chat.length})`}
           </button>
         ))}
       </div>
@@ -56,18 +59,18 @@ export default function VillageModal() {
           {v.players.length === 0 && !v.demoBots && (
             <p className="text-sm text-stone-500 bg-white border-2 border-dashed border-stone-300 rounded-lg p-3 text-center">
               {v.mode === 'local'
-                ? 'Chưa ai online. Mở thêm 1 tab trình duyệt cùng link này là thấy nhau ngay! 📑'
-                : 'Làng đang vắng. Chia sẻ mã farm để bạn bè vào chơi! 📣'}
+                ? 'Chưa ai online. Mở thêm 1 tab trình duyệt cùng link này là thấy nhau ngay!'
+                : 'Làng đang vắng. Chia sẻ mã farm để bạn bè vào chơi!'}
             </p>
           )}
           <div className="flex flex-col gap-2">
             {v.players.map((p) => (
-              <PlayerRow key={p.id} name={p.name} avatar={p.avatar} sub="đang trong làng" actionLabel="Thăm farm" onAction={() => { /* visit cần code; local: gửi yêu cầu */ useGame.getState().toast('Xin mã farm 6 ký tự của ' + p.name + ' ở tab Thăm bạn 🛵'); setTab('visit'); }} />
+              <PlayerRow key={p.id} name={p.name} avatar={p.avatar} sub="đang trong làng" actionLabel="Thăm farm" onAction={() => { /* visit cần code; local: gửi yêu cầu */ useGame.getState().toast('Xin mã farm 6 ký tự của ' + p.name + ' ở tab Thăm bạn'); setTab('visit'); }} />
             ))}
             {v.demoBots && (
               <>
-                <PlayerRow name="Lan🌸" avatar={1} sub="demo bot" actionLabel="Chào" onAction={() => v.sendChat('Chào Lan! 👋')} />
-                <PlayerRow name="Tèo🚜" avatar={2} sub="demo bot" actionLabel="Chào" onAction={() => v.sendChat('Chào Tèo! 👋')} />
+                <PlayerRow name="Lan" avatar={1} sub="demo bot" actionLabel="Chào" onAction={() => v.sendChat('Chào Lan!')} />
+                <PlayerRow name="Tèo" avatar={2} sub="demo bot" actionLabel="Chào" onAction={() => v.sendChat('Chào Tèo!')} />
               </>
             )}
           </div>
@@ -81,7 +84,7 @@ export default function VillageModal() {
       {tab === 'chat' && (
         <div>
           <div className="bg-white border-2 border-[#2b2117] rounded-lg h-56 overflow-y-auto p-2 flex flex-col gap-1.5">
-            {v.chat.length === 0 && <p className="text-sm text-stone-400 text-center mt-4">Chưa có tin nhắn. Chào làng một câu đi! 👋</p>}
+            {v.chat.length === 0 && <p className="text-sm text-stone-400 text-center mt-4">Chưa có tin nhắn. Chào làng một câu đi!</p>}
             {v.chat.map((m) => (
               <div key={m.id} className="text-sm">
                 <b>{m.fromName}:</b> {m.text}
@@ -98,13 +101,13 @@ export default function VillageModal() {
             />
             <button onClick={send} className="pixel-btn !text-[11px] flex items-center gap-1"><MessageCircle size={14} /> Gửi</button>
           </div>
-          <p className="text-[11px] text-stone-500 mt-1">Tin nhắn cũng hiện bóng chat trên đầu nhân vật trong game 💬</p>
+          <p className="text-[11px] text-stone-500 mt-1">Tin nhắn cũng hiện bóng chat trên đầu nhân vật trong game</p>
         </div>
       )}
 
       {tab === 'visit' && (
         <div>
-          <p className="text-sm mb-2">Nhập <b>mã farm 6 ký tự</b> của bạn bè để qua thăm (xem ruộng/ao/chuồng, đi dạo + chat). Thăm ở chế độ chỉ-xem kiểu Avatar 👀</p>
+          <p className="text-sm mb-2">Nhập <b>mã farm 6 ký tự</b> của bạn bè để qua thăm (xem ruộng/ao/chuồng, đi dạo + chat). Thăm ở chế độ chỉ-xem kiểu Avatar</p>
           <div className="flex gap-2">
             <input
               value={code}
@@ -121,10 +124,10 @@ export default function VillageModal() {
           )}
           <p className="text-[11px] text-stone-500 mt-2">
             {v.mode === 'local'
-              ? '📡 Local: chỉ thăm được farm cùng máy (tab khác đang mở hoặc đã sync).'
+              ? 'Local: chỉ thăm được farm cùng máy (tab khác đang mở hoặc đã sync).'
               : v.mode === 'socket'
-                ? '🌐 LAN: thăm được mọi farm trong mạng (kể cả chủ đã thoát, farm lưu ở server).'
-                : '☁️ Cloud: thăm được farm bất kỳ đã từng online, kể cả chủ đang offline.'}
+                ? 'LAN: thăm được mọi farm trong mạng (kể cả chủ đã thoát, farm lưu ở server).'
+                : 'Cloud: thăm được farm bất kỳ đã từng online, kể cả chủ đang offline.'}
           </p>
         </div>
       )}
@@ -133,14 +136,13 @@ export default function VillageModal() {
 }
 
 function PlayerRow({ name, avatar, sub, actionLabel, onAction }: { name: string; avatar: number; sub: string; actionLabel: string; onAction: () => void }) {
-  const faces = ['🧑‍🌾', '👩‍🌾', '👦', '🤠'];
   return (
     <div className="flex items-center justify-between bg-white border-[3px] border-[#2b2117] rounded-lg px-3 py-2">
       <div className="flex items-center gap-2">
-        <span className="text-2xl">{faces[avatar % faces.length]}</span>
+        <GameIcon name={`farmer${avatar % 4}`} size={30} />
         <div>
           <div className="font-extrabold text-sm flex items-center gap-1"><Users size={12} /> {name}</div>
-          <div className="text-[11px] text-stone-500">🟢 {sub}</div>
+          <div className="text-[11px] text-stone-500 flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full bg-green-500 border border-black" /> {sub}</div>
         </div>
       </div>
       <button onClick={onAction} className="pixel-btn !text-[10px] !px-2 !py-1.5">{actionLabel}</button>

@@ -1,5 +1,6 @@
 import { QUESTS } from '../game/data';
 import { useGame } from '../game/store';
+import { GameIcon } from './GameIcon';
 
 export default function QuestModal() {
   const questIdx = useGame((s) => s.questIdx);
@@ -10,9 +11,9 @@ export default function QuestModal() {
         const cur = i === questIdx;
         return (
           <div key={q.id} className={`border-[3px] rounded-lg p-2.5 mb-2 bg-white ${done ? 'opacity-70 border-green-600' : cur ? 'border-yellow-500' : 'border-[#2b2117]'}`}>
-            <b>{done ? '✅' : cur ? '📌' : '🔒'} NV{i + 1}: {q.text}</b>
+            <b className="flex items-center gap-1.5">{done ? <GameIcon name="check" size={17} /> : cur ? <GameIcon name="star" size={17} /> : <GameIcon name="lock" size={15} />} NV{i + 1}: {q.text}</b>
             <br />
-            <small>🎁 {q.reward.xu ? `+${q.reward.xu} xu ` : ''}{q.reward.gem ? `+${q.reward.gem} 💎 ` : ''}{q.reward.xp ? `+${q.reward.xp} XP` : ''}</small>
+            <small className="flex items-center gap-1 flex-wrap"><GameIcon name="gift" size={15} /> {q.reward.xu ? `+${q.reward.xu} xu ` : ''}{q.reward.gem ? (<span className="inline-flex items-center gap-0.5">+{q.reward.gem} <GameIcon name="gem" size={12} /></span>) : ''}{q.reward.xp ? `+${q.reward.xp} XP` : ''}</small>
           </div>
         );
       })}

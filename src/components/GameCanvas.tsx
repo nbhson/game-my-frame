@@ -31,7 +31,7 @@ export function doInteractWith(t: InteractTarget | null | undefined) {
   if (!t) return;
   if (v.visiting) {
     // đang thăm farm bạn: chỉ được đi dạo + chat (kiểu Avatar)
-    s.toast('👀 Đang thăm farm bạn — về farm mình để làm việc nhé!');
+    s.toast('Đang thăm farm bạn — về farm mình để làm việc nhé!');
     return;
   }
   sfx.click();
@@ -48,7 +48,7 @@ function startRiverAt(pier: number) {
   const s = useGame.getState();
   const hasNormal = (s.inv.bait || 0) > 0;
   const hasPro = (s.inv.baitPro || 0) > 0;
-  if (!hasNormal && !hasPro) { sfx.error(); s.toast('Hết mồi câu! Mua ở cửa hàng 🏪'); return; }
+  if (!hasNormal && !hasPro) { sfx.error(); s.toast('Hết mồi câu! Mua ở cửa hàng'); return; }
   if (hasNormal && hasPro) { s.setModal({ name: 'bait', pier }); return; }
   sitAndFish(pier, hasPro ? 'baitPro' : 'bait');
 }
@@ -311,7 +311,7 @@ function RiverHint() {
   const biting = biteAt != null && biteUntil != null && now >= biteAt && now <= biteUntil;
   return (
     <div className={`absolute bottom-20 left-1/2 -translate-x-1/2 border-[3px] border-[#2b2117] rounded-full px-5 py-2 font-extrabold shadow-pixel whitespace-nowrap z-[5] ${biting ? 'bg-red-400 text-white animate-bounce text-lg' : 'bg-[#fff8dc] animate-pulse'}`}>
-      {biting ? '❗ GIẬT NGAY (E)!' : '🎣 Đang đợi cá… (E: thu cần)'}
+      {biting ? 'GIẬT NGAY (E)!' : 'Đang đợi cá… (E: thu cần)'}
     </div>
   );
 }

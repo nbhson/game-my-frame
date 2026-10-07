@@ -6,10 +6,15 @@ import {
 import { useGame } from '../game/store';
 import type { AnimalType, ShopTab } from '../game/types';
 import { sfx } from '../game/audio';
+import { GameIcon, iconForPid } from './GameIcon';
 
-const TABS: [ShopTab, string][] = [
-  ['seed', '🌱 Hạt'], ['fish', '🐟 Cá'], ['animal', '🐔 Vật nuôi'], ['food', '🍞 Thức ăn'], ['sell', '💰 Bán'],
+const TABS: [ShopTab, string, string][] = [
+  ['seed', 'sprout', 'Hạt'], ['fish', 'caro', 'Cá'], ['animal', 'chicken', 'Vật nuôi'], ['food', 'feed', 'Thức ăn'], ['sell', 'coin', 'Bán'],
 ];
+
+function Coin({ v }: { v: number | string }) {
+  return (<span className="inline-flex items-center gap-0.5">{v}<GameIcon name="coin" size={13} /></span>);
+}
 
 export default function ShopModal() {
   const s = useGame();
@@ -19,13 +24,13 @@ export default function ShopModal() {
   return (
     <div>
       <div className="flex gap-1.5 mb-3 flex-wrap">
-        {TABS.map(([k, l]) => (
+        {TABS.map(([k, ic, l]) => (
           <button
             key={k}
             onClick={() => { sfx.click(); s.setShopTab(k); }}
-            className={`px-3 py-2 border-[3px] border-[#2b2117] rounded-lg font-extrabold text-[13px] ${tab === k ? 'bg-[#2b2117] text-yellow-300' : 'bg-white'}`}
+            className={`px-3 py-2 border-[3px] border-[#2b2117] rounded-lg font-extrabold text-[13px] flex items-center gap-1.5 ${tab === k ? 'bg-[#2b2117] text-yellow-300' : 'bg-white'}`}
           >
-            {l}
+            <GameIcon name={ic} size={18} />{l}
           </button>
         ))}
       </div>
@@ -33,8 +38,8 @@ export default function ShopModal() {
       {tab === 'seed' && (
         <div>
           <ExpandCard
-            emoji="🏞️" title={`Mở rộng ruộng (${unlockedPlots}/${MAX_PLOTS})`}
-            desc={unlockedPlots >= MAX_PLOTS ? 'Đã tối đa!' : `Ô tiếp theo: ${plotCost(unlockedPlots)}🪙 • cần Lv${plotReq(unlockedPlots)}`}
+            icon="field" title={`Mở rộng ruộng (${unlockedPlots}/${MAX_PLOTS})`}
+            desc={unlockedPlots >= MAX_PLOTS ? 'Đã tối đa!' : (<>Ô tiếp theo: <Coin v={plotCost(unlockedPlots)} /> • cần Lv{plotReq(unlockedPlots)}</>)}
             btn={unlockedPlots >= MAX_PLOTS ? null : 'Mở ô đất'}
             onBuy={() => s.unlockPlot(unlockedPlots)}
           />
@@ -42,7 +47,7 @@ export default function ShopModal() {
             {Object.values(CROPS).map((c) => {
               const lock = s.level < c.lv;
               return (
-                <Card key={c.id} emoji={c.emoji} title={`${c.name} ${lock ? '🔒Lv' + c.lv : ''}`} desc={`${c.desc} • ⏱${c.grow}s • Bán ${c.sell}🪙 • +${c.xp}XP`} price={`🌰 ${c.seedPrice}🪙`}>
+                <Card key={c.id} icon={c.id} title={<>{c.name} {lock && (<span className="inline-flex items-center gap-0.5"><GameIcon name="lock" size={12} />Lv{c.lv}</span>)}</>} desc={<>{c.desc} • {c.grow}s • Bán <Coin v={c.sell} /> • +{c.xp}XP</>} price={<><GameIcon name="seed" size={14} /> <Coin v={c.seedPrice} /></>}>
                   <button disabled={lock} className="pixel-btn !text-[10px] !px-2 !py-2" onClick={() => s.buySeed(c.id)}>Mua</button>
                 </Card>
               );
@@ -53,8 +58,8 @@ export default function ShopModal() {
       {tab === 'fish' && (
         <div>
           <ExpandCard
-            emoji="🐟" title={`Mở rộng ao (${s.fishes.length}/${s.pondSlots}${s.pondSlots < MAX_POND ? ` → ${s.pondSlots + 1}` : ''})`}
-            desc={s.pondSlots >= MAX_POND ? `Đã tối đa ${MAX_POND}!` : `Chỗ nuôi tiếp theo: ${pondCost(s.pondSlots)}🪙 • cần Lv${pondReq(s.pondSlots)}`}
+            icon="pond" title={`Mở rộng ao (${s.fishes.length}/${s.pondSlots}${s.pondSlots < MAX_POND ? ` → ${s.pondSlots + 1}` : ''})`}
+            desc={s.pondSlots >= MAX_POND ? `Đã tối đa ${MAX_POND}!` : (<>Chỗ nuôi tiếp theo: <Coin v={pondCost(s.pondSlots)} /> • cần Lv{pondReq(s.pondSlots)}</>)}
             btn={s.pondSlots >= MAX_POND ? null : 'Mở rộng ao'}
             onBuy={() => s.unlockPondSlot()}
           />
@@ -62,7 +67,7 @@ export default function ShopModal() {
             {Object.values(FISHES).map((ff) => {
               const lock = s.level < ff.lv;
               return (
-                <Card key={ff.id} emoji={ff.emoji} title={`${ff.name} ${lock ? '🔒Lv' + ff.lv : ''}`} desc={`${ff.desc} • ⏱${ff.grow}s • Bán ${ff.sell}🪙 • +${ff.xp}XP`} price={`${ff.babyPrice}🪙`}>
+                <Card key={ff.id} icon={ff.id} title={<>{ff.name} {lock && (<span className="inline-flex items-center gap-0.5"><GameIcon name="lock" size={12} />Lv{ff.lv}</span>)}</>} desc={<>{ff.desc} • {ff.grow}s • Bán <Coin v={ff.sell} /> • +{ff.xp}XP</>} price={<Coin v={ff.babyPrice} />}>
                   <button disabled={lock} className="pixel-btn !text-[10px] !px-2 !py-2" onClick={() => s.buyFish(ff.id)}>Mua con</button>
                 </Card>
               );
@@ -80,12 +85,12 @@ export default function ShopModal() {
             const nextCost = capCost(a.id, cap + 1);
             const nextReq = capReq(a.id, cap + 1);
             return (
-              <Card key={a.id} emoji={a.emoji} title={`${a.name} ${lock ? '🔒Lv' + a.lv : ''}`} desc={`${a.desc} • SP: ${a.product} (${a.sell}🪙) • Chuồng ${count}/${cap}`} price={`${a.babyPrice}🪙`}>
+              <Card key={a.id} icon={a.id} title={<>{a.name} {lock && (<span className="inline-flex items-center gap-0.5"><GameIcon name="lock" size={12} />Lv{a.lv}</span>)}</>} desc={<>{a.desc} • SP: {a.product} (<Coin v={a.sell} />) • Chuồng {count}/{cap}</>} price={<Coin v={a.babyPrice} />}>
                 <div className="flex gap-1 justify-center flex-wrap">
                   <button disabled={lock} className="pixel-btn !text-[10px] !px-2 !py-2" onClick={() => s.buyAnimal(a.id)}>Mua</button>
                   {!maxed && (
                     <button className="pixel-btn !text-[10px] !px-2 !py-2 !bg-sky-300" title={`Cần Lv${nextReq}`} onClick={() => s.expandCap(a.id as AnimalType)}>
-                      +Chuồng {nextCost}🪙
+                      +Chuồng <Coin v={nextCost} />
                     </button>
                   )}
                 </div>
@@ -96,44 +101,44 @@ export default function ShopModal() {
       )}
       {tab === 'food' && (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-          <Card emoji="🌽" title="Cám thường" desc="Cho mọi vật nuôi & cá. Hết cám thường sẽ tự dùng cám cao cấp" price={`${FEED_PRICE}🪙`}>
+          <Card icon="feed" title="Cám thường" desc="Cho mọi vật nuôi & cá. Hết cám thường sẽ tự dùng cám cao cấp" price={<Coin v={FEED_PRICE} />}>
             <div className="flex gap-1 justify-center">
               <button className="pixel-btn !text-[10px] !px-2 !py-2" onClick={() => s.buyFeed('feed', 1)}>Mua</button>
               <button className="pixel-btn !text-[10px] !px-2 !py-2" onClick={() => s.buyFeed('feed', 5)}>x5</button>
             </div>
           </Card>
-          <Card emoji="🥜" title="Cám cao cấp 🔒Lv8" desc="No căng + tăng tốc ra sản phẩm / cá lớn vọt" price={`${FEED_PRO_PRICE}🪙`}>
+          <Card icon="feedPro" title={<>Cám cao cấp <GameIcon name="lock" size={12} />Lv8</>} desc="No căng + tăng tốc ra sản phẩm / cá lớn vọt" price={<Coin v={FEED_PRO_PRICE} />}>
             <div className="flex gap-1 justify-center">
               <button disabled={s.level < 8} className="pixel-btn !text-[10px] !px-2 !py-2" onClick={() => s.buyFeed('feedPro', 1)}>Mua</button>
               <button disabled={s.level < 8} className="pixel-btn !text-[10px] !px-2 !py-2" onClick={() => s.buyFeed('feedPro', 5)}>x5</button>
             </div>
           </Card>
-          <Card emoji="🪱" title="Mồi thường" desc="Câu ở sông. Cá rẻ dễ dính" price={`${BAIT_PRICE}🪙`}>
+          <Card icon="bait" title="Mồi thường" desc="Câu ở sông. Cá rẻ dễ dính" price={<Coin v={BAIT_PRICE} />}>
             <div className="flex gap-1 justify-center">
               <button className="pixel-btn !text-[10px] !px-2 !py-2" onClick={() => s.buyBait('bait', 1)}>Mua</button>
               <button className="pixel-btn !text-[10px] !px-2 !py-2" onClick={() => s.buyBait('bait', 5)}>x5</button>
             </div>
           </Card>
-          <Card emoji="🦐" title="Mồi ngon 🔒Lv10" desc="Tỉ lệ cá hiếm x5, ít dính rác" price={`${BAIT_PRO_PRICE}🪙`}>
+          <Card icon="baitPro" title={<>Mồi ngon <GameIcon name="lock" size={12} />Lv10</>} desc="Tỉ lệ cá hiếm x5, ít dính rác" price={<Coin v={BAIT_PRO_PRICE} />}>
             <div className="flex gap-1 justify-center">
               <button disabled={s.level < 10} className="pixel-btn !text-[10px] !px-2 !py-2" onClick={() => s.buyBait('baitPro', 1)}>Mua</button>
               <button disabled={s.level < 10} className="pixel-btn !text-[10px] !px-2 !py-2" onClick={() => s.buyBait('baitPro', 5)}>x5</button>
             </div>
           </Card>
-          <Card emoji="💎" title="Đổi gem" desc="5 💎 = 500 🪙" price="5💎">
+          <Card icon="gem" title="Đổi gem" desc="5 gem = 500 xu" price={<span className="inline-flex items-center gap-0.5">5<GameIcon name="gem" size={13} /></span>}>
             <button className="pixel-btn !text-[10px] !px-2 !py-2" onClick={() => s.exchangeGem()}>Đổi</button>
           </Card>
         </div>
       )}
       {tab === 'sell' && (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-          {Object.keys(s.inv).length === 0 && <p>Kho trống! Thu hoạch rồi quay lại bán nhé 🌾</p>}
+          {Object.keys(s.inv).length === 0 && <p>Kho trống! Thu hoạch rồi quay lại bán nhé</p>}
           {Object.keys(s.inv)
             .filter((pid) => !pid.startsWith('seed:') && !pid.startsWith('baby'))
             .map((pid) => {
-              const [nm, em] = itemName(pid);
+              const [nm] = itemName(pid);
               return (
-                <Card key={pid} emoji={em} title={`${nm} x${s.inv[pid]}`} desc="" price={`${sellPrice(pid)}🪙 / cái`}>
+                <Card key={pid} icon={iconForPid(pid)} title={`${nm} x${s.inv[pid]}`} desc="" price={<><Coin v={sellPrice(pid)} /> / cái</>}>
                   <div className="flex gap-1 justify-center">
                     <button className="pixel-btn !text-[10px] !px-2 !py-2" onClick={() => s.sell(pid, false)}>Bán 1</button>
                     <button className="pixel-btn !text-[10px] !px-2 !py-2" onClick={() => s.sell(pid, true)}>Hết</button>
@@ -143,17 +148,17 @@ export default function ShopModal() {
             })}
         </div>
       )}
-      <p className="mt-3 font-extrabold">🪙 {s.xu} • 💎 {s.gem} • Lv {s.level} • 🌾 {s.plots.filter((p) => !p.locked).length}/{MAX_PLOTS} ô • 🐟 {s.fishes.length}/{s.pondSlots} cá</p>
+      <p className="mt-3 font-extrabold flex items-center gap-1.5 flex-wrap"><Coin v={s.xu} /> • <span className="inline-flex items-center gap-0.5"><GameIcon name="gem" size={14} /> {s.gem}</span> • Lv {s.level} • <GameIcon name="field" size={15} /> {s.plots.filter((p) => !p.locked).length}/{MAX_PLOTS} ô • <GameIcon name="pond" size={15} /> {s.fishes.length}/{s.pondSlots} cá</p>
       <p className="text-[11px] text-stone-500">Mặc định: {START_PLOTS} ô đất • {START_POND} chỗ nuôi cá • mỗi chuồng 3 con</p>
     </div>
   );
 }
 
-function ExpandCard({ emoji, title, desc, btn, onBuy }: { emoji: string; title: string; desc: string; btn: string | null; onBuy: () => void }) {
+function ExpandCard({ icon, title, desc, btn, onBuy }: { icon: string; title: string; desc: React.ReactNode; btn: string | null; onBuy: () => void }) {
   return (
     <div className="flex items-center justify-between gap-2 bg-sky-100 border-[3px] border-sky-600 rounded-lg p-2.5">
       <div className="flex items-center gap-2">
-        <span className="text-3xl">{emoji}</span>
+        <GameIcon name={icon} size={34} />
         <div>
           <div className="font-extrabold text-[13px]">{title}</div>
           <div className="text-[11px] text-stone-600">{desc}</div>
@@ -164,13 +169,13 @@ function ExpandCard({ emoji, title, desc, btn, onBuy }: { emoji: string; title: 
   );
 }
 
-function Card({ emoji, title, desc, price, children }: { emoji: string; title: string; desc: string; price: string; children: React.ReactNode }) {
+function Card({ icon, title, desc, price, children }: { icon: string; title: React.ReactNode; desc: React.ReactNode; price: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="bg-white border-[3px] border-[#2b2117] rounded-lg p-2.5 text-center">
-      <div className="text-4xl">{emoji}</div>
+      <div className="flex justify-center"><GameIcon name={icon} size={40} /></div>
       <h4 className="text-[13px] font-extrabold my-1">{title}</h4>
       <p className="text-[11px] text-stone-500 min-h-8">{desc}</p>
-      <div className="font-extrabold text-orange-700 my-1">{price}</div>
+      <div className="font-extrabold text-orange-700 my-1 flex items-center justify-center gap-1">{price}</div>
       <div className="flex gap-1 justify-center">{children}</div>
     </div>
   );

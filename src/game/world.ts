@@ -3,7 +3,12 @@ export const TILE = 48;
 export const WORLD = { w: 1600, h: 1200 };
 
 // Ruộng 45 ô (9 cột x 5 hàng), mở khóa dần từ 6 ô đầu
-export const FARM = { x: 40, y: 230, w: 980, h: 500, cols: 9, rows: 5 };
+export const FARM = { x: 40, y: 230, w: 940, h: 460, cols: 9, rows: 5 };
+// Đường đất rộng rãi: dọc + ngang (đủ chỗ cho 2 nhân vật + chó mèo đi qua)
+export const ROAD_V = { x: 996, w: 70, y0: 0, y1: 1060 }; // 996..1066
+export const ROAD_H = { y: 710, h: 70, x0: 0, x1: 1600 }; // 710..780
+export function roadVCenter() { return ROAD_V.x + ROAD_V.w / 2; }
+export function roadHCenter() { return ROAD_H.y + ROAD_H.h / 2; }
 // Ao vuông tự nhiên (không chia ngăn, cá bơi tự do) — top ngang hàng ruộng (y=230)
 export const POND = { x: 1080, y: 230, w: 440, h: 380 };
 export function pondCenter() {
@@ -43,9 +48,9 @@ export function isBlocked(x: number, y: number): boolean {
   return false;
 }
 
-/** Hòm thư trước ao/chuồng: xem thông tin + mở khóa */
+/** Hòm thư trước ao/chuồng: xem thông tin + mở khóa (đặt trên cỏ, né đường đi) */
 export const PEN_MB = {
   pond: { x: 1300, y: 656 },
-  coop: { x: 280, y: 748 },
-  barn: { x: 770, y: 748 },
+  coop: { x: 280, y: 806 },
+  barn: { x: 770, y: 806 },
 };

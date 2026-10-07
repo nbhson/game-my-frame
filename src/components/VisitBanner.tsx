@@ -8,7 +8,7 @@ export default function VisitBanner() {
   if (!visiting) return null;
   return (
     <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[6] flex items-center gap-2 bg-purple-900/90 text-white border-2 border-yellow-300 rounded-full px-4 py-1.5 text-sm font-bold shadow-lg whitespace-nowrap">
-      <span>👀 Đang thăm farm của <b>{visiting.snap.name}</b> (Lv {visiting.snap.level})</span>
+      <span>Đang thăm farm của <b>{visiting.snap.name}</b> (Lv {visiting.snap.level})</span>
       <button onClick={leaveVisit} className="bg-yellow-300 text-black rounded-full px-3 py-0.5 font-extrabold flex items-center gap-1 hover:bg-yellow-200">
         <Home size={14} /> Về nhà
       </button>

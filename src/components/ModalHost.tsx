@@ -10,6 +10,7 @@ import SeedModal from './SeedModal';
 import StockModal from './StockModal';
 import BaitModal from './BaitModal';
 import PenModal from './PenModal';
+import { GameIcon } from './GameIcon';
 
 export default function ModalHost() {
   const modal = useGame((s) => s.modal);
@@ -17,17 +18,19 @@ export default function ModalHost() {
   if (!modal) return null;
 
   let title = '';
+  let icon = '';
   let body: React.ReactNode = null;
-  if (modal === 'shop') { title = '🏪 CỬA HÀNG NÔNG TRẠI'; body = <ShopModal />; }
-  else if (modal === 'bag') { title = '🎒 KHO ĐỒ'; body = <BagModal />; }
-  else if (modal === 'quest') { title = '📜 NHIỆM VỤ'; body = <QuestModal />; }
-  else if (modal === 'help') { title = '❓ HƯỚNG DẪN'; body = <HelpModal />; }
-  else if (modal === 'village') { title = '🛖 LÀNG NÔNG DÂN'; body = <VillageModal />; }
-  else if (typeof modal === 'object' && modal.name === 'seed') { title = `🌱 GIEO HẠT (ô ${modal.plot + 1})`; body = <SeedModal plot={modal.plot} />; }
-  else if (typeof modal === 'object' && modal.name === 'stock') { title = '🐟 THẢ CÁ XUỐNG AO'; body = <StockModal />; }
-  else if (typeof modal === 'object' && modal.name === 'bait') { title = '🎣 CHỌN MỒI CÂU'; body = <BaitModal pier={modal.pier} />; }
+  if (modal === 'shop') { icon = 'shop'; title = 'CỬA HÀNG NÔNG TRẠI'; body = <ShopModal />; }
+  else if (modal === 'bag') { icon = 'bag'; title = 'KHO ĐỒ'; body = <BagModal />; }
+  else if (modal === 'quest') { icon = 'quest'; title = 'NHIỆM VỤ'; body = <QuestModal />; }
+  else if (modal === 'help') { icon = 'quest'; title = 'HƯỚNG DẪN'; body = <HelpModal />; }
+  else if (modal === 'village') { icon = 'field'; title = 'LÀNG NÔNG DÂN'; body = <VillageModal />; }
+  else if (typeof modal === 'object' && modal.name === 'seed') { icon = 'sprout'; title = `GIEO HẠT (ô ${modal.plot + 1})`; body = <SeedModal plot={modal.plot} />; }
+  else if (typeof modal === 'object' && modal.name === 'stock') { icon = 'pond'; title = 'THẢ CÁ XUỐNG AO'; body = <StockModal />; }
+  else if (typeof modal === 'object' && modal.name === 'bait') { icon = 'rod'; title = 'CHỌN MỒI CÂU'; body = <BaitModal pier={modal.pier} />; }
   else if (typeof modal === 'object' && modal.name === 'pen') {
-    title = modal.pen === 'pond' ? '📮 AO CÁ' : modal.pen === 'coop' ? '📮 CHUỒNG GÀ–VỊT' : '📮 TRẠI BÒ–HEO–CỪU';
+    icon = 'mail';
+    title = modal.pen === 'pond' ? 'AO CÁ' : modal.pen === 'coop' ? 'CHUỒNG GÀ–VỊT' : 'TRẠI BÒ–HEO–CỪU';
     body = <PenModal pen={modal.pen} />;
   }
 
@@ -44,7 +47,7 @@ export default function ModalHost() {
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex justify-between items-center bg-green-600 text-white px-4 py-2.5 font-pixel text-[13px] border-b-4 border-[#2b2117]">
-            <span>{title}</span>
+            <span className="flex items-center gap-2"><GameIcon name={icon} size={22} />{title}</span>
             <button onClick={() => setModal(null)} className="bg-red-500 border-2 border-black rounded-md w-8 h-8 flex items-center justify-center hover:bg-red-400">
               <X size={16} />
             </button>

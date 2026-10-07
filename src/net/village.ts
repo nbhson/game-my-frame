@@ -70,8 +70,8 @@ function snapshotOfGame(): FarmPayload {
 
 // --- demo bots: 2 nông dân đi loanh quanh để test 1 tab vẫn thấy làng đông ---
 const BOTS: RemotePlayer[] = [
-  { id: 'bot-lan', name: 'Lan🌸', avatar: 1, x: 400, y: 500, dir: 1, moving: true, updatedAt: Date.now() },
-  { id: 'bot-teo', name: 'Tèo🚜', avatar: 2, x: 1200, y: 900, dir: -1, moving: true, updatedAt: Date.now() },
+  { id: 'bot-lan', name: 'Lan', avatar: 1, x: 400, y: 500, dir: 1, moving: true, updatedAt: Date.now() },
+  { id: 'bot-teo', name: 'Tèo', avatar: 2, x: 1200, y: 900, dir: -1, moving: true, updatedAt: Date.now() },
 ];
 function botPositions(t: number): RemotePlayer[] {
   return BOTS.map((b, i) => ({
@@ -165,11 +165,11 @@ export const useVillage = create<VillageState>()((set, get) => ({
     // 1. farm của mình (local echo)
     const snap = await transport.fetchFarm(c);
     if (!snap || !snap.plots) {
-      useGame.getState().toast('🔍 Không tìm thấy farm mã ' + c);
+      useGame.getState().toast('Không tìm thấy farm mã ' + c);
       return false;
     }
     set({ visiting: { code: c, snap } });
-    useGame.getState().toast(`🛵 Đang thăm farm của ${snap.name}!`);
+    useGame.getState().toast(`Đang thăm farm của ${snap.name}!`);
     return true;
   },
 

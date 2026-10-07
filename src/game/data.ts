@@ -20,40 +20,40 @@ export interface AnimalDef {
 }
 
 export const CROPS: Record<string, CropDef> = {
-  lua:     { id: 'lua',     name: 'Lúa',         emoji: '🌾', seedPrice: 10,   sell: 28,    grow: 35,  xp: 6,   lv: 1,  desc: 'Lớn nhanh, dễ trồng' },
-  carot:   { id: 'carot',   name: 'Cà rốt',      emoji: '🥕', seedPrice: 25,   sell: 65,    grow: 70,  xp: 12,  lv: 2,  desc: 'Củ ngọt giòn' },
-  caixanh: { id: 'caixanh', name: 'Cải xanh',    emoji: '🥬', seedPrice: 40,   sell: 110,   grow: 95,  xp: 16,  lv: 4,  desc: 'Rau sạch mỗi ngày' },
-  cachua:  { id: 'cachua',  name: 'Cà chua',     emoji: '🍅', seedPrice: 60,   sell: 160,   grow: 120, xp: 22,  lv: 6,  desc: 'Mọng nước' },
-  khoai:   { id: 'khoai',   name: 'Khoai tây',   emoji: '🥔', seedPrice: 100,  sell: 260,   grow: 150, xp: 30,  lv: 9,  desc: 'Bùi béo' },
-  bap:     { id: 'bap',     name: 'Bắp',         emoji: '🌽', seedPrice: 150,  sell: 400,   grow: 190, xp: 42,  lv: 12, desc: 'Vàng óng' },
-  dualeo:  { id: 'dualeo',  name: 'Dưa leo',      emoji: '🥒', seedPrice: 220,  sell: 580,   grow: 230, xp: 55,  lv: 16, desc: 'Giòn mát' },
-  catim:   { id: 'catim',   name: 'Cà tím',      emoji: '🍆', seedPrice: 320,  sell: 850,   grow: 280, xp: 70,  lv: 20, desc: 'Bóng mượt' },
-  dautay:  { id: 'dautay',  name: 'Dâu tây',     emoji: '🍓', seedPrice: 450,  sell: 1250,  grow: 330, xp: 90,  lv: 25, desc: 'Chua ngọt' },
-  duahau:  { id: 'duahau',  name: 'Dưa hấu',     emoji: '🍉', seedPrice: 650,  sell: 1800,  grow: 400, xp: 120, lv: 32, desc: 'Ngọt lịm ngày hè' },
-  nho:     { id: 'nho',     name: 'Nho',         emoji: '🍇', seedPrice: 950,  sell: 2600,  grow: 480, xp: 160, lv: 40, desc: 'Chùm trĩu quả' },
-  bingo:   { id: 'bingo',   name: 'Bí ngô',      emoji: '🎃', seedPrice: 1400, sell: 3900,  grow: 560, xp: 210, lv: 50, desc: 'Quả to khổng lồ' },
-  caphe:   { id: 'caphe',   name: 'Cà phê',      emoji: '☕', seedPrice: 2200, sell: 6200,  grow: 660, xp: 280, lv: 65, desc: 'Thơm nức mũi' },
-  nam:     { id: 'nam',     name: 'Nấm linh chi', emoji: '🍄', seedPrice: 3500, sell: 10000, grow: 780, xp: 380, lv: 80, desc: 'Dược liệu quý' },
-  sam:     { id: 'sam',     name: 'Nhân sâm',    emoji: '🫚', seedPrice: 6000, sell: 18000, grow: 900, xp: 550, lv: 95, desc: 'Ngàn năm tuổi' },
+  lua:     { id: 'lua',     name: 'Lúa',         emoji: '', seedPrice: 10,   sell: 28,    grow: 35,  xp: 6,   lv: 1,  desc: 'Lớn nhanh, dễ trồng' },
+  carot:   { id: 'carot',   name: 'Cà rốt',      emoji: '', seedPrice: 25,   sell: 65,    grow: 70,  xp: 12,  lv: 2,  desc: 'Củ ngọt giòn' },
+  caixanh: { id: 'caixanh', name: 'Cải xanh',    emoji: '', seedPrice: 40,   sell: 110,   grow: 95,  xp: 16,  lv: 4,  desc: 'Rau sạch mỗi ngày' },
+  cachua:  { id: 'cachua',  name: 'Cà chua',     emoji: '', seedPrice: 60,   sell: 160,   grow: 120, xp: 22,  lv: 6,  desc: 'Mọng nước' },
+  khoai:   { id: 'khoai',   name: 'Khoai tây',   emoji: '', seedPrice: 100,  sell: 260,   grow: 150, xp: 30,  lv: 9,  desc: 'Bùi béo' },
+  bap:     { id: 'bap',     name: 'Bắp',         emoji: '', seedPrice: 150,  sell: 400,   grow: 190, xp: 42,  lv: 12, desc: 'Vàng óng' },
+  dualeo:  { id: 'dualeo',  name: 'Dưa leo',      emoji: '', seedPrice: 220,  sell: 580,   grow: 230, xp: 55,  lv: 16, desc: 'Giòn mát' },
+  catim:   { id: 'catim',   name: 'Cà tím',      emoji: '', seedPrice: 320,  sell: 850,   grow: 280, xp: 70,  lv: 20, desc: 'Bóng mượt' },
+  dautay:  { id: 'dautay',  name: 'Dâu tây',     emoji: '', seedPrice: 450,  sell: 1250,  grow: 330, xp: 90,  lv: 25, desc: 'Chua ngọt' },
+  duahau:  { id: 'duahau',  name: 'Dưa hấu',     emoji: '', seedPrice: 650,  sell: 1800,  grow: 400, xp: 120, lv: 32, desc: 'Ngọt lịm ngày hè' },
+  nho:     { id: 'nho',     name: 'Nho',         emoji: '', seedPrice: 950,  sell: 2600,  grow: 480, xp: 160, lv: 40, desc: 'Chùm trĩu quả' },
+  bingo:   { id: 'bingo',   name: 'Bí ngô',      emoji: '', seedPrice: 1400, sell: 3900,  grow: 560, xp: 210, lv: 50, desc: 'Quả to khổng lồ' },
+  caphe:   { id: 'caphe',   name: 'Cà phê',      emoji: '', seedPrice: 2200, sell: 6200,  grow: 660, xp: 280, lv: 65, desc: 'Thơm nức mũi' },
+  nam:     { id: 'nam',     name: 'Nấm linh chi', emoji: '', seedPrice: 3500, sell: 10000, grow: 780, xp: 380, lv: 80, desc: 'Dược liệu quý' },
+  sam:     { id: 'sam',     name: 'Nhân sâm',    emoji: '', seedPrice: 6000, sell: 18000, grow: 900, xp: 550, lv: 95, desc: 'Ngàn năm tuổi' },
 };
 
 export const FISHES: Record<string, FishDef> = {
-  caro:     { id: 'caro',     name: 'Cá rô',      emoji: '🐟', babyPrice: 30,   sell: 80,   grow: 90,  xp: 10,  lv: 1,  desc: 'Dễ nuôi' },
-  cachep:   { id: 'cachep',   name: 'Cá chép',    emoji: '🐠', babyPrice: 60,   sell: 170,  grow: 150, xp: 18,  lv: 3,  desc: 'Vảy vàng' },
-  tom:      { id: 'tom',      name: 'Tôm',        emoji: '🦐', babyPrice: 120,  sell: 340,  grow: 200, xp: 30,  lv: 6,  desc: 'Nhảy tanh tách' },
-  cua:      { id: 'cua',      name: 'Cua',        emoji: '🦀', babyPrice: 220,  sell: 620,  grow: 260, xp: 45,  lv: 10, desc: 'Càng to chắc thịt' },
-  caloc:    { id: 'caloc',    name: 'Cá lóc',     emoji: '🐡', babyPrice: 380,  sell: 1100, grow: 330, xp: 70,  lv: 15, desc: 'Khỏe mạnh' },
-  cakoi:    { id: 'cakoi',    name: 'Cá Koi',     emoji: '🎏', babyPrice: 700,  sell: 2100, grow: 420, xp: 110, lv: 25, desc: 'Quý hiếm' },
-  bachtuoc: { id: 'bachtuoc', name: 'Bạch tuộc',  emoji: '🐙', babyPrice: 1200, sell: 3600, grow: 520, xp: 160, lv: 35, desc: 'Tám tay thông thái' },
-  camap:    { id: 'camap',    name: 'Cá mập',     emoji: '🦈', babyPrice: 2200, sell: 6800, grow: 660, xp: 240, lv: 50, desc: 'Chúa tể đại dương' },
+  caro:     { id: 'caro',     name: 'Cá rô',      emoji: '', babyPrice: 30,   sell: 80,   grow: 90,  xp: 10,  lv: 1,  desc: 'Dễ nuôi' },
+  cachep:   { id: 'cachep',   name: 'Cá chép',    emoji: '', babyPrice: 60,   sell: 170,  grow: 150, xp: 18,  lv: 3,  desc: 'Vảy vàng' },
+  tom:      { id: 'tom',      name: 'Tôm',        emoji: '', babyPrice: 120,  sell: 340,  grow: 200, xp: 30,  lv: 6,  desc: 'Nhảy tanh tách' },
+  cua:      { id: 'cua',      name: 'Cua',        emoji: '', babyPrice: 220,  sell: 620,  grow: 260, xp: 45,  lv: 10, desc: 'Càng to chắc thịt' },
+  caloc:    { id: 'caloc',    name: 'Cá lóc',     emoji: '', babyPrice: 380,  sell: 1100, grow: 330, xp: 70,  lv: 15, desc: 'Khỏe mạnh' },
+  cakoi:    { id: 'cakoi',    name: 'Cá Koi',     emoji: '', babyPrice: 700,  sell: 2100, grow: 420, xp: 110, lv: 25, desc: 'Quý hiếm' },
+  bachtuoc: { id: 'bachtuoc', name: 'Bạch tuộc',  emoji: '', babyPrice: 1200, sell: 3600, grow: 520, xp: 160, lv: 35, desc: 'Tám tay thông thái' },
+  camap:    { id: 'camap',    name: 'Cá mập',     emoji: '', babyPrice: 2200, sell: 6800, grow: 660, xp: 240, lv: 50, desc: 'Chúa tể đại dương' },
 };
 
 export const ANIMALS: Record<string, AnimalDef> = {
-  chicken: { id: 'chicken', name: 'Gà',   emoji: '🐔', babyPrice: 80,  product: '🥚 Trứng',     productId: 'trung',    sell: 45,  grow: 90,  cycle: 45,  xp: 12, lv: 2,  desc: 'Đẻ trứng đều', max: 30 },
-  duck:    { id: 'duck',    name: 'Vịt',  emoji: '🦆', babyPrice: 150, product: '🍳 Trứng vịt',  productId: 'trungvit', sell: 70,  grow: 110, cycle: 55,  xp: 18, lv: 6,  desc: 'Bơi lội giỏi', max: 15 },
-  cow:     { id: 'cow',     name: 'Bò sữa', emoji: '🐄', babyPrice: 250, product: '🥛 Sữa',      productId: 'sua',      sell: 120, grow: 180, cycle: 75,  xp: 28, lv: 4,  desc: 'Cho sữa ngọt', max: 20 },
-  pig:     { id: 'pig',     name: 'Heo',  emoji: '🐷', babyPrice: 280, product: '🥩 Thịt',      productId: 'thit',     sell: 420, grow: 240, cycle: 150, xp: 50, lv: 5,  desc: 'Lớn nhanh', max: 20 },
-  sheep:   { id: 'sheep',   name: 'Cừu',  emoji: '🐑', babyPrice: 600, product: '🧶 Len',        productId: 'len',      sell: 300, grow: 260, cycle: 120, xp: 70, lv: 12, desc: 'Len mềm ấm', max: 12 },
+  chicken: { id: 'chicken', name: 'Gà',   emoji: '', babyPrice: 80,  product: 'Trứng',     productId: 'trung',    sell: 45,  grow: 90,  cycle: 45,  xp: 12, lv: 2,  desc: 'Đẻ trứng đều', max: 30 },
+  duck:    { id: 'duck',    name: 'Vịt',  emoji: '', babyPrice: 150, product: 'Trứng vịt',  productId: 'trungvit', sell: 70,  grow: 110, cycle: 55,  xp: 18, lv: 6,  desc: 'Bơi lội giỏi', max: 15 },
+  cow:     { id: 'cow',     name: 'Bò sữa', emoji: '', babyPrice: 250, product: 'Sữa',      productId: 'sua',      sell: 120, grow: 180, cycle: 75,  xp: 28, lv: 4,  desc: 'Cho sữa ngọt', max: 20 },
+  pig:     { id: 'pig',     name: 'Heo',  emoji: '', babyPrice: 280, product: 'Thịt',      productId: 'thit',     sell: 420, grow: 240, cycle: 150, xp: 50, lv: 5,  desc: 'Lớn nhanh', max: 20 },
+  sheep:   { id: 'sheep',   name: 'Cừu',  emoji: '', babyPrice: 600, product: 'Len',        productId: 'len',      sell: 300, grow: 260, cycle: 120, xp: 70, lv: 12, desc: 'Len mềm ấm', max: 12 },
 };
 
 /** Sức chứa mặc định mỗi chuồng (mở rộng dần bằng tiền + cấp) */
@@ -66,26 +66,26 @@ export const BAIT_PRICE = 10;
 export const BAIT_PRO_PRICE = 45;
 
 export const PRODUCT_NAMES: Record<string, [string, string]> = {
-  trung: ['Trứng', '🥚'],
-  trungvit: ['Trứng vịt', '🍳'],
-  sua: ['Sữa', '🥛'],
-  thit: ['Thịt heo', '🥩'],
-  len: ['Len cừu', '🧶'],
-  feed: ['Cám thường', '🌽'],
-  feedPro: ['Cám cao cấp', '🥜'],
-  bait: ['Mồi thường', '🪱'],
-  baitPro: ['Mồi ngon', '🦐'],
-  ung: ['Ủng cũ', '🥾'],
-  rong: ['Rong biển', '🌿'],
+  trung: ['Trứng', ''],
+  trungvit: ['Trứng vịt', ''],
+  sua: ['Sữa', ''],
+  thit: ['Thịt heo', ''],
+  len: ['Len cừu', ''],
+  feed: ['Cám thường', ''],
+  feedPro: ['Cám cao cấp', ''],
+  bait: ['Mồi thường', ''],
+  baitPro: ['Mồi ngon', ''],
+  ung: ['Ủng cũ', ''],
+  rong: ['Rong biển', ''],
 };
 
 export function itemName(pid: string): [string, string] {
   if (CROPS[pid]) return [CROPS[pid].name, CROPS[pid].emoji];
   if (FISHES[pid]) return [FISHES[pid].name, FISHES[pid].emoji];
   if (PRODUCT_NAMES[pid]) return PRODUCT_NAMES[pid];
-  if (pid.startsWith('seed:')) { const c = CROPS[pid.slice(5)]; if (c) return ['Hạt ' + c.name, '🌰']; }
-  if (pid.startsWith('babyfish:')) { const c = FISHES[pid.slice(9)]; if (c) return ['Cá con ' + c.name, '🐣']; }
-  return [pid, '📦'];
+  if (pid.startsWith('seed:')) { const c = CROPS[pid.slice(5)]; if (c) return ['Hạt ' + c.name, '']; }
+  if (pid.startsWith('babyfish:')) { const c = FISHES[pid.slice(9)]; if (c) return ['Cá con ' + c.name, '']; }
+  return [pid, ''];
 }
 
 export function sellPrice(pid: string): number {
@@ -181,7 +181,7 @@ export const QUESTS: QuestDef[] = [
   { id: 'plant', text: 'Gieo 1 hạt Lúa', reward: { xu: 50, xp: 15 } },
   { id: 'water', text: 'Tưới nước cho cây', reward: { xu: 50, xp: 15 } },
   { id: 'harv',  text: 'Thu hoạch vụ đầu tiên', reward: { xu: 120, xp: 30 } },
-  { id: 'chick', text: 'Mua 1 con Gà ở cửa hàng 🏪', reward: { xu: 100, xp: 25 } },
+  { id: 'chick', text: 'Mua 1 con Gà ở cửa hàng', reward: { xu: 100, xp: 25 } },
   { id: 'feed',  text: 'Cho vật nuôi / cá ăn 1 lần', reward: { xu: 100, xp: 25 } },
   { id: 'egg',   text: 'Thu 1 sản phẩm chăn nuôi (trứng/sữa...)', reward: { xu: 150, xp: 40 } },
   { id: 'fish',  text: 'Thả 1 con cá xuống ao', reward: { xu: 120, xp: 30 } },
@@ -189,7 +189,7 @@ export const QUESTS: QuestDef[] = [
   { id: 'lv5',   text: 'Đạt cấp 5 nông dân', reward: { gem: 5, xu: 500 } },
 ];
 
-export const AVATARS = ['🧑‍🌾', '👩‍🌾', '👦', '🤠'];
+export const AVATARS = ['Nón lá', 'Khăn đỏ', 'Mũ lưỡi trai', 'Mũ cao bồi'];
 export const SHIRTS = ['#3f9e4d', '#e75480', '#3b82f6', '#b45309'];
 
 export const DAY_LENGTH = 240; // giây = 1 ngày

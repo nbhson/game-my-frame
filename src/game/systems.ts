@@ -1,7 +1,7 @@
 // ===== Interact system: tìm đối tượng gần player nhất =====
 import type { Animal, InteractTarget, PondFish } from './types';
 import { ANIMALS, CROPS, FISHES, plotCost, plotReq } from './data';
-import { BARN, COOP, PEN_MB, PIERS, SHOPD, POND, pondInner, plotPos, RIVER_WATER_Y } from './world';
+import { BARN, COOP, PEN_MB, PIERS, SHOPD, POND, ROAD_H, ROAD_V, isBlocked, pondInner, plotPos, RIVER_WATER_Y, roadHCenter, roadVCenter } from './world';
 
 export interface InteractCtx {
   px: number; py: number;
@@ -31,6 +31,67 @@ export function fishPos(f: PondFish, t: number) {
   };
 }
 
+// ---------- thú cưng lang thang: 2 chó tuần tra đường + 3 mèo dạo cỏ ----------
+export type PetKind = 'dog' | 'cat';
+export interface PetDef { kind: PetKind; uid: number; name: string }
+export const PETS: PetDef[] = [
+  { kind: 'dog', uid: 101, name: 'Vàng' },
+  { kind: 'dog', uid: 102, name: 'Mực' },
+  { kind: 'cat', uid: 201, name: 'Mimi' },
+  { kind: 'cat', uid: 202, name: 'Tom' },
+  { kind: 'cat', uid: 203, name: 'Mun' },
+];
+
+/** tam giác ping-pong 0..1..0 để pet đi qua lại, không teleport */
+function pingpong(t: number, speed: number, phase: number): { v: number; dir: 1 | -1 } {
+  const p = (t * speed + phase) % 2;
+  return p < 1 ? { v: p, dir: 1 } : { v: 2 - p, dir: -1 };
+}
+
+export function petPos(pet: PetDef, t: number): { x: number; y: number; flip: boolean; moving: boolean; sitting: boolean } {
+  const vc = roadVCenter(), hc = roadHCenter();
+  if (pet.kind === 'dog') {
+    if (pet.uid === 101) {
+      // Vàng: tuần tra ĐƯỜNG DỌC (lên/xuống), hơi lượn sóng cho tự nhiên
+      const { v } = pingpong(t, 0.07, 0.2);
+      const y = 110 + v * 880;
+      const x = vc + Math.sin(t * 1.8 + pet.uid) * 18;
+      // thỉnh thoảng ngồi nghỉ 3s mỗi ~20s
+      const sitting = (t + pet.uid) % 22 < 2.5;
+      return { x, y, flip: Math.cos(t * 1.8 + pet.uid) > 0, moving: !sitting, sitting };
+    }
+    // Mực: tuần tra ĐƯỜNG NGANG (trái/phải)
+    const { v, dir } = pingpong(t, 0.055, 0.7);
+    const x = 90 + v * 1420;
+    const y = hc + Math.sin(t * 2.1 + pet.uid) * 18;
+    const sitting = (t + pet.uid) % 26 < 2.5;
+    return { x, y, flip: dir > 0, moving: !sitting, sitting };
+  }
+  // mèo: đi dạo vòng tròn nhỏ quanh bãi cỏ, thỉnh thoảng ngồi liếm lông
+  const spots: Record<number, { cx: number; cy: number; rx: number; ry: number; sp: number }> = {
+    201: { cx: 320, cy: 130, rx: 150, ry: 42, sp: 0.35 },
+    202: { cx: 1380, cy: 690, rx: 90, ry: 55, sp: 0.28 },
+    203: { cx: 1420, cy: 985, rx: 110, ry: 26, sp: 0.42 },
+  };
+  const s = spots[pet.uid] ?? spots[201];
+  const a = t * s.sp + pet.uid * 1.7;
+  let x = s.cx + Math.cos(a) * s.rx + Math.sin(t * 0.9 + pet.uid) * 12;
+  let y = s.cy + Math.sin(a * 1.25) * s.ry;
+  // tránh đi vào ao / shop / sông: đẩy nhẹ ra nếu bị chặn
+  if (isBlocked(x, y)) {
+    if (x > POND.x - 30 && x < POND.x + POND.w + 30 && y > POND.y - 30 && y < POND.y + POND.h + 30) {
+      y = POND.y + POND.h + 34;
+    } else {
+      x = Math.max(40, Math.min(1560, x));
+      y = Math.max(80, Math.min(1000, y));
+    }
+  }
+  // né đường đi một chút để không dẫm vạch giữa (trừ chó tuần tra)
+  if (x > ROAD_V.x - 6 && x < ROAD_V.x + ROAD_V.w + 6) x += x < vc ? -12 : 12;
+  const sitting = (t * 0.5 + pet.uid) % 18 < 3;
+  return { x, y, flip: Math.sin(a) > 0, moving: !sitting && Math.abs(Math.cos(a)) > 0.08, sitting };
+}
+
 export function nearestInteract(c: InteractCtx): InteractTarget | null {
   let best: InteractTarget | null = null;
   let bd = 110;
@@ -41,7 +102,7 @@ export function nearestInteract(c: InteractCtx): InteractTarget | null {
     if (d < bd) {
       const pl = c.plots[i];
       let label = '';
-      if (pl.locked) label = `Mở ô ${i + 1} (${plotCost(i)}🪙, Lv${plotReq(i)})`;
+      if (pl.locked) label = `Mở ô ${i + 1} (${plotCost(i)} xu, Lv${plotReq(i)})`;
       else if (pl.state === 'grass') label = `Cuốc đất ô ${i + 1}`;
       else if (pl.state === 'soil') label = `Gieo hạt ô ${i + 1}`;
       else if (pl.state === 'growing') label = pl.watered ? `${pl.crop ? CROPS[pl.crop].name : ''} đang lớn…` : `Tưới ${pl.crop ? CROPS[pl.crop].name : ''}`;
@@ -68,16 +129,16 @@ export function nearestInteract(c: InteractCtx): InteractTarget | null {
     if (!best && dEdge < 60) {
       best = c.fishes.length < c.pondSlots
         ? { kind: 'pond', label: `Thả cá xuống ao (${c.fishes.length}/${c.pondSlots})` }
-        : { kind: 'pond', label: `Ao đầy (${c.pondSlots}/${c.pondSlots}) — mở rộng ở hòm thư 📮` };
+        : { kind: 'pond', label: `Ao đầy (${c.pondSlots}/${c.pondSlots}) — mở rộng ở hòm thư` };
       bd = dEdge;
     }
   }
   // --- hòm thư trước ao/chuồng: xem thông tin + mở khóa ---
   {
     const boxes: { pen: 'pond' | 'coop' | 'barn'; label: string }[] = [
-      { pen: 'pond', label: 'Hòm thư ao cá 📮' },
-      { pen: 'coop', label: 'Hòm thư chuồng gà–vịt 📮' },
-      { pen: 'barn', label: 'Hòm thư trại bò–heo–cừu 📮' },
+      { pen: 'pond', label: 'Hòm thư ao cá' },
+      { pen: 'coop', label: 'Hòm thư chuồng gà–vịt' },
+      { pen: 'barn', label: 'Hòm thư trại bò–heo–cừu' },
     ];
     for (const b of boxes) {
       const m = PEN_MB[b.pen];
@@ -89,7 +150,7 @@ export function nearestInteract(c: InteractCtx): InteractTarget | null {
   PIERS.forEach((pier, pi) => {
     const d = Math.hypot(c.px - pier.x, c.py - (pier.sitY + 20));
     if (d < 105 && (!best || d < bd)) {
-      best = { kind: 'river', index: pi, label: 'Ngồi câu cá 🎣 (tốn mồi)' };
+      best = { kind: 'river', index: pi, label: 'Ngồi câu cá (tốn mồi)' };
       bd = d;
     }
   });
@@ -111,7 +172,7 @@ export function nearestInteract(c: InteractCtx): InteractTarget | null {
   {
     const sx = SHOPD.x + SHOPD.w / 2, sy = SHOPD.y + SHOPD.h + 40;
     const d = Math.hypot(c.px - sx, c.py - sy);
-    if (d < 110 && (!best || d < bd)) { best = { kind: 'shop', label: 'Mở Cửa hàng 🏪' }; bd = d; }
+    if (d < 110 && (!best || d < bd)) { best = { kind: 'shop', label: 'Mở Cửa hàng' }; bd = d; }
   }
   void RIVER_WATER_Y;
   return best;

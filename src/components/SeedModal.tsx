@@ -1,5 +1,6 @@
-import { CROPS, FISHES } from '../game/data';
+import { CROPS } from '../game/data';
 import { useGame } from '../game/store';
+import { GameIcon } from './GameIcon';
 
 export function SeedModal({ plot }: { plot: number }) {
   const s = useGame();
@@ -17,8 +18,8 @@ export function SeedModal({ plot }: { plot: number }) {
                 onClick={() => s.plantSeed(plot, c.id)}
                 className="flex justify-between items-center p-3 border-[3px] border-[#2b2117] rounded-lg bg-white font-extrabold disabled:opacity-50 hover:bg-yellow-200"
               >
-                <span>{c.emoji} {c.name} x{n}</span>
-                <span>⏱{c.grow}s</span>
+                <span className="flex items-center gap-2"><GameIcon name={c.id} size={24} /> {c.name} x{n}</span>
+                <span>{c.grow}s</span>
               </button>
             );
           })}

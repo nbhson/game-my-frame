@@ -1,9 +1,9 @@
 import { Backpack, CircleHelp, ScrollText, Store, Users, Volume2, VolumeX } from 'lucide-react';
 import { useState } from 'react';
-import { AVATARS } from '../game/data';
 import { xpNeed, useGame } from '../game/store';
 import { useVillage } from '../net/village';
 import { isSoundOn, setSoundOn } from '../game/audio';
+import { GameIcon } from './GameIcon';
 
 export default function HUD() {
   const s = useGame();
@@ -11,13 +11,13 @@ export default function HUD() {
   const cloud = useVillage((v) => v.cloud);
   const [mute, setMute] = useState(!isSoundOn());
   const pct = Math.min(100, (s.xp / xpNeed(s.level)) * 100);
-  const clock = s.dayTime < 0.05 || s.dayTime > 0.92 ? '🌙' : s.dayTime > 0.75 ? '🌇' : s.dayTime < 0.2 ? '🌅' : '☀️';
-  const cloudDot = cloud === 'synced' ? '🟢' : cloud === 'local' ? '🟡' : cloud === 'syncing' ? '⏳' : '🔴';
+  const clockIcon = s.dayTime < 0.05 || s.dayTime > 0.92 ? 'moon' : s.dayTime > 0.75 ? 'sun' : s.dayTime < 0.2 ? 'sun' : 'sun';
+  const cloudColor = cloud === 'synced' ? '#4ade80' : cloud === 'local' ? '#facc15' : cloud === 'syncing' ? '#f97316' : '#ef4444';
 
   return (
     <div className="flex items-center justify-between gap-2 bg-[#2b2117] text-white px-2 py-1.5 flex-wrap z-10">
       <div className="flex items-center gap-2">
-        <div className="bg-[#3e3428] border-2 border-black rounded-lg px-2 py-1 text-2xl">{AVATARS[s.avatar] ?? '🧑‍🌾'}</div>
+        <div className="bg-[#3e3428] border-2 border-black rounded-lg px-1.5 py-0.5"><GameIcon name={`farmer${s.avatar % 4}`} size={30} /></div>
         <div className="bg-[#3e3428] border-2 border-black rounded-lg px-2 py-1">
           <div className="text-[13px] font-bold leading-none">{s.name}</div>
           <div className="relative bg-black w-24 h-4 rounded-full overflow-hidden mt-1 border border-black">
@@ -29,9 +29,9 @@ export default function HUD() {
         </div>
       </div>
       <div className="flex items-center gap-2 text-sm font-extrabold">
-        <div className="bg-[#3e3428] border-2 border-black rounded-lg px-2 py-1 text-yellow-300">🪙 {s.xu.toLocaleString('vi-VN')}</div>
-        <div className="bg-[#3e3428] border-2 border-black rounded-lg px-2 py-1 text-sky-300">💎 {s.gem}</div>
-        <div className="bg-[#3e3428] border-2 border-black rounded-lg px-2 py-1 hidden sm:block">📅 Ngày {s.day} {clock}</div>
+        <div className="bg-[#3e3428] border-2 border-black rounded-lg px-2 py-1 text-yellow-300 flex items-center gap-1"><GameIcon name="coin" size={17} /> {s.xu.toLocaleString('vi-VN')}</div>
+        <div className="bg-[#3e3428] border-2 border-black rounded-lg px-2 py-1 text-sky-300 flex items-center gap-1"><GameIcon name="gem" size={17} /> {s.gem}</div>
+        <div className="bg-[#3e3428] border-2 border-black rounded-lg px-2 py-1 hidden sm:flex items-center gap-1"><GameIcon name="calendar" size={16} /> Ngày {s.day} <GameIcon name={clockIcon} size={16} /></div>
       </div>
       <div className="flex items-center gap-1.5">
         <button className="icon-btn !text-black relative" title="Làng (V)" onClick={() => s.setModal('village')}>
@@ -52,7 +52,7 @@ export default function HUD() {
         >
           {mute ? <VolumeX size={20} /> : <Volume2 size={20} />}
         </button>
-        <span title={cloud === 'local' ? 'Làng local (multi-tab)' : cloud === 'synced' ? 'Cloud đã đồng bộ' : 'Đang kết nối…'} className="text-sm select-none">{cloudDot}</span>
+        <span title={cloud === 'local' ? 'Làng local (multi-tab)' : cloud === 'synced' ? 'Cloud đã đồng bộ' : 'Đang kết nối…'} className="text-sm select-none inline-block w-3 h-3 rounded-full border border-black" style={{ background: cloudColor }} />
       </div>
     </div>
   );
