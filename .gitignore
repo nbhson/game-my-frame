@@ -4,5 +4,4 @@ dist-ssr
 *.local
 .DS_Store
 .env
-server/data/
 tsconfig.tsbuildinfo
