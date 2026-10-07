@@ -96,17 +96,34 @@ export class SocketTransport implements NetTransport {
   private emitStatus(ok: boolean) { this.statusCbs.forEach((cb) => cb(ok)); }
 }
 
-/** Có LAN server đi kèm không? (serve dist + /api/health) */
-export async function lanServerAvailable(timeoutMs = 2000): Promise<boolean> {
+/** Có LAN server đi kèm không? (serve dist + /api/health)
+ * Memoize single-flight + TTL 15s: login, village, casino cùng hỏi mà chỉ fetch 1 lần,
+ * tránh cộng dồn nhiều lần treo-timeout khi mạng chập chờn. */
+let lanCache: { at: number; value: boolean } | null = null;
+let lanPending: Promise<boolean> | null = null;
+const LAN_TTL = 15000;
+export async function lanServerAvailable(timeoutMs = 1200): Promise<boolean> {
+  const now = Date.now();
+  if (lanCache && now - lanCache.at < LAN_TTL) return lanCache.value;
+  if (lanPending) return lanPending;
+  lanPending = (async () => {
+    try {
+      const ctl = new AbortController();
+      const t = setTimeout(() => ctl.abort(), timeoutMs);
+      const r = await fetch('/api/health', { signal: ctl.signal, cache: 'no-store' });
+      clearTimeout(t);
+      if (!r.ok) return false;
+      const j = await r.json();
+      return j?.mode === 'lan';
+    } catch {
+      return false;
+    }
+  })();
   try {
-    const ctl = new AbortController();
-    const t = setTimeout(() => ctl.abort(), timeoutMs);
-    const r = await fetch('/api/health', { signal: ctl.signal, cache: 'no-store' });
-    clearTimeout(t);
-    if (!r.ok) return false;
-    const j = await r.json();
-    return j?.mode === 'lan';
-  } catch {
-    return false;
+    const v = await lanPending;
+    lanCache = { at: Date.now(), value: v };
+    return v;
+  } finally {
+    lanPending = null;
   }
 }

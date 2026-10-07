@@ -35,17 +35,17 @@ export interface AccountBackend {
 class ServerAccountBackend implements AccountBackend {
   readonly kind = 'server' as const;
   private url(u: string) { return `/api/players/${encodeURIComponent(normalizeUsername(u))}`; }
-  private async withTimeout<T>(p: Promise<T>, ms = 4000): Promise<T> {
+  /** fetch có timeout thật (5s): mạng chập chờn thì abort để rớt về local, không treo login */
+  private async withTimeout<T>(fn: (signal: AbortSignal) => Promise<T>, ms = 5000): Promise<T> {
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), ms);
     try {
-      // fetch không nhận signal ở đây (đã có cache no-store) — chỉ guard treo
-      return await p;
-    } finally { clearTimeout(t); void ctl; }
+      return await fn(ctl.signal);
+    } finally { clearTimeout(t); }
   }
   async load(username: string) {
     try {
-      const r = await this.withTimeout(fetch(this.url(username), { cache: 'no-store' }));
+      const r = await this.withTimeout((signal) => fetch(this.url(username), { cache: 'no-store', signal }));
       if (!r.ok) return null;
       const acc = await r.json();
       if (!acc?.data) return null;
@@ -59,10 +59,11 @@ class ServerAccountBackend implements AccountBackend {
   }
   async save(username: string, name: string, avatar: number, data: AccountData) {
     try {
-      await this.withTimeout(fetch(this.url(username), {
+      await this.withTimeout((signal) => fetch(this.url(username), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, avatar, data }),
+        signal,
       }));
     } catch {
       // mất server khi đang chơi: lưu local tạm, lần sau sync tiếp

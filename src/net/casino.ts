@@ -12,6 +12,8 @@ import { fullDeck, shuffle, type Card } from '../game/casino/cards';
 import { applyPass, applyPlay, botPick, newTienLenGame, validatePlay, type TienLenState } from '../game/casino/tienlen';
 import { findBaiCaoWinners, newBaiCaoGame, type BaiCaoState } from '../game/casino/baicao';
 import { applyCaroMove, caroBotMove, newCaroGame, type CaroState } from '../game/casino/caro';
+// dùng chung detect LAN đã memoize (socket.ts) — không fetch riêng lẻ
+import { lanServerAvailable as lanAvailable } from './socket';
 
 export type CasinoGame = 'tienlen' | 'baicao' | 'caro';
 export const CASINO_MIN_BET = 10;
@@ -107,17 +109,6 @@ function roomId4(): string {
 }
 function clampBet(b: number): number {
   return Math.max(CASINO_MIN_BET, Math.min(CASINO_MAX_BET, Math.round(Number(b) || 10)));
-}
-async function lanAvailable(): Promise<boolean> {
-  try {
-    const ctl = new AbortController();
-    const t = setTimeout(() => ctl.abort(), 1500);
-    const r = await fetch('/api/health', { signal: ctl.signal, cache: 'no-store' });
-    clearTimeout(t);
-    if (!r.ok) return false;
-    const j = await r.json();
-    return j?.mode === 'lan';
-  } catch { return false; }
 }
 
 function publicOf(r: CasinoRoom): CasinoRoomInfo {

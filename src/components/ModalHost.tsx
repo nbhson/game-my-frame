@@ -1,3 +1,4 @@
+import { Suspense, lazy } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import { useGame } from '../game/store';
@@ -10,8 +11,10 @@ import SeedModal from './SeedModal';
 import StockModal from './StockModal';
 import BaitModal from './BaitModal';
 import PenModal from './PenModal';
-import CasinoModal from './CasinoModal';
 import { GameIcon } from './GameIcon';
+
+// Casino (sảnh + 3 bàn + logic bài) nặng — tải lười khi mở, nhẹ bundle lúc đăng nhập
+const CasinoModal = lazy(() => import('./CasinoModal'));
 
 export default function ModalHost() {
   const modal = useGame((s) => s.modal);
@@ -26,7 +29,7 @@ export default function ModalHost() {
   else if (modal === 'quest') { icon = 'quest'; title = 'NHIỆM VỤ'; body = <QuestModal />; }
   else if (modal === 'help') { icon = 'quest'; title = 'HƯỚNG DẪN'; body = <HelpModal />; }
   else if (modal === 'village') { icon = 'field'; title = 'LÀNG NÔNG DÂN'; body = <VillageModal />; }
-  else if (modal === 'casino') { icon = 'coin'; title = '🎰 CASINO CÔNG VIÊN'; body = <CasinoModal />; }
+  else if (modal === 'casino') { icon = 'coin'; title = '🎰 CASINO CÔNG VIÊN'; body = (<Suspense fallback={<div className="p-6 text-center font-bold">Đang mở Casino…</div>}><CasinoModal /></Suspense>); }
   else if (typeof modal === 'object' && modal.name === 'seed') { icon = 'sprout'; title = `GIEO HẠT (ô ${modal.plot + 1})`; body = <SeedModal plot={modal.plot} />; }
   else if (typeof modal === 'object' && modal.name === 'stock') { icon = 'pond'; title = 'THẢ CÁ XUỐNG AO'; body = <StockModal />; }
   else if (typeof modal === 'object' && modal.name === 'bait') { icon = 'rod'; title = 'CHỌN MỒI CÂU'; body = <BaitModal pier={modal.pier} />; }
