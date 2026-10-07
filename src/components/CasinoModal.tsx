@@ -1,7 +1,7 @@
 // ===== Casino modal: sảnh + phòng + 3 bàn (tiến lên / bài cào / caro) =====
 import { useEffect, useMemo, useState } from 'react';
 import { useGame } from '../game/store';
-import { CASINO_GAMES, CASINO_MAX_BET, CASINO_MIN_BET, useCasino, type CasinoGame } from '../net/casino';
+import { CASINO_BAICAO_MS, CASINO_GAMES, CASINO_MAX_BET, CASINO_MIN_BET, CASINO_TURN_MS, useCasino, type CasinoGame, type CasinoRoom } from '../net/casino';
 import { getPresenceId } from '../net/session';
 import { cardLabel, isRed, type Card } from '../game/casino/cards';
 import { comboOf } from '../game/casino/tienlen';
@@ -12,6 +12,43 @@ import type { CaroState } from '../game/casino/caro';
 
 function myPid(): string {
   try { return getPresenceId(); } catch { return ''; }
+}
+
+/** tick mỗi 500ms để đếm ngược mượt */
+function useNow(ms = 500): number {
+  const [n, setN] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setN(Date.now()), ms);
+    return () => clearInterval(id);
+  }, [ms]);
+  return n;
+}
+
+/** Banner lượt chung cho cả bàn: ai đang đi + đếm ngược + thanh thời gian */
+function TurnBanner({ turnPid, deadline, fullMs, actionText }: { turnPid: string; deadline: number | null | undefined; fullMs: number; actionText: string }) {
+  const now = useNow();
+  const me = myPid();
+  const room = useCasino((s) => s.room)!;
+  const cur = room.players.find((p) => p.pid === turnPid);
+  const remain = deadline != null ? Math.max(0, Math.ceil((deadline - now) / 1000)) : null;
+  const frac = deadline != null ? Math.max(0, Math.min(1, (deadline - now) / fullMs)) : 1;
+  const urgent = remain != null && remain <= 10;
+  const isMe = turnPid === me;
+  return (
+    <div className={`border-[3px] rounded-xl px-3 py-1.5 text-center ${isMe ? 'bg-yellow-200 border-yellow-500 animate-pulse' : urgent ? 'bg-red-100 border-red-500' : 'bg-purple-700 border-black text-white'}`}>
+      <div className="font-black text-sm">
+        {isMe ? '⚡ TỚI LƯỢT BẠN! ' : `⏳ ${cur?.name ?? '?'} ${actionText} `}
+        {remain != null && <span className={`ml-1 px-1.5 rounded ${urgent ? 'bg-red-500 text-white' : 'bg-black/20'}`}>{remain}s</span>}
+      </div>
+      {remain != null && (
+        <div className="h-1.5 mt-1 rounded-full bg-black/20 overflow-hidden">
+          <div className={`h-full rounded-full transition-all ${urgent ? 'bg-red-500' : 'bg-green-400'}`} style={{ width: `${frac * 100}%` }} />
+        </div>
+      )}
+      {urgent && !isMe && <div className="text-[11px] font-bold text-red-600">Sắp hết giờ — tự đánh!</div>}
+      {urgent && isMe && <div className="text-[11px] font-bold text-red-600">Nhanh lên, sắp tự đánh!</div>}
+    </div>
+  );
 }
 
 export default function CasinoModal() {
@@ -245,13 +282,14 @@ function TienLenBoard() {
 
   return (
     <div className="flex flex-col gap-2">
+      <TurnBanner turnPid={st.turn} deadline={st.deadline} fullMs={CASINO_TURN_MS} actionText="đang nghĩ…" />
       <div className="grid grid-cols-3 gap-1.5">
         {others.map((p) => {
           const n = st.hands[p.pid]?.length ?? 0;
           const isTurn = st.turn === p.pid;
           return (
-            <div key={p.pid} className={`border-2 rounded-xl px-2 py-1 text-center ${isTurn ? 'bg-yellow-100 border-yellow-500' : 'bg-white border-black'}`}>
-              <div className="font-bold text-xs truncate">{p.name} {isTurn && '⏳'}</div>
+            <div key={p.pid} className={`border-[3px] rounded-xl px-2 py-1 text-center transition-all ${isTurn ? 'bg-yellow-100 border-yellow-500 scale-105 shadow-lg animate-pulse' : 'bg-white border-black'}`}>
+              <div className="font-bold text-xs truncate">{isTurn ? '⏳ ' : ''}{p.name}{isTurn ? ' đang đi' : ''}</div>
               <div className="text-lg">{n > 0 ? '🎴'.repeat(Math.min(5, n)) : '🏁'}</div>
               <div className="text-[11px] text-gray-600">{n} lá</div>
             </div>
@@ -270,7 +308,10 @@ function TienLenBoard() {
           {room.players.find((p) => p.pid === st.lastPlayer)?.name} vừa ra • tới lượt {room.players.find((p) => p.pid === st.turn)?.name}
         </div>
       )}
-      <div className="bg-amber-50 border-2 border-black rounded-xl p-2">
+      <div className={`bg-amber-50 border-[3px] rounded-xl p-2 transition-all ${isMyTurn ? 'border-yellow-500 shadow-[0_0_12px_rgba(234,179,8,.7)]' : 'border-black'}`}>
+        <div className="text-center text-xs font-black mb-1 text-amber-700">
+          {isMyTurn ? '⚡ Bài của bạn — chọn rồi Đánh / Bỏ qua' : `Bài của bạn (${hand.length} lá)`}
+        </div>
         <div className="flex flex-wrap gap-1 justify-center mb-2">
           {hand.map((c) => {
             const on = sel.includes(c.id);
@@ -316,20 +357,37 @@ function BaiCaoBoard() {
   const room = useCasino((s) => s.room)!;
   const st = room.state as BaiCaoState;
   const me = myPid();
+  const now = useNow();
   const iRevealed = st.revealed.includes(me);
   const done = room.status === 'finished';
+  const pending = room.players.filter((p) => !st.revealed.includes(p.pid));
+  const remain = !done && st.deadline != null ? Math.max(0, Math.ceil((st.deadline - now) / 1000)) : null;
+  const frac = !done && st.deadline != null ? Math.max(0, Math.min(1, (st.deadline - now) / CASINO_BAICAO_MS)) : 1;
+  const urgent = remain != null && remain <= 10;
 
   return (
     <div className="flex flex-col gap-2">
+      {!done && (
+        <div className={`border-[3px] rounded-xl px-3 py-1.5 text-center ${urgent ? 'bg-red-100 border-red-500 animate-pulse' : 'bg-purple-700 border-black text-white'}`}>
+          <div className="font-black text-sm">
+            ⏳ Chờ {pending.length} người lật bài{remain != null && <span className={`ml-1 px-1.5 rounded ${urgent ? 'bg-red-500 text-white' : 'bg-black/20'}`}>{remain}s</span>}
+          </div>
+          <div className="h-1.5 mt-1 rounded-full bg-black/20 overflow-hidden">
+            <div className={`h-full rounded-full ${urgent ? 'bg-red-500' : 'bg-green-400'}`} style={{ width: `${frac * 100}%` }} />
+          </div>
+          <div className="text-[11px] opacity-90">Hết giờ tự lật hết • {pending.map((p) => p.name).join(', ') || '—'}</div>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-1.5">
         {room.players.map((p) => {
           const hand = st.hands[p.pid] ?? [];
           const open = done || st.revealed.includes(p.pid);
+          const waiting = !open;
           const sc = scoreHand(hand);
           const win = (room.winners ?? []).includes(p.pid);
           return (
-            <div key={p.pid} className={`border-[3px] rounded-xl px-2 py-1.5 text-center ${win ? 'bg-yellow-100 border-yellow-500' : 'bg-white border-black'}`}>
-              <div className="font-bold text-xs truncate">{p.name} {p.pid === me && '(bạn)'} {win && '🏆'}</div>
+            <div key={p.pid} className={`border-[3px] rounded-xl px-2 py-1.5 text-center transition-all ${win ? 'bg-yellow-100 border-yellow-500 scale-105 shadow-lg' : waiting ? 'bg-orange-50 border-orange-400 animate-pulse' : 'bg-white border-black opacity-80'}`}>
+              <div className="font-bold text-xs truncate">{p.name} {p.pid === me && '(bạn)'} {win && '🏆'} {waiting && '⏳'}</div>
               <div className="flex gap-1 justify-center my-1">
                 {hand.map((c, i) => (
                   <div key={c.id + i}>
@@ -362,18 +420,28 @@ function CaroBoard() {
   const room = useCasino((s) => s.room)!;
   const st = room.state as CaroState;
   const me = myPid();
-  const myIdx = st.order.indexOf(me);
   const isMyTurn = st.turn === me && !st.winner && !st.draw;
   const winSet = new Set((st.winLine ?? []).map(([r, c]) => r + ':' + c));
 
   return (
     <div className="flex flex-col gap-2 items-center">
+      <TurnBanner turnPid={st.turn} deadline={st.deadline} fullMs={CASINO_TURN_MS} actionText="đang nghĩ nước đi…" />
+      <div className="flex gap-2 w-full max-w-[420px]">
+        {st.order.map((pid, idx) => {
+          const p = room.players.find((x) => x.pid === pid);
+          const active = st.turn === pid && !st.winner && !st.draw;
+          return (
+            <div key={pid} className={`flex-1 border-[3px] rounded-xl px-2 py-1 text-center font-bold text-sm transition-all ${active ? 'bg-yellow-100 border-yellow-500 scale-105 shadow-lg animate-pulse' : 'bg-white border-black opacity-80'}`}>
+              {idx === 0 ? '❌' : '⭕'} {p?.name ?? '?'} {pid === me && '(bạn)'} {active && '⏳'}
+            </div>
+          );
+        })}
+      </div>
       <div className="text-sm font-bold">
-        {st.winner ? `🏆 ${room.players.find((p) => p.pid === st.winner)?.name} thắng!` : st.draw ? 'Hòa!' : isMyTurn ? 'Tới lượt bạn — chạm ô để đánh' : `Lượt: ${room.players.find((p) => p.pid === st.turn)?.name}`}
-        <span className="text-xs text-gray-500"> (Bạn: {myIdx === 0 ? '❌ X đi trước' : myIdx === 1 ? '⭕ O' : 'khán giả'})</span>
+        {st.winner ? `🏆 ${room.players.find((p) => p.pid === st.winner)?.name} thắng!` : st.draw ? 'Hòa!' : isMyTurn ? 'Chạm ô để đánh' : `Lượt: ${room.players.find((p) => p.pid === st.turn)?.name}`}
       </div>
       <div
-        className="grid gap-[2px] bg-amber-800 border-[3px] border-black rounded-lg p-1 w-full max-w-[420px]"
+        className={`grid gap-[2px] bg-amber-800 border-[3px] rounded-lg p-1 w-full max-w-[420px] transition-all ${isMyTurn ? 'border-yellow-400 shadow-[0_0_14px_rgba(234,179,8,.8)]' : 'border-black'}`}
         style={{ gridTemplateColumns: `repeat(${st.size}, minmax(0,1fr))` }}
       >
         {st.board.map((row, r) =>

@@ -71,6 +71,8 @@ export interface TienLenState {
   firstTurn: boolean; // ván mới: phải có 3♠
   winner: string | null;
   rank: string[]; // thứ tự về (winner đầu)
+  /** mốc hết giờ của lượt hiện tại (ms epoch, do trọng tài set) — hết giờ tự bỏ qua/đánh */
+  deadline: number | null;
 }
 
 export function dealTienLen(playerIds: string[], deck: Card[]): Record<string, Card[]> {
@@ -108,6 +110,7 @@ export function newTienLenGame(playerIds: string[], deck: Card[]): TienLenState 
     firstTurn: true,
     winner: null,
     rank: [],
+    deadline: null,
   };
 }
 

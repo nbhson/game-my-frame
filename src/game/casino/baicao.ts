@@ -39,6 +39,8 @@ export interface BaiCaoState {
   hands: Record<string, Card[]>;
   revealed: string[]; // ai đã lật bài
   winners: string[] | null;
+  /** hết giờ tự lật toàn bộ (ms epoch) */
+  deadline: number | null;
 }
 
 export function newBaiCaoGame(playerIds: string[], deck: Card[]): BaiCaoState {
@@ -50,7 +52,7 @@ export function newBaiCaoGame(playerIds: string[], deck: Card[]): BaiCaoState {
       if (c) hands[id].push(c);
     }
   }
-  return { order: playerIds.slice(), hands, revealed: [], winners: null };
+  return { order: playerIds.slice(), hands, revealed: [], winners: null, deadline: null };
 }
 
 /** tìm người thắng (có thể nhiều người hòa) */

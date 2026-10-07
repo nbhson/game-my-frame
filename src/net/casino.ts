@@ -16,6 +16,9 @@ import { applyCaroMove, caroBotMove, newCaroGame, type CaroState } from '../game
 export type CasinoGame = 'tienlen' | 'baicao' | 'caro';
 export const CASINO_MIN_BET = 10;
 export const CASINO_MAX_BET = 100;
+/** Mỗi lượt tiến lên/caro 30s, vòng lật bài cào 45s — hết giờ tự đánh (đồng bộ với server) */
+export const CASINO_TURN_MS = 30000;
+export const CASINO_BAICAO_MS = 45000;
 export const CASINO_GAMES: { id: CasinoGame; name: string; desc: string; emoji: string; max: number }[] = [
   { id: 'tienlen', name: 'Tiến lên', desc: '2-4 người • 13 lá • nhất ăn tất', emoji: '🃏', max: 4 },
   { id: 'baicao', name: 'Bài cào', desc: '2-4 người • 3 lá • nhiều nút thắng', emoji: '🎴', max: 4 },
@@ -509,6 +512,7 @@ function localStart(host: CasinoRoom): string | null {
   host.status = 'playing';
   host.winners = null;
   host.pot = host.bet * host.players.length;
+  if (host.state) host.state.deadline = Date.now() + (host.game === 'baicao' ? CASINO_BAICAO_MS : CASINO_TURN_MS);
   host.updatedAt = Date.now();
   return null;
 }
@@ -538,6 +542,12 @@ function afterLocalAction(host: CasinoRoom) {
       host.status = 'finished';
       host.winners = s.winner ? [s.winner] : [];
     }
+  }
+  if (host.state) {
+    // còn đánh tiếp (tiến lên/caro) → gia hạn lượt mới; xong ván → xóa deadline
+    host.state.deadline = host.status === 'playing' && host.game !== 'baicao'
+      ? Date.now() + CASINO_TURN_MS
+      : null;
   }
   host.updatedAt = Date.now();
   broadcastLocalRoom(host);
@@ -663,7 +673,7 @@ function applyLocalGuestAction(host: CasinoRoom, pid: string, action: { type: st
   afterLocalAction(host);
 }
 
-// ---------- bot loop (local/solo): bot tự đánh khi tới lượt ----------
+// ---------- bot loop (local/solo): bot tự đánh khi tới lượt + xử hết giờ ----------
 function startBotLoop() {
   stopBotLoop();
   botTimer = window.setInterval(() => {
@@ -672,6 +682,10 @@ function startBotLoop() {
     if (!room || room.status !== 'playing' || !room.state) return;
     const host = localHostRooms.get(room.id);
     if (!host || !host.state || host.hostPid !== myPid()) return;
+    // hết giờ: trọng tài (host) tự xử lượt hiện tại, kể cả người thật treo máy
+    if (host.state.deadline != null && Date.now() > host.state.deadline) {
+      if (localAutoTimeout(host)) return;
+    }
     if (host.game === 'tienlen') {
       const s = host.state as TienLenState;
       if (s.winner) return;
@@ -694,6 +708,48 @@ function startBotLoop() {
       }
     }
   }, 900);
+}
+
+/** Host tự xử khi hết giờ: tiến lên ra/bỏ qua, bài cào tự lật hết, caro tự đánh */
+function localAutoTimeout(host: CasinoRoom): boolean {
+  if (!host.state || host.status !== 'playing') return false;
+  if (host.game === 'tienlen') {
+    const s = host.state as TienLenState;
+    if (s.winner) return false;
+    const cur = s.turn;
+    if (!host.players.some((x) => x.pid === cur)) return false;
+    const mv = botPick(s, cur);
+    if (mv) host.state = applyPlay(s, cur, mv);
+    else if (s.lastPlay) host.state = applyPass(s, cur);
+    else {
+      const h = (s.hands[cur] || []).slice().sort((a, b) => a.r - b.r || a.s - b.s);
+      if (!h.length) return false;
+      host.state = applyPlay(s, cur, [h[0]]);
+    }
+    afterLocalAction(host);
+    return true;
+  }
+  if (host.game === 'baicao') {
+    const s = host.state as BaiCaoState;
+    let changed = false;
+    for (const id of s.order) {
+      if (!s.revealed.includes(id)) { s.revealed.push(id); changed = true; }
+    }
+    if (changed) afterLocalAction(host);
+    return changed;
+  }
+  if (host.game === 'caro') {
+    const s = host.state as CaroState;
+    if (s.winner || s.draw) return false;
+    const mv = caroBotMove(s, s.turn);
+    if (!mv) return false;
+    const next = applyCaroMove(s, s.turn, mv[0], mv[1]);
+    if (!next) return false;
+    host.state = next;
+    afterLocalAction(host);
+    return true;
+  }
+  return false;
 }
 function stopBotLoop() {
   if (botTimer) clearInterval(botTimer);

@@ -155,6 +155,13 @@ function casinoRoomId() {
 }
 function casinoMax(game) { return game === 'caro' ? 2 : 4; }
 function casinoMin(game) { return 2; }
+/** Mỗi lượt tiến lên/caro 30s, vòng lật bài cào 45s — hết giờ trọng tài tự đánh */
+const TURN_MS = 30000;
+const BAICAO_MS = 45000;
+function touchDeadline(room) {
+  if (!room.state) return;
+  room.state.deadline = Date.now() + (room.game === 'baicao' ? BAICAO_MS : TURN_MS);
+}
 function pidOf(myId) { return myId || 'anon'; }
 // pid casino: client gửi kèm trong từng sự kiện (kết nối casino là socket riêng,
 // không gửi hello nên myId của nó luôn null — không được dùng myId ở đây).
@@ -212,6 +219,7 @@ function leaveCasinoRoom(socket, pid, notify = false) {
     if (room.status === 'playing' && room.state?.turn === pid) {
       casinoSkipTurn(room, pid);
     }
+    if (room.status === 'playing' && room.state) touchDeadline(room);
     room.updatedAt = Date.now();
     io.to('casino:' + roomId).emit('casino:state', room);
   }
@@ -277,17 +285,17 @@ function casinoStartRoom(room) {
     for (const id of pids) hands[id].sort(cCmp);
     let first = pids[0];
     for (const [id, h] of Object.entries(hands)) if (h.some((c) => c.r === 3 && c.s === 0)) first = id;
-    room.state = { order: pids, hands, turn: first, leader: first, lastPlay: null, lastPlayer: null, passed: [], firstTurn: true, winner: null, rank: [] };
+    room.state = { order: pids, hands, turn: first, leader: first, lastPlay: null, lastPlayer: null, passed: [], firstTurn: true, winner: null, rank: [], deadline: null };
   } else if (room.game === 'baicao') {
     const deck = cDeck();
     const hands = {};
     pids.forEach((id) => (hands[id] = []));
     for (let k = 0; k < 3; k++) for (const id of pids) { const c = deck.pop(); if (c) hands[id].push(c); }
-    room.state = { order: pids, hands, revealed: room.players.filter((x) => x.bot).map((x) => x.pid), winners: null };
+    room.state = { order: pids, hands, revealed: room.players.filter((x) => x.bot).map((x) => x.pid), winners: null, deadline: null };
     if (room.state.revealed.length >= pids.length) casinoFinishBaiCao(room);
   } else if (room.game === 'caro') {
     if (pids.length !== 2) return 'Caro cần đúng 2 người';
-    room.state = { size: 12, board: Array.from({ length: 12 }, () => Array(12).fill(null)), order: pids, turn: pids[0], winner: null, winLine: null, draw: false, moveCount: 0 };
+    room.state = { size: 12, board: Array.from({ length: 12 }, () => Array(12).fill(null)), order: pids, turn: pids[0], winner: null, winLine: null, draw: false, moveCount: 0, deadline: null };
   }
   room.status = 'playing';
   room.winners = null;
@@ -314,6 +322,7 @@ function casinoFinishBaiCao(room) {
     }
   }
   st.winners = best;
+  st.deadline = null;
   room.status = 'finished';
   room.winners = best;
   room.updatedAt = Date.now();
@@ -387,6 +396,7 @@ function casinoAction(room, pid, p) {
       if (st.hands[pid].length === 0) {
         st.winner = pid; st.rank = [...(st.rank || []), pid];
         st.lastPlay = cards; st.lastPlayer = pid;
+        st.deadline = null;
         room.status = 'finished'; room.winners = [pid];
       } else {
         st.lastPlay = cards; st.lastPlayer = pid; st.leader = pid;
@@ -417,8 +427,8 @@ function casinoAction(room, pid, p) {
       const idx = st.order.indexOf(pid);
       st.board[r][c] = idx; st.moveCount++;
       const line = caroWin(st.board, r, c);
-      if (line) { st.winner = pid; st.winLine = line; room.status = 'finished'; room.winners = [pid]; }
-      else if (st.moveCount >= st.size * st.size) { st.draw = true; room.status = 'finished'; room.winners = []; }
+      if (line) { st.winner = pid; st.winLine = line; st.deadline = null; room.status = 'finished'; room.winners = [pid]; }
+      else if (st.moveCount >= st.size * st.size) { st.draw = true; st.deadline = null; room.status = 'finished'; room.winners = []; }
       else st.turn = st.order[(idx + 1) % st.order.length];
       room.updatedAt = Date.now();
       return null;
@@ -426,6 +436,49 @@ function casinoAction(room, pid, p) {
     return 'Hành động không hợp lệ';
   }
   return 'Game không hợp lệ';
+}
+/** Hết giờ mà chưa đi: trọng tài tự xử (tiến lên: bỏ qua hoặc ra nhỏ nhất; bài cào: tự lật; caro: tự đánh) */
+function casinoAutoTimeout(room) {
+  const st = room.state;
+  if (!st || room.status !== 'playing') return false;
+  if (room.game === 'tienlen') {
+    if (st.winner) return false;
+    const cur = st.turn;
+    const mv = tlBotPick(st, cur);
+    if (mv) casinoAction(room, cur, { type: 'play', cards: mv.map((c) => c.id) });
+    else if (st.lastPlay) casinoAction(room, cur, { type: 'pass' });
+    else {
+      // đầu vòng mà không có nước hợp lệ (hiếm) → ra lá nhỏ nhất
+      const h = (st.hands[cur] || []).slice().sort(cCmp);
+      if (!h.length) return false;
+      casinoAction(room, cur, { type: 'play', cards: [h[0].id] });
+    }
+    if (room.status === 'playing') touchDeadline(room);
+    room.updatedAt = Date.now();
+    return true;
+  }
+  if (room.game === 'baicao') {
+    let changed = false;
+    for (const id of st.order) {
+      if (!st.revealed.includes(id)) { st.revealed.push(id); changed = true; }
+    }
+    if (changed) {
+      if (st.revealed.length >= st.order.length) casinoFinishBaiCao(room);
+      else room.updatedAt = Date.now();
+      return true;
+    }
+    return false;
+  }
+  if (room.game === 'caro') {
+    if (st.winner || st.draw) return false;
+    const mv = caroBotPick(st);
+    if (!mv) return false;
+    casinoAction(room, st.turn, { type: 'move', r: mv[0], c: mv[1] });
+    if (room.status === 'playing') touchDeadline(room);
+    room.updatedAt = Date.now();
+    return true;
+  }
+  return false;
 }
 // ---- bot tự đánh (server) ----
 function casinoMaybeBot(room) {
@@ -447,6 +500,7 @@ function casinoMaybeBot(room) {
         const h = (st.hands[cur.pid] || []).slice().sort(cCmp);
         if (h.length) casinoAction(room, cur.pid, { type: 'play', cards: [h[0].id] });
       }
+      if (room.status === 'playing' && room.state) touchDeadline(room);
       io.to('casino:' + room.id).emit('casino:state', room);
       io.emit('casino:rooms', casinoPublic());
       casinoMaybeBot(room);
@@ -458,6 +512,7 @@ function casinoMaybeBot(room) {
       if (room.status !== 'playing') return;
       const mv = caroBotPick(st);
       if (mv) casinoAction(room, cur.pid, { type: 'move', r: mv[0], c: mv[1] });
+      if (room.status === 'playing' && room.state) touchDeadline(room);
       io.to('casino:' + room.id).emit('casino:state', room);
       io.emit('casino:rooms', casinoPublic());
       casinoMaybeBot(room);
@@ -638,6 +693,7 @@ io.on('connection', (socket) => {
     if (room.hostPid !== ccPid(socket, myId, p)) { socket.emit('casino:error', { msg: 'Chỉ chủ phòng bắt đầu' }); return; }
     const err = casinoStartRoom(room);
     if (err) { socket.emit('casino:error', { msg: err }); return; }
+    touchDeadline(room);
     io.to('casino:' + room.id).emit('casino:state', room);
     io.emit('casino:rooms', casinoPublic());
     casinoMaybeBot(room);
@@ -649,6 +705,7 @@ io.on('connection', (socket) => {
     const pid = ccPid(socket, myId, p);
     const err = casinoAction(room, pid, p);
     if (err) { socket.emit('casino:error', { msg: err }); return; }
+    if (room.status === 'playing' && room.state) touchDeadline(room);
     io.to('casino:' + room.id).emit('casino:state', room);
     io.emit('casino:rooms', casinoPublic());
     casinoMaybeBot(room);
@@ -684,6 +741,28 @@ setInterval(() => {
   }
   if (drop) emitPlayers();
 }, 3000);
+
+// casino: hết giờ lượt → trọng tài tự đánh (1s kiểm tra 1 lần)
+setInterval(() => {
+  const now = Date.now();
+  for (const room of casinoRooms.values()) {
+    if (room.status !== 'playing' || !room.state || room.state.deadline == null) continue;
+    if (now < room.state.deadline) continue;
+    // bỏ qua nếu tới lượt bot (bot loop riêng sẽ đánh trong ~1s)
+    if (room.state.turn) {
+      const cur = room.players.find((x) => x.pid === room.state.turn);
+      if (cur?.bot) continue;
+    }
+    if (casinoAutoTimeout(room)) {
+      io.to('casino:' + room.id).emit('casino:state', room);
+      io.emit('casino:rooms', casinoPublic());
+      casinoMaybeBot(room);
+    } else if (room.status === 'playing' && room.state) {
+      // không xử được (vd chờ bot) → gia hạn thêm để khỏi lặp vô hạn
+      touchDeadline(room);
+    }
+  }
+}, 1000);
 
 // ---------- Start ----------
 function lanIps() {

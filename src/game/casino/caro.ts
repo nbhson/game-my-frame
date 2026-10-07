@@ -13,6 +13,8 @@ export interface CaroState {
   winLine: [number, number][] | null;
   draw: boolean;
   moveCount: number;
+  /** mốc hết giờ của lượt hiện tại (ms epoch) — hết giờ tự đánh */
+  deadline: number | null;
 }
 
 export function emptyBoard(size = CARO_SIZE): CaroCell[][] {
@@ -29,6 +31,7 @@ export function newCaroGame(playerIds: [string, string]): CaroState {
     winLine: null,
     draw: false,
     moveCount: 0,
+    deadline: null,
   };
 }
 
