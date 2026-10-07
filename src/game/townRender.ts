@@ -4,7 +4,7 @@ import { SHIRTS } from './data';
 import type { WeatherKind } from './types';
 import {
   BENCH_SPOTS, FARM_GATE, FOUNTAIN, LAMP_SPOTS, PLAZA, SAKURA_SPOTS,
-  TOWN, TOWN_BOARD, TOWN_CAFE, TOWN_HALL, TOWN_HOUSE1, TOWN_HOUSE2,
+  TOWN, TOWN_BOARD, TOWN_CAFE, TOWN_CASINO, TOWN_HALL, TOWN_HOUSE1, TOWN_HOUSE2,
   TOWN_SHOP, TOWN_STAGE, farmGateCenter,
 } from './town';
 import { drawPlayerDetailed, type VisitorDraw } from './render';
@@ -172,7 +172,7 @@ function drawTownBase(ctx: CanvasRenderingContext2D, cam: { x: number; y: number
     if (fy > 590 && fy < 700) continue;
     if (fx > 750 && fx < 850) continue;
     let inside = false;
-    for (const b of [TOWN_HALL, TOWN_CAFE, TOWN_SHOP, TOWN_HOUSE1, TOWN_HOUSE2, TOWN_STAGE]) {
+    for (const b of [TOWN_HALL, TOWN_CAFE, TOWN_SHOP, TOWN_CASINO, TOWN_HOUSE1, TOWN_HOUSE2, TOWN_STAGE]) {
       if (fx > b.x - 16 && fx < b.x + b.w + 16 && fy > b.y - 16 && fy < b.y + b.h + 16) inside = true;
     }
     if (inside) continue;
@@ -1492,6 +1492,125 @@ function drawCritters(ctx: CanvasRenderingContext2D, cam: { x: number; y: number
   }
 }
 
+// ---------- casino: neon tím-vàng + chip + xúc xắc + biển CASINO nhấp nháy ----------
+function drawCasino(ctx: CanvasRenderingContext2D, cam: { x: number; y: number }, t: number, night: boolean) {
+  const b = TOWN_CASINO;
+  const X = b.x - cam.x, Y = b.y - cam.y;
+  if (X + b.w < -120 || X > 3000 || Y + b.h < -160 || Y > 2000) return;
+  const cx = X + b.w / 2;
+  shadow(ctx, X + b.w / 2, Y + b.h + 4, b.w / 2 + 6, 8, 0.26);
+  // thân tím sang trọng + viền vàng
+  frame(ctx, X, Y, b.w, b.h, 12, '#3b1d5e', 3.2);
+  ctx.save();
+  rr(ctx, X, Y, b.w, b.h, 12); ctx.clip();
+  // dải vàng kim trên dưới
+  ctx.fillStyle = '#ffd24d';
+  ctx.fillRect(X, Y, b.w, 10);
+  ctx.fillRect(X, Y + b.h - 12, b.w, 12);
+  ctx.fillStyle = 'rgba(255,255,255,.25)';
+  ctx.fillRect(X, Y + 12, b.w, 5);
+  // đèn neon chạy quanh (ngày cũng sáng nhẹ, đêm rực)
+  const neon = ['#ff5b8b', '#ffd24d', '#3b82f6', '#43d17c'];
+  const nn = 14;
+  for (let i = 0; i <= nn; i++) {
+    const px = X + 8 + ((b.w - 16) * i) / nn;
+    const on = Math.sin(t * 3 + i * 0.9) > -0.3;
+    ctx.fillStyle = on ? neon[i % neon.length] : 'rgba(120,90,140,.5)';
+    ctx.beginPath(); ctx.arc(px, Y + 22, on ? 4 : 2.6, 0, 7); ctx.fill();
+    if (night && on) {
+      const g = ctx.createRadialGradient(px, Y + 22, 1, px, Y + 22, 12);
+      g.addColorStop(0, neon[i % neon.length] + 'aa'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(px, Y + 22, 12, 0, 7); ctx.fill();
+    }
+  }
+  // cửa kính lớn giữa
+  frame(ctx, cx - 44, Y + b.h - 72, 88, 60, 8, '#9fd8ff', 2.6);
+  ctx.fillStyle = 'rgba(255,255,255,.45)';
+  ctx.beginPath();
+  ctx.moveTo(cx - 40, Y + b.h - 14);
+  ctx.lineTo(cx - 10, Y + b.h - 68);
+  ctx.lineTo(cx + 6, Y + b.h - 68);
+  ctx.lineTo(cx - 24, Y + b.h - 14);
+  ctx.closePath(); ctx.fill();
+  // thảm đỏ + 2 chậu kim tiền
+  ctx.fillStyle = '#d6336c';
+  rr(ctx, cx - 20, Y + b.h - 12, 40, 14, 4); ctx.fill();
+  for (const px of [X + 22, X + b.w - 22]) {
+    frame(ctx, px - 10, Y + b.h - 30, 20, 18, 4, '#7c4f21', 2.2);
+    ctx.fillStyle = '#43d17c';
+    ctx.beginPath(); ctx.arc(px, Y + b.h - 36, 9, 0, 7); ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = OUT; ctx.stroke();
+    ctx.fillStyle = '#ffd24d';
+    ctx.beginPath(); ctx.arc(px, Y + b.h - 36, 3.4, 0, 7); ctx.fill();
+  }
+  // chip poker 2 bên cửa
+  const chip = (px: number, py: number, col: string, spin: number) => {
+    ctx.save(); ctx.translate(px, py); ctx.rotate(Math.sin(t * 1.5 + spin) * 0.15);
+    ctx.fillStyle = col;
+    ctx.beginPath(); ctx.arc(0, 0, 13, 0, 7); ctx.fill();
+    ctx.lineWidth = 2.4; ctx.strokeStyle = '#fff'; ctx.stroke();
+    ctx.fillStyle = '#fff';
+    for (let k = 0; k < 6; k++) {
+      const a = (k / 6) * Math.PI * 2;
+      ctx.beginPath(); ctx.arc(Math.cos(a) * 10, Math.sin(a) * 10, 3, 0, 7); ctx.fill();
+    }
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(0, 0, 6, 0, 7); ctx.fill();
+    ctx.restore();
+  };
+  chip(X + 44, Y + 68, '#e04848', 1);
+  chip(X + 44, Y + 96, '#3b82f6', 2);
+  chip(X + b.w - 44, Y + 68, '#3b82f6', 3);
+  chip(X + b.w - 44, Y + 96, '#e04848', 4);
+  // xúc xắc trên mái
+  const dice = (px: number, py: number, v: number, rot: number) => {
+    ctx.save(); ctx.translate(px, py); ctx.rotate(rot + Math.sin(t * 2 + px) * 0.08);
+    frame(ctx, -11, -11, 22, 22, 5, '#fff8e1', 2.4);
+    ctx.fillStyle = '#2b2117';
+    const dots: Record<number, [number, number][]> = {
+      1: [[0, 0]], 2: [[-5, -5], [5, 5]], 3: [[-5, -5], [0, 0], [5, 5]],
+      4: [[-5, -5], [5, -5], [-5, 5], [5, 5]], 5: [[-5, -5], [5, -5], [0, 0], [-5, 5], [5, 5]],
+      6: [[-5, -5], [5, -5], [-5, 0], [5, 0], [-5, 5], [5, 5]],
+    };
+    for (const [dx, dy] of dots[v] ?? dots[1]) {
+      ctx.beginPath(); ctx.arc(dx, dy, 2, 0, 7); ctx.fill();
+    }
+    ctx.restore();
+  };
+  // mái vòm + xúc xắc
+  ctx.fillStyle = '#2a1445';
+  ctx.beginPath();
+  ctx.moveTo(X - 6, Y + 2);
+  ctx.lineTo(cx, Y - 34);
+  ctx.lineTo(X + b.w + 6, Y + 2);
+  ctx.closePath(); ctx.fill();
+  ctx.lineWidth = 3; ctx.strokeStyle = '#ffd24d'; ctx.lineJoin = 'round'; ctx.stroke();
+  dice(cx - 30, Y - 34, 5, 0.2);
+  dice(cx + 30, Y - 34, 3, -0.25);
+  ctx.restore();
+  // biển CASINO to, nhấp nháy
+  const blink = 0.75 + 0.25 * Math.sin(t * 4);
+  ctx.font = `bold 26px 'Be Vietnam Pro', monospace`;
+  const label = '🎰 CASINO';
+  const tw = ctx.measureText(label).width + 36;
+  const by = Y + 44;
+  ctx.globalAlpha = blink;
+  rr(ctx, cx - tw / 2, by, tw, 36, 12);
+  const sg = ctx.createLinearGradient(0, by, 0, by + 36);
+  sg.addColorStop(0, '#ff9e2c'); sg.addColorStop(1, '#c2185b');
+  ctx.fillStyle = sg; ctx.fill();
+  ctx.lineWidth = 3; ctx.strokeStyle = '#fff8e1'; ctx.stroke();
+  ctx.globalAlpha = 1;
+  txt(ctx, label, cx, by + 25, 22, '#fff');
+  txt(ctx, 'TIẾN LÊN • BÀI CÀO • CARO', cx, by + 50, 10, '#ffe9a8');
+  namePill(ctx, cx, Y + b.h + 14, 'Casino (cược 10-100 xu)');
+  if (night) {
+    const g = ctx.createRadialGradient(cx, Y + 60, 4, cx, Y + 60, 150);
+    g.addColorStop(0, 'rgba(255,120,200,.28)'); g.addColorStop(1, 'rgba(255,120,200,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, Y + 60, 150, 0, 7); ctx.fill();
+  }
+}
+
 // ---------- render chính ----------
 export function renderTown(ctx: CanvasRenderingContext2D, W: number, H: number, cam: { x: number; y: number }, s: TownRenderState, t: number) {
   const dt = s.dayTime;
@@ -1507,6 +1626,7 @@ export function renderTown(ctx: CanvasRenderingContext2D, W: number, H: number, 
   drawBuilding(ctx, cam, t, TOWN_SHOP, { id: 'shop', roof: 'double', wall: '#fffdf5', roofTop: '#64b5f6', roofBot: '#0d47a1', sign: 'LƯU NIỆM', noren: ['土', '産', '店'] }, night);
   drawBuilding(ctx, cam, t, TOWN_HOUSE1, { id: 'house', roof: 'thatch', wall: '#ffe9c4', roofTop: '#f0d48a', roofBot: '#9a7030', sign: 'NHÀ RƠM', chimney: true }, night);
   drawBuilding(ctx, cam, t, TOWN_HOUSE2, { id: 'house', roof: 'lean', wall: '#e8f0f8', roofTop: '#90caf9', roofBot: '#1565c0', sign: 'NHÀ XANH', chimney: true }, night);
+  drawCasino(ctx, cam, t, night);
   drawStage(ctx, cam, t, night);
   drawBoard(ctx, cam, t, night);
   drawFarmGate(ctx, cam, t);

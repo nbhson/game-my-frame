@@ -37,6 +37,13 @@ chơi chung, chat và qua **thăm farm nhau**.
 - **Thăm farm chỉ-xem:** thấy ruộng/ao/chuồng của bạn, đi dạo + chat, không phá được
 - **Cloud save:** snapshot farm tự đẩy mỗi 10s — thăm được cả khi chủ offline
 
+### 🎰 Casino công viên (multiplayer, cược xu 10-100/ván)
+- **Vị trí:** nhà Casino neon tím-vàng phía đông-bắc công viên (dưới shop lưu niệm) — lại gần bấm `E` hoặc nút 🎰 Casino trên HUD
+- **3 game:** Tiến lên (2-4 người, 13 lá, nhất ăn tất) • Bài cào (2-4 người, 3 lá, nhiều nút thắng) • Caro (2 người, 12×12, 5 liên tiếp)
+- **Phòng:** tạo phòng theo game + mức cược, mã phòng 4 ký tự, chủ phòng bắt đầu, có thể thêm 🤖 máy, ván mới sau khi xong
+- **Mạng:** LAN server làm trọng tài (nhiều máy cùng WiFi) • 2 tab cùng máy qua BroadcastChannel • 1 mình chơi với máy
+- **Xu:** trừ cược khi ván bắt đầu, thắng nhận pot = cược × số người (hòa chia đều, caro hòa hoàn cược)
+
 ## 🧱 Stack
 
 | Lớp | Công nghệ | Vì sao |

@@ -37,6 +37,10 @@ export function doInteractWith(t: InteractTarget | null | undefined) {
   if (t.kind === 'townProp') {
     const p = TOWN_PROPS.find((x) => x.id === t.propId);
     sfx.click();
+    if (p?.id === 'casino') {
+      s.setModal('casino');
+      return;
+    }
     if (p?.id === 'fountain') {
       if (s.xu >= 10) {
         s.addXu(-10);

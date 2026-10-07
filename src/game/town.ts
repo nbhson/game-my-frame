@@ -22,6 +22,13 @@ export const TOWN_SPAWN = { x: 150, y: 700 };
 export const TOWN_HALL = { x: 620, y: 170, w: 360, h: 220 }; // hội quán lớn (bắc)
 export const TOWN_CAFE = { x: 180, y: 220, w: 260, h: 190 }; // quán cafe (tây-bắc)
 export const TOWN_SHOP = { x: 1160, y: 220, w: 260, h: 190 }; // shop lưu niệm (đông-bắc)
+// Casino: phía đông-bắc, dưới shop lưu niệm, trên đường ngang (không lấn đường)
+export const TOWN_CASINO = { x: 1130, y: 436, w: 290, h: 150 };
+export function casinoCenter() {
+  return { x: TOWN_CASINO.x + TOWN_CASINO.w / 2, y: TOWN_CASINO.y + TOWN_CASINO.h / 2 };
+}
+/** Điểm đứng chơi casino (trên đường ngang, trước cửa) */
+export const CASINO_DOOR = { x: TOWN_CASINO.x + TOWN_CASINO.w / 2, y: TOWN_CASINO.y + TOWN_CASINO.h + 30 };
 export const TOWN_HOUSE1 = { x: 170, y: 920, w: 240, h: 180 }; // nhà dân
 export const TOWN_HOUSE2 = { x: 1190, y: 920, w: 240, h: 180 }; // nhà dân
 export const TOWN_STAGE = { x: 660, y: 1020, w: 280, h: 110 }; // sân khấu sự kiện (nam)
@@ -47,8 +54,8 @@ export const BENCH_SPOTS = [
 export function isTownBlocked(x: number, y: number): boolean {
   // đài phun nước (trừ vành ngoài để đứng ngắm)
   if (Math.hypot(x - FOUNTAIN.x, y - FOUNTAIN.y) < FOUNTAIN.r - 6) return true;
-  // nhà cửa
-  for (const b of [TOWN_HALL, TOWN_CAFE, TOWN_SHOP, TOWN_HOUSE1, TOWN_HOUSE2]) {
+  // nhà cửa (kể cả casino)
+  for (const b of [TOWN_HALL, TOWN_CAFE, TOWN_SHOP, TOWN_HOUSE1, TOWN_HOUSE2, TOWN_CASINO]) {
     if (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h) return true;
   }
   // sân khấu: chặn leo lên (đứng dưới xem)
@@ -72,6 +79,7 @@ export const TOWN_PROPS: { id: string; x: number; y: number; label: string; hint
   { id: 'hall', x: TOWN_HALL.x + TOWN_HALL.w / 2, y: TOWN_HALL.y + TOWN_HALL.h + 30, label: 'Hội quán', hint: 'Hội quán công viên: sự kiện cuối tuần, bảng xếp hạng mùa vụ!' },
   { id: 'cafe', x: TOWN_CAFE.x + TOWN_CAFE.w / 2, y: TOWN_CAFE.y + TOWN_CAFE.h + 30, label: 'Quán Cà phê Mèo', hint: 'Thơm quá! Ngồi nhâm nhi, tám chuyện với cả làng.' },
   { id: 'shop', x: TOWN_SHOP.x + TOWN_SHOP.w / 2, y: TOWN_SHOP.y + TOWN_SHOP.h + 30, label: 'Shop Lưu niệm', hint: 'Shop lưu niệm: đổi gem lấy đồ trang trí (sắp mở)!' },
+  { id: 'casino', x: TOWN_CASINO.x + TOWN_CASINO.w / 2, y: TOWN_CASINO.y + TOWN_CASINO.h + 30, label: 'Casino', hint: 'Tiến lên • Bài cào • Caro — cược 10-100 xu/ván!' },
   { id: 'stage', x: TOWN_STAGE.x + TOWN_STAGE.w / 2, y: TOWN_STAGE.y - 20, label: 'Sân khấu', hint: 'Sân khấu sự kiện: leo lên nhảy múa, thi thố cùng bạn bè!' },
 ];
 
