@@ -16,6 +16,15 @@ export interface RemotePlayer {
   moving: boolean;
   bubble?: string;
   bubbleAt?: number;
+  /** bản đồ đang đứng: farm riêng hay công viên chung */
+  map?: 'farm' | 'town';
+  /** cảm xúc realtime ở công viên */
+  emote?: string;
+  emoteAt?: number;
+  /** version giao thức presence (phát hiện tab chạy bản game khác nhau) */
+  proto?: number;
+  /** mã farm đang thăm (null = đang ở nhà) — farm chỉ hiện chủ + khách cùng thăm */
+  visit?: string | null;
   updatedAt: number;
 }
 
@@ -64,7 +73,7 @@ export interface NetTransport {
   connect(self: SelfInfo): void;
   disconnect(): void;
   updateSelf(self: SelfInfo): void;
-  pushPosition(x: number, y: number, dir: 1 | -1, moving: boolean, bubble?: string): void;
+  pushPosition(x: number, y: number, dir: 1 | -1, moving: boolean, bubble?: string, extra?: { map?: 'farm' | 'town'; emote?: string; visit?: string | null }): void;
   pushFarm(snap: FarmPayload): void;
   fetchFarm(code: string): Promise<FarmSnapshot | null>;
   sendChat(text: string): void;

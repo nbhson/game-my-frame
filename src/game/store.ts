@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Animal, AnimalType, CoopCap, ModalKind, Plot, PondFish, ShopTab, Stats, WeatherKind } from './types';
+import type { Animal, AnimalType, CoopCap, ModalKind, Plot, PondFish, SceneKind, ShopTab, Stats, WeatherKind } from './types';
 import {
   ANIMALS, BITE_MAX, BITE_MIN, BITE_WINDOW, CROPS, DAY_LENGTH, FEED_PRO_PRICE, FEED_PRICE,
   BAIT_PRO_PRICE, BAIT_PRICE, FISHES, MAX_CAP, MAX_PLOTS, MAX_POND, QUESTS,
@@ -43,6 +43,8 @@ interface GameState {
   // ui state (persist một phần, modal/toast không persist)
   modal: ModalKind;
   shopTab: ShopTab;
+  // bản đồ đang đứng: farm riêng hay thị trấn chung (không persist, luôn boot ở farm)
+  scene: SceneKind;
   // câu sông: transient, không persist
   fishingSpot: FishSpot | null;
   biteAt: number | null;
@@ -65,6 +67,7 @@ interface GameState {
   dismissToast: (id: number) => void;
   setModal: (m: ModalKind) => void;
   setShopTab: (t: ShopTab) => void;
+  setScene: (s: SceneKind) => void;
   addXP: (n: number) => void;
   addXu: (n: number) => void;
   addInv: (pid: string, n: number) => void;
@@ -171,7 +174,7 @@ export const useGame = create<GameState>()(
       coopCap: freshCap(),
       stats: freshStats(),
       questIdx: 0, uidSeq: 1,
-      modal: null, shopTab: 'seed',
+      modal: null, shopTab: 'seed', scene: 'farm',
       fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null,
       toasts: [],
 
@@ -194,7 +197,7 @@ export const useGame = create<GameState>()(
             pondSlots: Math.min(MAX_POND, Math.max(START_POND, data.pondSlots ?? (data.fishes?.length >= 6 ? 6 : START_POND))),
             animals: data.animals, coopCap: cap,
             stats: data.stats, questIdx: data.questIdx, uidSeq: uidRef.v,
-            modal: null, fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null,
+            modal: null, fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null, scene: 'farm',
           });
         } else {
           set({
@@ -205,7 +208,7 @@ export const useGame = create<GameState>()(
             plots: freshPlots(), pondSlots: START_POND, fishes: [], animals: [],
             coopCap: freshCap(),
             stats: freshStats(), questIdx: 0, uidSeq: 1,
-            modal: null, fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null,
+            modal: null, fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null, scene: 'farm',
           });
         }
       },
@@ -218,6 +221,7 @@ export const useGame = create<GameState>()(
       dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
       setModal: (m) => set({ modal: m }),
       setShopTab: (t) => set({ shopTab: t }),
+      setScene: (scene) => set({ scene, modal: null }),
 
       addXP: (n) => {
         let { xp, level, xu, gem } = get();
@@ -620,7 +624,7 @@ export const useGame = create<GameState>()(
           plots: freshPlots(), pondSlots: START_POND, fishes: [], animals: [],
           coopCap: freshCap(),
           stats: freshStats(), questIdx: 0, uidSeq: 1,
-          modal: null, fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null, toasts: [],
+          modal: null, fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null, toasts: [], scene: 'farm',
         });
       },
     }),

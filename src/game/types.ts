@@ -45,7 +45,7 @@ export interface Stats {
 
 export type ModalKind =
   | null
-  | 'shop' | 'bag' | 'quest' | 'help' | 'village'
+  | 'shop' | 'bag' | 'quest' | 'help' | 'village' | 'townChat' | 'townEmote'
   | { name: 'seed'; plot: number }
   | { name: 'stock' }
   | { name: 'bait'; pier: number }
@@ -53,10 +53,17 @@ export type ModalKind =
 
 export type ShopTab = 'seed' | 'fish' | 'animal' | 'food' | 'sell';
 
+/** Bản đồ đang đứng: farm riêng hay thị trấn chung */
+export type SceneKind = 'farm' | 'town';
+
+/** Cảm xúc / hành động realtime ở công viên */
+export type TownEmote = 'wave' | 'dance' | 'sit' | 'laugh' | 'heart' | 'sleep' | 'angry' | 'clap';
+
 export interface InteractTarget {
-  kind: 'plot' | 'pond' | 'river' | 'pen' | 'animal' | 'shop';
+  kind: 'plot' | 'pond' | 'river' | 'pen' | 'animal' | 'shop' | 'townGate' | 'farmGate' | 'townProp';
   index?: number; // plot index / pier index
   uid?: number; // animal uid / fish uid
   pen?: 'pond' | 'coop' | 'barn';
+  propId?: string; // townProp: fountain | board | hall | cafe | shop | sakura...
   label: string;
 }

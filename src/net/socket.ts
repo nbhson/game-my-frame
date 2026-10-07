@@ -3,6 +3,7 @@
 // không cần cấu hình IP gì cả, mở link LAN là vào làng được.
 import { io, type Socket } from 'socket.io-client';
 import type { ChatMsg, FarmPayload, FarmSnapshot, NetTransport, RemotePlayer, SelfInfo } from './transport';
+import { PRESENCE_PROTO } from './session';
 
 export class SocketTransport implements NetTransport {
   readonly mode = 'socket' as const;
@@ -24,7 +25,7 @@ export class SocketTransport implements NetTransport {
     this.socket = io({ transports: ['websocket', 'polling'] });
     this.socket.on('connect', () => {
       this.emitStatus(true);
-      this.socket!.emit('hello', { id: this.playerId, name: this.self.name, avatar: this.self.avatar, code: this.code });
+      this.socket!.emit('hello', { id: this.playerId, v: PRESENCE_PROTO, name: this.self.name, avatar: this.self.avatar, code: this.code });
     });
     this.socket.on('disconnect', () => this.emitStatus(false));
     this.socket.on('players', (list: RemotePlayer[]) => {
@@ -44,11 +45,11 @@ export class SocketTransport implements NetTransport {
 
   updateSelf(self: SelfInfo) {
     this.self = self;
-    this.socket?.emit('hello', { id: this.playerId, name: self.name, avatar: self.avatar, code: this.code });
+    this.socket?.emit('hello', { id: this.playerId, v: PRESENCE_PROTO, name: self.name, avatar: self.avatar, code: this.code });
   }
 
-  pushPosition(x: number, y: number, dir: 1 | -1, moving: boolean, bubble?: string) {
-    this.socket?.emit('pos', { x: Math.round(x), y: Math.round(y), dir, moving, bubble });
+  pushPosition(x: number, y: number, dir: 1 | -1, moving: boolean, bubble?: string, extra?: { map?: 'farm' | 'town'; emote?: string; visit?: string | null }) {
+    this.socket?.emit('pos', { x: Math.round(x), y: Math.round(y), dir, moving, bubble, map: extra?.map, emote: extra?.emote, visit: extra?.visit, v: PRESENCE_PROTO });
   }
 
   pushFarm(snap: FarmPayload) {

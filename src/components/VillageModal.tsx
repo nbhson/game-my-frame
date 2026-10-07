@@ -1,35 +1,20 @@
 import { useState } from 'react';
-import { Copy, LogOut, MessageCircle, Search, Users } from 'lucide-react';
+import { LogOut, MessageCircle, RefreshCw, Users } from 'lucide-react';
 import { useVillage } from '../net/village';
-import { normalizeCode } from '../net/session';
 import { useGame } from '../game/store';
 import { sfx } from '../game/audio';
 import { GameIcon } from './GameIcon';
 
-type Tab = 'online' | 'chat' | 'visit';
+type Tab = 'friends' | 'chat';
 
 export default function VillageModal() {
   const v = useVillage();
-  const [tab, setTab] = useState<Tab>('online');
-  const [code, setCode] = useState('');
+  const [tab, setTab] = useState<Tab>('friends');
   const [draft, setDraft] = useState('');
 
-  const copyCode = async () => {
-    const link = `${window.location.origin}${window.location.pathname}?visit=${v.myCode}`;
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(link);
-        useGame.getState().toast('Đã copy link mời!');
-      } else {
-        // http LAN / trình duyệt cũ không có clipboard → hiện mã để gõ tay
-        window.prompt('Copy link mời thăm farm:', link);
-      }
-    } catch { useGame.getState().toast('Mã của bạn: ' + v.myCode); }
-    sfx.coin();
-  };
-
-  const doVisit = async (c: string) => {
-    const ok = await v.visit(normalizeCode(c));
+  const doVisit = async (code: string | undefined, name: string) => {
+    if (!code) { useGame.getState().toast('Chưa lấy được farm của ' + name + ', thử lại sau!'); return; }
+    const ok = await v.visit(code);
     if (ok) useGame.getState().setModal(null);
   };
 
@@ -42,50 +27,61 @@ export default function VillageModal() {
 
   return (
     <div>
-      {/* mã của mình + trạng thái */}
+      {v.mismatch && (
+        <div className="bg-red-100 border-2 border-red-500 rounded-lg p-2 mb-2 text-[13px] font-bold text-red-700">
+          Phát hiện tab khác chạy bản game cũ hơn! Hãy reload cứng (Ctrl+Shift+R) <b>cả 2 tab</b> rồi bấm Kết nối lại.
+        </div>
+      )}
+      {/* trạng thái kết nối */}
       <div className="flex items-center gap-2 bg-white border-2 border-[#2b2117] rounded-lg p-2 mb-2 flex-wrap">
-        <span className="text-sm">Mã farm bạn: <b className="font-pixel text-xs bg-yellow-200 px-2 py-1 rounded">{v.myCode}</b></span>
-        <button onClick={copyCode} className="pixel-btn !text-[10px] !px-2 !py-1.5 flex items-center gap-1"><Copy size={12} /> Copy link mời</button>
+        <span className="text-sm font-extrabold">Bạn bè online ({v.players.length + (v.demoBots ? 3 : 0)})</span>
+        <button onClick={() => v.reconnect()} className="pixel-btn !text-[10px] !px-2 !py-1.5 flex items-center gap-1" title="Ngắt rồi vào lại làng (tự chữa lỗi không thấy nhau)">
+          <RefreshCw size={12} /> Kết nối lại
+        </button>
         <span className="text-[11px] text-stone-500 flex items-center gap-1">
           {v.mode === 'supabase' ? 'Cloud Supabase' : v.mode === 'socket' ? 'LAN server' : 'Làng local (multi-tab)'} •
           <span className="inline-block w-2.5 h-2.5 rounded-full border border-black" style={{ background: v.cloud === 'synced' ? '#4ade80' : v.cloud === 'local' ? '#facc15' : v.cloud === 'syncing' ? '#f97316' : '#ef4444' }} />
           {v.cloud === 'synced' ? 'đã đồng bộ' : v.cloud === 'local' ? 'local' : v.cloud === 'syncing' ? 'đang sync…' : 'mất kết nối'}
         </span>
+        {v.visiting && (
+          <button onClick={() => { v.leaveVisit(); useGame.getState().setModal(null); }} className="pixel-btn !text-[10px] !px-2 !py-1.5 flex items-center gap-1">
+            <LogOut size={12} /> Về farm mình
+          </button>
+        )}
       </div>
 
       <div className="flex gap-1.5 mb-2">
-        {([['online', 'Online', <Users key="i" size={14} />], ['chat', 'Chat', <MessageCircle key="i" size={14} />], ['visit', 'Thăm bạn', <Search key="i" size={14} />]] as [Tab, string, React.ReactNode][]).map(([k, l, ic]) => (
+        {([['friends', 'Bạn bè', <Users key="i" size={14} />], ['chat', 'Chat', <MessageCircle key="i" size={14} />]] as [Tab, string, React.ReactNode][]).map(([k, l, ic]) => (
           <button key={k} onClick={() => setTab(k)} className={`px-3 py-2 border-[3px] border-[#2b2117] rounded-lg font-extrabold text-[13px] flex items-center gap-1.5 ${tab === k ? 'bg-[#2b2117] text-yellow-300' : 'bg-white'}`}>
-            {ic}{l} {k === 'online' && `(${v.players.length + (v.demoBots ? 2 : 0)})`} {k === 'chat' && v.chat.length > 0 && `(${v.chat.length})`}
+            {ic}{l} {k === 'friends' && `(${v.players.length + (v.demoBots ? 3 : 0)})`} {k === 'chat' && v.chat.length > 0 && `(${v.chat.length})`}
           </button>
         ))}
       </div>
 
-      {tab === 'online' && (
+      {tab === 'friends' && (
         <div>
+          <p className="text-sm mb-2">Tất cả người đang chơi đều là bạn — bấm <b>Thăm farm</b> để qua xem ruộng/ao/chuồng, đi dạo + chat cùng nhau.</p>
           {v.players.length === 0 && !v.demoBots && (
             <p className="text-sm text-stone-500 bg-white border-2 border-dashed border-stone-300 rounded-lg p-3 text-center">
               {v.mode === 'local'
                 ? 'Chưa ai online. Mở thêm 1 tab trình duyệt cùng link này là thấy nhau ngay!'
-                : 'Làng đang vắng. Chia sẻ mã farm để bạn bè vào chơi!'}
+                : 'Làng đang vắng. Rủ thêm bạn vào chơi cùng!'}
             </p>
           )}
           <div className="flex flex-col gap-2">
             {v.players.map((p) => (
               <PlayerRow
                 key={p.id} name={p.name} avatar={p.avatar}
-                sub={p.code ? `mã ${p.code} • đang trong làng` : 'đang trong làng'}
+                sub={(p.map === 'town' ? 'đang ở công viên' : 'đang ở nông trại')}
                 actionLabel="Thăm farm"
-                onAction={() => {
-                  if (p.code) { void doVisit(p.code); }
-                  else { useGame.getState().toast('Xin mã farm 6 ký tự của ' + p.name + ' ở tab Thăm bạn'); setTab('visit'); }
-                }}
+                onAction={() => { void doVisit(p.code, p.name); }}
               />
             ))}
             {v.demoBots && (
               <>
-                <PlayerRow name="Lan" avatar={1} sub="demo bot" actionLabel="Chào" onAction={() => v.sendChat('Chào Lan!')} />
-                <PlayerRow name="Tèo" avatar={2} sub="demo bot" actionLabel="Chào" onAction={() => v.sendChat('Chào Tèo!')} />
+                <PlayerRow name="Lan" avatar={1} sub="đang ở nông trại • demo bot" actionLabel="Chào" onAction={() => v.sendChat('Chào Lan!')} />
+                <PlayerRow name="Tèo" avatar={2} sub="đang ở nông trại • demo bot" actionLabel="Chào" onAction={() => v.sendChat('Chào Tèo!')} />
+                <PlayerRow name="Đào" avatar={3} sub="đang ở công viên • demo bot" actionLabel="Chào" onAction={() => v.sendChat('Chào Đào!')} />
               </>
             )}
           </div>
@@ -117,33 +113,6 @@ export default function VillageModal() {
             <button onClick={send} className="pixel-btn !text-[11px] flex items-center gap-1"><MessageCircle size={14} /> Gửi</button>
           </div>
           <p className="text-[11px] text-stone-500 mt-1">Tin nhắn cũng hiện bóng chat trên đầu nhân vật trong game</p>
-        </div>
-      )}
-
-      {tab === 'visit' && (
-        <div>
-          <p className="text-sm mb-2">Nhập <b>mã farm 6 ký tự</b> của bạn bè để qua thăm (xem ruộng/ao/chuồng, đi dạo + chat). Thăm ở chế độ chỉ-xem kiểu Avatar</p>
-          <div className="flex gap-2">
-            <input
-              value={code}
-              onChange={(e) => setCode(e.target.value.toUpperCase().slice(0, 6))}
-              placeholder="VD: A3F9K2"
-              className="flex-1 border-[3px] border-[#2b2117] rounded-lg px-3 py-2 font-pixel text-sm text-center tracking-widest"
-            />
-            <button onClick={() => doVisit(code)} className="pixel-btn !text-[11px] flex items-center gap-1"><Search size={14} /> Thăm</button>
-          </div>
-          {v.visiting && (
-            <button onClick={() => { v.leaveVisit(); useGame.getState().setModal(null); }} className="pixel-btn !text-[11px] mt-2 flex items-center gap-1">
-              <LogOut size={14} /> Về farm mình
-            </button>
-          )}
-          <p className="text-[11px] text-stone-500 mt-2">
-            {v.mode === 'local'
-              ? 'Local: chỉ thăm được farm cùng máy (tab khác đang mở hoặc đã sync).'
-              : v.mode === 'socket'
-                ? 'LAN: thăm được mọi farm trong mạng (kể cả chủ đã thoát, farm lưu ở server).'
-                : 'Cloud: thăm được farm bất kỳ đã từng online, kể cả chủ đang offline.'}
-          </p>
         </div>
       )}
     </div>

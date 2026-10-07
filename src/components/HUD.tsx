@@ -1,13 +1,14 @@
-import { Backpack, CircleHelp, ScrollText, Store, Users, Volume2, VolumeX } from 'lucide-react';
+import { Backpack, CircleHelp, MessageCircle, ScrollText, Store, Tractor, Users, Volume2, VolumeX } from 'lucide-react';
 import { useState } from 'react';
 import { xpNeed, useGame, WEATHER_LABEL } from '../game/store';
-import { useVillage } from '../net/village';
+import { townCount, useVillage } from '../net/village';
 import { isSoundOn, setSoundOn } from '../game/audio';
 import { GameIcon } from './GameIcon';
+import { goToFarm } from './GameCanvas';
 
 export default function HUD() {
   const s = useGame();
-  const online = useVillage((v) => v.players.length + (v.demoBots ? 2 : 0));
+  const online = useVillage((v) => v.players.length + (v.demoBots ? 3 : 0));
   const cloud = useVillage((v) => v.cloud);
   const [mute, setMute] = useState(!isSoundOn());
   const pct = Math.min(100, (s.xp / xpNeed(s.level)) * 100);
@@ -15,9 +16,10 @@ export default function HUD() {
   const weatherIcon = s.weather === 'rain' ? 'rain' : s.weather === 'snow' ? 'snow' : clockIcon;
   const weatherLabel = WEATHER_LABEL[s.weather] + (s.weather === 'rain' ? ' (tự tưới)' : s.weather === 'snow' ? ' (chậm lớn)' : '');
   const cloudColor = cloud === 'synced' ? '#4ade80' : cloud === 'local' ? '#facc15' : cloud === 'syncing' ? '#f97316' : '#ef4444';
+  const inTown = s.scene === 'town';
 
   return (
-    <div className="flex items-center justify-between gap-2 bg-[#2b2117] text-white px-2 py-1.5 flex-wrap z-10">
+    <div className={`flex items-center justify-between gap-2 text-white px-2 py-1.5 flex-wrap z-10 ${inTown ? 'bg-[#5b2a86]' : 'bg-[#2b2117]'}`}>
       <div className="flex items-center gap-2">
         <div className="bg-[#3e3428] border-2 border-black rounded-lg px-1.5 py-0.5"><GameIcon name={`farmer${s.avatar % 4}`} size={30} /></div>
         <div className="bg-[#3e3428] border-2 border-black rounded-lg px-2 py-1">
@@ -29,26 +31,65 @@ export default function HUD() {
             </span>
           </div>
         </div>
+        {inTown ? (
+          <div className="bg-pink-500 border-2 border-black rounded-lg px-2 py-1 text-[13px] font-black animate-pulse" title="Bản đồ chung realtime">
+            CÔNG VIÊN · {townCount() + 1} online
+          </div>
+        ) : (
+          <div className="bg-green-700 border-2 border-black rounded-lg px-2 py-1 text-[13px] font-black" title="Farm riêng của bạn">
+            NÔNG TRẠI
+          </div>
+        )}
       </div>
       <div className="flex items-center gap-2 text-sm font-extrabold">
         <div className="bg-[#3e3428] border-2 border-black rounded-lg px-2 py-1 text-yellow-300 flex items-center gap-1"><GameIcon name="coin" size={17} /> {s.xu.toLocaleString('vi-VN')}</div>
         <div className="bg-[#3e3428] border-2 border-black rounded-lg px-2 py-1 text-sky-300 flex items-center gap-1"><GameIcon name="gem" size={17} /> {s.gem}</div>
-        <div className="bg-[#3e3428] border-2 border-black rounded-lg px-2 py-1 hidden sm:flex items-center gap-1"><GameIcon name="calendar" size={16} /> Ngày {s.day} <GameIcon name={clockIcon} size={16} /></div>
-        <div className="bg-[#3e3428] border-2 border-black rounded-lg px-2 py-1 hidden sm:flex items-center gap-1" title={weatherLabel}><GameIcon name={weatherIcon} size={16} /> {WEATHER_LABEL[s.weather]}</div>
+        {!inTown && (
+          <>
+            <div className="bg-[#3e3428] border-2 border-black rounded-lg px-2 py-1 hidden sm:flex items-center gap-1"><GameIcon name="calendar" size={16} /> Ngày {s.day} <GameIcon name={clockIcon} size={16} /></div>
+            <div className="bg-[#3e3428] border-2 border-black rounded-lg px-2 py-1 hidden sm:flex items-center gap-1" title={weatherLabel}><GameIcon name={weatherIcon} size={16} /> {WEATHER_LABEL[s.weather]}</div>
+          </>
+        )}
+        {inTown && (
+          <div className="bg-[#3e3428] border-2 border-black rounded-lg px-2 py-1 hidden sm:flex items-center gap-1" title="Ngày/giờ chung với farm">
+            <GameIcon name="calendar" size={16} /> Ngày {s.day}
+          </div>
+        )}
       </div>
       <div className="flex items-center gap-1.5">
-        <button className="icon-btn !text-black relative" title="Làng (V)" onClick={() => s.setModal('village')}>
-          <Users size={20} />
-          {online > 0 && (
-            <span className="absolute -top-1.5 -right-1.5 bg-green-500 text-white text-[10px] font-black rounded-full min-w-5 h-5 flex items-center justify-center border-2 border-black px-1">
-              {online}
-            </span>
-          )}
-        </button>
-        <button className="icon-btn !text-black" title="Kho (B)" onClick={() => s.setModal('bag')}><Backpack size={20} /></button>
-        <button className="icon-btn !text-black" title="Cửa hàng (bấm E ở shop)" onClick={() => { s.setShopTab('seed'); s.setModal('shop'); }}><Store size={20} /></button>
-        <button className="icon-btn !text-black" title="Nhiệm vụ (Q)" onClick={() => s.setModal('quest')}><ScrollText size={20} /></button>
-        <button className="icon-btn !text-black" title="Trợ giúp (H)" onClick={() => s.setModal('help')}><CircleHelp size={20} /></button>
+        {inTown ? (
+          <>
+            <button className="pixel-btn !text-[11px] !bg-green-500 !text-white flex items-center gap-1" title="Về nông trại (cổng phía đông)" onClick={() => goToFarm()}>
+              <Tractor size={16} /> Về farm
+            </button>
+            <button className="icon-btn !text-black relative" title="Chat công viên" onClick={() => s.setModal('village')}>
+              <MessageCircle size={20} />
+            </button>
+            <button className="icon-btn !text-black relative" title="Bạn bè" onClick={() => s.setModal('village')}>
+              <Users size={20} />
+              {online > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-green-500 text-white text-[10px] font-black rounded-full min-w-5 h-5 flex items-center justify-center border-2 border-black px-1">
+                  {online}
+                </span>
+              )}
+            </button>
+          </>
+        ) : (
+          <>
+            <button className="icon-btn !text-black relative" title="Làng (V)" onClick={() => s.setModal('village')}>
+              <Users size={20} />
+              {online > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-green-500 text-white text-[10px] font-black rounded-full min-w-5 h-5 flex items-center justify-center border-2 border-black px-1">
+                  {online}
+                </span>
+              )}
+            </button>
+            <button className="icon-btn !text-black" title="Kho (B)" onClick={() => s.setModal('bag')}><Backpack size={20} /></button>
+            <button className="icon-btn !text-black" title="Cửa hàng (bấm E ở shop)" onClick={() => { s.setShopTab('seed'); s.setModal('shop'); }}><Store size={20} /></button>
+            <button className="icon-btn !text-black" title="Nhiệm vụ (Q)" onClick={() => s.setModal('quest')}><ScrollText size={20} /></button>
+            <button className="icon-btn !text-black" title="Trợ giúp (H)" onClick={() => s.setModal('help')}><CircleHelp size={20} /></button>
+          </>
+        )}
         <button
           className="icon-btn !text-black"
           onClick={() => { const v = !isSoundOn(); setSoundOn(v); setMute(!v); }}

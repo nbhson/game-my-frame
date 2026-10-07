@@ -31,6 +31,14 @@ export const PIERS = [
   { x: 1300, sitY: 1046, bobY: 1180 },
 ];
 export const SHOPD = { x: 1150, y: 820, w: 180, h: 140 };
+// ---- CỔNG CÔNG VIÊN: ngoài cùng BÊN PHẢI, nơi đường ngang kết thúc (cuối đường)
+// Người chơi đi bộ tới đây → chuyển sang map công viên
+export const TOWN_GATE = { x: 1498, y: 702, w: 102, h: 76 };
+export function townGateCenter() {
+  return { x: TOWN_GATE.x + TOWN_GATE.w / 2, y: TOWN_GATE.y + TOWN_GATE.h / 2 };
+}
+/** Điểm spawn khi từ công viên quay về farm (ngay trên đường, cạnh cổng) */
+export const FARM_GATE_SPAWN = { x: 1470, y: 745 };
 
 export function plotPos(i: number) {
   const c = i % FARM.cols, r = Math.floor(i / FARM.cols);

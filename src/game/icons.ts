@@ -45,27 +45,27 @@ export function drawEnvelope(ctx: CanvasRenderingContext2D, x: number, y: number
   ctx.fillStyle = '#e53935'; ctx.fillRect(x + w / 2 - 6, y - h / 2 + 2, 4, 5);
 }
 
-/** Ổ khóa đồng (thay 🔒) */
-export function drawLock(ctx: CanvasRenderingContext2D, x: number, y: number, s = 22) {
+/** Ổ khóa đồng mini — nhỏ gọn, viền trắng nổi trên nền cỏ */
+export function drawLock(ctx: CanvasRenderingContext2D, x: number, y: number, s = 15) {
   const w = s, h = s * 0.85;
-  ctx.fillStyle = 'rgba(0,0,0,.3)';
-  ell(ctx, x + 2, y + h / 2 + 2, w / 2, 4);
-  // càng khóa
-  ctx.strokeStyle = '#90a4ae'; ctx.lineWidth = s * 0.16;
+  ctx.fillStyle = 'rgba(0,0,0,.25)';
+  ell(ctx, x + 1.5, y + h / 2 + 2, w / 2, 3.5);
+  // càng khóa mảnh
+  ctx.strokeStyle = '#eceff1'; ctx.lineWidth = Math.max(2, s * 0.14);
   ctx.beginPath(); ctx.arc(x, y - h * 0.12, w * 0.32, Math.PI, 0); ctx.stroke();
-  ctx.strokeStyle = '#eceff1'; ctx.lineWidth = s * 0.05;
+  ctx.strokeStyle = '#90a4ae'; ctx.lineWidth = Math.max(1, s * 0.05);
   ctx.beginPath(); ctx.arc(x, y - h * 0.12, w * 0.32, Math.PI * 1.05, Math.PI * 1.5); ctx.stroke();
-  // thân khóa đồng
-  ctx.fillStyle = '#6d4c41'; ctx.fillRect(x - w / 2, y - h * 0.12, w, h + 2);
+  // thân khóa đồng + viền trắng mỏng cho nổi
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(x - w / 2 - 1, y - h * 0.12 - 1, w + 2, h + 4);
   const g = ctx.createLinearGradient(x - w / 2, 0, x + w / 2, 0);
-  g.addColorStop(0, '#a67c3a'); g.addColorStop(0.5, '#e8c872'); g.addColorStop(1, '#8b5f22');
-  ctx.fillStyle = g; ctx.fillRect(x - w / 2 + 2, y - h * 0.12 + 2, w - 4, h - 2);
-  // rãnh + lỗ khóa
-  ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(x - w / 2 + 2, y + h * 0.5, w - 4, 3);
+  g.addColorStop(0, '#a67c3a'); g.addColorStop(0.5, '#f0d48a'); g.addColorStop(1, '#8b5f22');
+  ctx.fillStyle = g; ctx.fillRect(x - w / 2, y - h * 0.12, w, h + 2);
+  // lỗ khóa
   ctx.fillStyle = '#3e2723';
   ctx.beginPath(); ctx.arc(x, y + h * 0.22, s * 0.11, 0, 7); ctx.fill();
-  ctx.fillRect(x - 1.5, y + h * 0.22, 3, s * 0.2);
-  ctx.fillStyle = 'rgba(255,255,255,.5)'; ctx.fillRect(x - w / 2 + 4, y - h * 0.12 + 3, 3, h - 6);
+  ctx.fillRect(x - 1.2, y + h * 0.22, 2.4, s * 0.18);
+  ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.fillRect(x - w / 2 + 3, y - h * 0.12 + 2, 2.5, h - 4);
 }
 
 /** Cuốc chim mini (thay ⛏️) */

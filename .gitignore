@@ -5,3 +5,4 @@ dist-ssr
 .DS_Store
 .env
 tsconfig.tsbuildinfo
+server/data/db.json

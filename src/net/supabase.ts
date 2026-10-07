@@ -1,7 +1,7 @@
 // ===== Supabase transport: cloud thật — presence + broadcast + farm snapshots =====
 import { createClient, type RealtimeChannel, type SupabaseClient } from '@supabase/supabase-js';
 import type { ChatMsg, FarmPayload, FarmSnapshot, NetTransport, RemotePlayer, SelfInfo } from './transport';
-import { codeFromId } from './session';
+import { PRESENCE_PROTO, codeFromId } from './session';
 import { safeUid } from './uid';
 
 const URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
@@ -26,7 +26,8 @@ export class SupabaseTransport implements NetTransport {
   private lastPos: { x: number; y: number; dir: 1 | -1; moving: boolean } = { x: 700, y: 600, dir: 1, moving: false };
 
   constructor(playerId: string, codeOverride?: string) {
-    this.playerId = playerId;
+    // id presence có hậu tố #tab → key DB dùng phần bền vững để không vỡ farm theo tab
+    this.playerId = playerId.split('#')[0];
     this.code = codeOverride ?? codeFromId(playerId);
     this.sb = createClient(URL!, ANON!);
   }
@@ -39,7 +40,7 @@ export class SupabaseTransport implements NetTransport {
     });
     this.channel
       .on('presence', { event: 'sync' }, () => {
-        const state = this.channel!.presenceState() as Record<string, { name: string; avatar: number; code?: string; x: number; y: number; dir: 1 | -1; moving: boolean; bubble?: string }[]>;
+        const state = this.channel!.presenceState() as Record<string, { v?: number; name: string; avatar: number; code?: string; x: number; y: number; dir: 1 | -1; moving: boolean; bubble?: string; map?: 'farm' | 'town'; emote?: string; visit?: string | null }[]>;
         const now = Date.now();
         const next = new Map<string, RemotePlayer>();
         for (const [id, metas] of Object.entries(state)) {
@@ -53,6 +54,11 @@ export class SupabaseTransport implements NetTransport {
             dir: m.dir, moving: m.moving,
             bubble: m.bubble ?? prev?.bubble,
             bubbleAt: m.bubble ? now : prev?.bubbleAt,
+            map: m.map ?? prev?.map ?? 'farm',
+            emote: m.emote ?? prev?.emote,
+            emoteAt: m.emote ? now : prev?.emoteAt,
+            proto: m.v ?? prev?.proto ?? 1,
+            visit: m.visit !== undefined ? m.visit : (prev?.visit ?? null),
             updatedAt: now,
           });
         }
@@ -85,8 +91,8 @@ export class SupabaseTransport implements NetTransport {
     this.track();
   }
 
-  pushPosition(x: number, y: number, dir: 1 | -1, moving: boolean, bubble?: string) {
-    this.track({ x, y, dir, moving, bubble });
+  pushPosition(x: number, y: number, dir: 1 | -1, moving: boolean, bubble?: string, extra?: { map?: 'farm' | 'town'; emote?: string; visit?: string | null }) {
+    this.track({ x, y, dir, moving, bubble, map: extra?.map, emote: extra?.emote, visit: extra?.visit });
   }
 
   pushFarm(snap: FarmPayload) {
@@ -136,17 +142,21 @@ export class SupabaseTransport implements NetTransport {
     return () => { this.statusCbs.delete(cb); };
   }
 
-  private track(extra?: { x?: number; y?: number; dir?: 1 | -1; moving?: boolean; bubble?: string }) {
+  private track(extra?: { x?: number; y?: number; dir?: 1 | -1; moving?: boolean; bubble?: string; map?: 'farm' | 'town'; emote?: string; visit?: string | null }) {
     if (!this.channel) return;
     // giữ vị trí cuối để gửi bubble không làm teleport
     if (extra?.x != null) {
       this.lastPos = { x: extra.x, y: extra.y ?? this.lastPos.y, dir: extra.dir ?? this.lastPos.dir, moving: extra.moving ?? false };
     }
     void this.channel.track({
+      v: PRESENCE_PROTO,
       name: this.self.name, avatar: this.self.avatar, code: this.code,
       x: this.lastPos.x, y: this.lastPos.y,
       dir: this.lastPos.dir, moving: this.lastPos.moving,
       ...(extra?.bubble ? { bubble: extra.bubble } : {}),
+      ...(extra?.map ? { map: extra.map } : {}),
+      ...(extra?.emote ? { emote: extra.emote } : {}),
+      ...(extra?.visit ? { visit: extra.visit } : {}),
     });
   }
 

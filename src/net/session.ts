@@ -12,6 +12,33 @@ export function getPlayerId(): string {
   return id;
 }
 
+/**
+ * Id presence RIÊNG MỖI TAB (sessionStorage): 2 tab cùng trình duyệt mở 2
+ * account khác nhau vẫn thấy nhau. localStorage chung 1 id là nguyên nhân
+ * presence tự lờ tin của tab kia (w.from === self.id).
+ * Account/farm vẫn key theo username nên không ảnh hưởng save.
+ */
+const SID_KEY = 'nt-tab-id';
+export function getTabId(): string {
+  let id = sessionStorage.getItem(SID_KEY);
+  if (!id) {
+    id = safeUid();
+    sessionStorage.setItem(SID_KEY, id);
+  }
+  return id;
+}
+
+/** Danh tính presence = id bền vững + id tab (mỗi tab 1 người trong làng) */
+export function getPresenceId(): string {
+  return `${getPlayerId()}#${getTabId()}`;
+}
+
+/**
+ * Version giao thức presence. Tăng khi đổi format tin.
+ * Tab nào thấy người chơi có version khác mình → báo lệch bản để reload.
+ */
+export const PRESENCE_PROTO = 2;
+
 /** Mã bạn bè từ id: 6 ký tự dễ đọc, dễ chia sẻ kiểu Avatar */
 export function codeFromId(id: string): string {
   const clean = id.replace(/-/g, '').toUpperCase();

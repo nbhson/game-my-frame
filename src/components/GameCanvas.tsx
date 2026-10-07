@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { useGame } from '../game/store';
-import { useVillage, visiblePlayers } from '../net/village';
+import { useVillage, farmVisible, visiblePlayers } from '../net/village';
 import type { InteractTarget } from '../game/types';
-import { PIERS, WORLD, isBlocked, plotPos } from '../game/world';
+import { FARM_GATE_SPAWN, PIERS, WORLD, isBlocked, plotPos } from '../game/world';
+import { FARM_GATE, TOWN, TOWN_PROPS, TOWN_SPAWN, isTownBlocked } from '../game/town';
 import { MAX_PLOTS } from '../game/data';
-import { nearestInteract } from '../game/systems';
+import { nearestInteract, nearestTownInteract } from '../game/systems';
 import { renderWorld, type VisitorDraw } from '../game/render';
+import { renderTown } from '../game/townRender';
 import { startAutoSync, stopAutoSync } from '../net/account';
 import { sfx } from '../game/audio';
 
@@ -29,6 +31,23 @@ export function doInteractWith(t: InteractTarget | null | undefined) {
   if (s.fishingSpot) { s.reelRiver(); return; }
   const v = useVillage.getState();
   if (!t) return;
+  // --- chuyển map ---
+  if (t.kind === 'townGate') { goToTown(); return; }
+  if (t.kind === 'farmGate') { goToFarm(); return; }
+  if (t.kind === 'townProp') {
+    const p = TOWN_PROPS.find((x) => x.id === t.propId);
+    sfx.click();
+    if (p?.id === 'fountain') {
+      if (s.xu >= 10) {
+        s.addXu(-10);
+        v.sendEmote('✨');
+        s.toast('Bạn tung 10 xu ước nguyện! Chúc may mắn ✨');
+        s.addXP(2);
+      } else s.toast(p.hint);
+    } else if (p) s.toast(`${p.label}: ${p.hint}`);
+    else s.toast(t.label);
+    return;
+  }
   if (v.visiting) {
     // đang thăm farm bạn: chỉ được đi dạo + chat (kiểu Avatar)
     s.toast('Đang thăm farm bạn — về farm mình để làm việc nhé!');
@@ -42,6 +61,37 @@ export function doInteractWith(t: InteractTarget | null | undefined) {
   else if (t.kind === 'animal' && t.uid != null) s.interactAnimal(t.uid);
   else if (t.kind === 'shop') { s.setShopTab('seed'); s.setModal('shop'); }
 }
+
+/** Vào công viên: nhớ vị trí farm, spawn ở đầu công viên, rời visit nếu có */
+export function goToTown() {
+  const s = useGame.getState();
+  const v = useVillage.getState();
+  if (s.scene === 'town') return;
+  if (s.fishingSpot) s.cancelRiver(true);
+  if (v.visiting) v.leaveVisit();
+  farmPos.x = playerRef.x; farmPos.y = playerRef.y;
+  s.setScene('town');
+  playerRef.x = TOWN_SPAWN.x; playerRef.y = TOWN_SPAWN.y;
+  playerRef.tx = null; playerRef.ty = null; playerRef.moving = false;
+  sfx.click();
+  s.toast('Tới Công viên rồi! Gặp gỡ, chat, thả cảm xúc cùng cả làng');
+}
+
+/** Về nông trại: quay lại đúng chỗ cũ */
+export function goToFarm() {
+  const s = useGame.getState();
+  if (s.scene === 'farm') return;
+  if (s.fishingSpot) s.cancelRiver(true);
+  s.setScene('farm');
+  playerRef.x = farmPos.x ?? FARM_GATE_SPAWN.x;
+  playerRef.y = farmPos.y ?? FARM_GATE_SPAWN.y;
+  playerRef.tx = null; playerRef.ty = null; playerRef.moving = false;
+  sfx.click();
+  s.toast('Về tới nông trại!');
+}
+
+// nhớ vị trí farm trước khi qua town để quay lại đúng chỗ
+const farmPos: { x: number | null; y: number | null } = { x: null, y: null };
 
 /** Bắt đầu ngồi câu ở bến: chọn mồi (nếu có 2 loại thì mở bảng chọn) */
 function startRiverAt(pier: number) {
@@ -89,6 +139,9 @@ export default function GameCanvas({ target, onTarget }: Props) {
     let last = performance.now();
 
     const keydown = (e: KeyboardEvent) => {
+      // đang gõ chat/input: nhường phím cho ô nhập
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return;
       const k = e.key.toLowerCase();
       keys.current[k] = true;
       if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) e.preventDefault();
@@ -119,7 +172,7 @@ export default function GameCanvas({ target, onTarget }: Props) {
       // hệ quả của cover-scale: vẽ trong đơn vị logic
       ctx.setTransform(zoom.current, 0, 0, zoom.current, 0, 0);
 
-      // --- movement (khóa khi mở modal hoặc đang ngồi câu) ---
+      // --- movement (khóa khi mở modal hoặc đang ngồi câu; town đi tự do) ---
       if (!st.modal && !st.fishingSpot) {
         let mx = 0, my = 0;
         const K = keys.current;
@@ -129,13 +182,14 @@ export default function GameCanvas({ target, onTarget }: Props) {
         if (K['arrowright'] || K['d']) mx += 1;
         mx += joyRef.x; my += joyRef.y;
         const SPD = 260;
+        const blocked = (x: number, y: number) => (st.scene === 'town' ? isTownBlocked(x, y) : isBlocked(x, y));
         if (mx || my) {
           playerRef.tx = null; playerRef.ty = null;
           const l = Math.hypot(mx, my) || 1;
           const nx = playerRef.x + (mx / l) * SPD * dt;
           const ny = playerRef.y + (my / l) * SPD * dt;
-          if (!isBlocked(nx, playerRef.y)) playerRef.x = nx;
-          if (!isBlocked(playerRef.x, ny)) playerRef.y = ny;
+          if (!blocked(nx, playerRef.y)) playerRef.x = nx;
+          if (!blocked(playerRef.x, ny)) playerRef.y = ny;
           playerRef.moving = true;
           if (mx !== 0) playerRef.dir = mx > 0 ? 1 : -1;
         } else if (playerRef.tx != null && playerRef.ty != null) {
@@ -145,8 +199,8 @@ export default function GameCanvas({ target, onTarget }: Props) {
           else {
             const nx = playerRef.x + (dx / d) * SPD * dt;
             const ny = playerRef.y + (dy / d) * SPD * dt;
-            if (!isBlocked(nx, playerRef.y)) playerRef.x = nx;
-            if (!isBlocked(playerRef.x, ny)) playerRef.y = ny;
+            if (!blocked(nx, playerRef.y)) playerRef.x = nx;
+            if (!blocked(playerRef.x, ny)) playerRef.y = ny;
             playerRef.moving = true;
             playerRef.dir = dx > 0 ? 1 : -1;
           }
@@ -165,64 +219,83 @@ export default function GameCanvas({ target, onTarget }: Props) {
         zoom.current = (sc.cssH / view.current.h) * sc.dpr;
       }
 
-      cam.current.x = clampCam(playerRef.x - view.current.w / 2, WORLD.w, view.current.w);
-      cam.current.y = clampCam(playerRef.y - view.current.h / 2, WORLD.h, view.current.h);
+      cam.current.x = clampCam(playerRef.x - view.current.w / 2, st.scene === 'town' ? TOWN.w : WORLD.w, view.current.w);
+      cam.current.y = clampCam(playerRef.y - view.current.h / 2, st.scene === 'town' ? TOWN.h : WORLD.h, view.current.h);
 
-      // --- tick simulation (tạm dừng khi đang thăm farm bạn) ---
+      // --- tick simulation (tạm dừng khi đang thăm farm bạn; town vẫn tick farm ngầm) ---
       const village = useVillage.getState();
       if (!village.visiting) st.tick(dt);
 
       // cá chạy mất nếu không giật kịp (tự thu cần sau 2.5s quá giờ)
       if (st.fishingSpot && st.biteUntil && nowMs > st.biteUntil + 2500) st.reelRiver();
 
-      // phát vị trí cho làng (để bạn bè thấy mình đi lại)
+      // phát vị trí cho làng (để bạn bè thấy mình đi lại, kèm map + emote)
       village.pushPosition(playerRef.x, playerRef.y, playerRef.dir, playerRef.moving);
 
-      // --- farm đang xem: farm mình hay farm bạn (visit) ---
-      const snap = village.visiting?.snap;
-      const viewPlots = snap?.plots ?? st.plots;
-      const viewFishes = snap?.fishes ?? st.fishes;
-      const viewAnimals = snap?.animals ?? st.animals;
-
-      // --- interact scan (visit = chỉ xem, không tương tác) ---
-      const near = village.visiting
-        ? null
-        : nearestInteract({
-          px: playerRef.x, py: playerRef.y,
-          plots: viewPlots, fishes: viewFishes, pondSlots: st.pondSlots, animals: viewAnimals,
-          now: nowMs, t,
-        });
+      // --- interact scan ---
+      // farm: visit = chỉ xem, không tương tác; town: luôn tương tác props/cổng
+      const visitSnap = village.visiting?.snap;
+      const near = st.scene === 'town'
+        ? nearestTownInteract({ px: playerRef.x, py: playerRef.y })
+        : village.visiting
+          ? null
+          : nearestInteract({
+            px: playerRef.x, py: playerRef.y,
+            plots: (visitSnap?.plots ?? st.plots), fishes: (visitSnap?.fishes ?? st.fishes), pondSlots: st.pondSlots, animals: (visitSnap?.animals ?? st.animals),
+            now: nowMs, t,
+          });
       const prev = targetRef.current;
       if (JSON.stringify(prev) !== JSON.stringify(near)) {
         targetRef.current = near;
         onTargetRef.current(near);
       }
 
-      // --- render ---
-      const visitors: VisitorDraw[] = visiblePlayers(nowMs).map((p) => ({
+      // --- render (farm / town) ---
+      // town: ai cũng thấy nhau; farm: riêng tư (chỉ chủ + khách cùng thăm)
+      const visitors: VisitorDraw[] = (st.scene === 'town'
+        ? visiblePlayers(nowMs, 'town')
+        : farmVisible(nowMs, village.visiting?.code ?? null)
+      ).map((p) => ({
         x: p.x, y: p.y, dir: p.dir, moving: p.moving,
         name: p.name, avatar: p.avatar, bubble: p.bubble, bubbleAt: p.bubbleAt,
+        emote: p.emote, emoteAt: p.emoteAt,
         self: false,
       }));
-      // bóng chat của chính mình
-      if (village.selfBubble) {
+      // bóng chat + emote của chính mình (vẽ qua visitor self để tái dùng)
+      if (village.selfBubble || village.selfEmote) {
         visitors.push({
           x: playerRef.x, y: playerRef.y, dir: playerRef.dir, moving: playerRef.moving,
           name: st.name, avatar: st.avatar, bubble: undefined, bubbleAt: undefined,
+          emote: undefined, emoteAt: undefined,
           self: true,
         });
       }
       const fs = st.fishingSpot;
       const biting = !!fs && st.biteAt != null && st.biteUntil != null && nowMs >= st.biteAt && nowMs <= st.biteUntil;
-      renderWorld(ctx, view.current.w, view.current.h, cam.current, {
-        plots: viewPlots, fishes: viewFishes, animals: viewAnimals,
-        pondSlots: st.pondSlots, coopCap: st.coopCap,
-        player: { x: playerRef.x, y: playerRef.y, dir: playerRef.dir, moving: playerRef.moving, tx: playerRef.tx, ty: playerRef.ty, name: st.name },
-        avatar: st.avatar, dayTime: st.dayTime, weather: st.weather,
-        visitors,
-        selfBubble: village.selfBubble || undefined,
-        sit: fs ? { x: fs.x, y: fs.y, bx: fs.bx, by: fs.by, bite: biting } : null,
-      }, t);
+      if (st.scene === 'town') {
+        renderTown(ctx, view.current.w, view.current.h, cam.current, {
+          player: { x: playerRef.x, y: playerRef.y, dir: playerRef.dir, moving: playerRef.moving, tx: playerRef.tx, ty: playerRef.ty, name: st.name },
+          avatar: st.avatar, dayTime: st.dayTime, weather: st.weather,
+          visitors,
+          selfBubble: village.selfBubble || undefined,
+          selfEmote: village.selfEmote || undefined,
+        }, t);
+      } else {
+        const snap = village.visiting?.snap;
+        const viewPlots = snap?.plots ?? st.plots;
+        const viewFishes = snap?.fishes ?? st.fishes;
+        const viewAnimals = snap?.animals ?? st.animals;
+        renderWorld(ctx, view.current.w, view.current.h, cam.current, {
+          plots: viewPlots, fishes: viewFishes, animals: viewAnimals,
+          pondSlots: st.pondSlots, coopCap: st.coopCap,
+          player: { x: playerRef.x, y: playerRef.y, dir: playerRef.dir, moving: playerRef.moving, tx: playerRef.tx, ty: playerRef.ty, name: st.name },
+          avatar: st.avatar, dayTime: st.dayTime, weather: st.weather,
+          visitors,
+          selfBubble: village.selfBubble || undefined,
+          selfEmote: village.selfEmote || undefined,
+          sit: fs ? { x: fs.x, y: fs.y, bx: fs.bx, by: fs.by, bite: biting } : null,
+        }, t);
+      }
 
       raf = requestAnimationFrame(loop);
     };
@@ -253,12 +326,16 @@ export default function GameCanvas({ target, onTarget }: Props) {
     const r = cv.getBoundingClientRect();
     const sx = ((e.clientX - r.left) / r.width) * view.current.w;
     const sy = ((e.clientY - r.top) / r.height) * view.current.h;
-    const wx = Math.max(20, Math.min(WORLD.w - 20, sx + cam.current.x));
-    const wy = Math.max(60, Math.min(WORLD.h - 20, sy + cam.current.y));
     const st = useGame.getState();
+    const inTown = st.scene === 'town';
+    const MW = inTown ? TOWN.w : WORLD.w, MH = inTown ? TOWN.h : WORLD.h;
+    const wx = Math.max(20, Math.min(MW - 20, sx + cam.current.x));
+    const wy = Math.max(60, Math.min(MH - 20, sy + cam.current.y));
     // đang câu: click = giật cần
     if (st.fishingSpot) { st.reelRiver(); return; }
-    playerRef.tx = wx; playerRef.ty = wy;
+    const blocked = inTown ? isTownBlocked(wx, wy) : isBlocked(wx, wy);
+    if (!blocked) { playerRef.tx = wx; playerRef.ty = wy; }
+    if (inTown) return;
     // đang thăm farm bạn: chỉ đi dạo, không chạm vào đồ của bạn
     if (useVillage.getState().visiting) return;
     // click trúng ô ruộng thì tương tác ngay nếu đủ gần

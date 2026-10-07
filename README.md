@@ -1,7 +1,7 @@
-# 🌾 Nông Trại Pixel — Game nông trại kiểu Avatar TeaMobi
+# 🌾 Nông Trại Pixel — Game nông trại kiểu
 
 Game nông trại pixel-art chạy trên web: **trồng cây • nuôi cá • chăn nuôi • câu cá mini-game • làng multiplayer** —
-lấy cảm hứng từ game Avatar của TeaMobi. Đi dạo quanh làng, cuốc đất, gieo hạt, tưới nước,
+Đi dạo quanh làng, cuốc đất, gieo hạt, tưới nước,
 cho gà/bò/heo ăn, thả cá, câu cá giải trí, bán nông sản lên đời, rồi rủ bạn bè vào làng
 chơi chung, chat và qua **thăm farm nhau**.
 

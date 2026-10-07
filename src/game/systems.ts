@@ -1,7 +1,8 @@
 // ===== Interact system: tìm đối tượng gần player nhất =====
 import type { Animal, InteractTarget, PondFish } from './types';
 import { ANIMALS, CROPS, FISHES, plotCost, plotReq } from './data';
-import { BARN, COOP, PEN_MB, PIERS, SHOPD, POND, ROAD_H, ROAD_V, isBlocked, pondInner, plotPos, RIVER_WATER_Y, roadHCenter, roadVCenter } from './world';
+import { BARN, COOP, PEN_MB, PIERS, SHOPD, POND, ROAD_H, ROAD_V, TOWN_GATE, isBlocked, pondInner, plotPos, RIVER_WATER_Y, roadHCenter, roadVCenter } from './world';
+import { FARM_GATE, TOWN_PROPS, farmGateCenter } from './town';
 
 export interface InteractCtx {
   px: number; py: number;
@@ -174,6 +175,29 @@ export function nearestInteract(c: InteractCtx): InteractTarget | null {
     const d = Math.hypot(c.px - sx, c.py - sy);
     if (d < 110 && (!best || d < bd)) { best = { kind: 'shop', label: 'Mở Cửa hàng' }; bd = d; }
   }
+  // --- cổng công viên (ngoài cùng bên phải, cuối đường ngang) ---
+  {
+    const gx = TOWN_GATE.x + TOWN_GATE.w / 2, gy = TOWN_GATE.y + TOWN_GATE.h / 2;
+    const d = Math.hypot(c.px - gx, c.py - gy);
+    if (d < 120 && (!best || d < bd)) { best = { kind: 'townGate', label: 'Vào Công viên' }; bd = d; }
+  }
   void RIVER_WATER_Y;
+  return best;
+}
+
+/** Interact trong công viên: cổng về farm + các điểm check-in */
+export function nearestTownInteract(c: { px: number; py: number }): InteractTarget | null {
+  let best: InteractTarget | null = null;
+  let bd = 120;
+  {
+    const g = farmGateCenter();
+    const d = Math.hypot(c.px - g.x, c.py - g.y);
+    if (d < 130) { best = { kind: 'farmGate', label: 'Về Nông trại' }; bd = d; }
+  }
+  for (const p of TOWN_PROPS) {
+    const d = Math.hypot(c.px - p.x, c.py - p.y);
+    if (d < 100 && d < bd) { best = { kind: 'townProp', propId: p.id, label: p.label }; bd = d; }
+  }
+  void FARM_GATE;
   return best;
 }

@@ -125,13 +125,13 @@ app.use((_req, res) => res.sendFile(path.join(DIST, 'index.html')));
 const httpServer = createServer(app);
 const io = new Server(httpServer, { cors: { origin: '*' } });
 
-/** id -> { id, name, avatar, code, x, y, dir, moving, bubble, bubbleAt, updatedAt } */
+/** id -> { id, v, name, avatar, code, x, y, dir, moving, bubble, bubbleAt, map, emote, emoteAt, visit, updatedAt } */
 const players = new Map();
 let broadcastTimer = null;
 
 function publicList() {
-  return [...players.values()].map(({ id, name, avatar, code, x, y, dir, moving, bubble, bubbleAt }) => (
-    { id, name, avatar, code, x, y, dir, moving, bubble, bubbleAt, updatedAt: Date.now() }
+  return [...players.values()].map(({ id, v, name, avatar, code, x, y, dir, moving, bubble, bubbleAt, map, emote, emoteAt, visit }) => (
+    { id, v: v ?? 1, name, avatar, code, x, y, dir, moving, bubble, bubbleAt, map, emote, emoteAt, visit: visit ?? null, updatedAt: Date.now() }
   ));
 }
 function emitPlayers() {
@@ -150,12 +150,16 @@ io.on('connection', (socket) => {
     const prev = players.get(myId);
     players.set(myId, {
       id: myId,
+      v: Number(p.v ?? prev?.v ?? 1),
       name: String(p.name || prev?.name || 'Bạn').slice(0, 12),
       avatar: Number(p.avatar ?? prev?.avatar ?? 0),
       code: String(p.code || prev?.code || ''),
-      x: prev?.x ?? 700, y: prev?.y ?? 600,
+      x: Number(p.x ?? prev?.x ?? 700), y: Number(p.y ?? prev?.y ?? 600),
       dir: prev?.dir ?? 1, moving: false,
       bubble: prev?.bubble, bubbleAt: prev?.bubbleAt,
+      map: (p.map === 'farm' || p.map === 'town') ? p.map : (prev?.map ?? 'farm'),
+      emote: prev?.emote, emoteAt: prev?.emoteAt,
+      visit: typeof p.visit === 'string' ? p.visit.toUpperCase().slice(0, 6) : (prev?.visit ?? null),
       updatedAt: Date.now(),
     });
     socket.emit('players', publicList());
@@ -166,7 +170,13 @@ io.on('connection', (socket) => {
     if (!myId || !players.has(myId)) return;
     const pl = players.get(myId);
     pl.x = p.x; pl.y = p.y; pl.dir = p.dir === -1 ? -1 : 1; pl.moving = !!p.moving;
+    if (p.v != null) pl.v = Number(p.v) || 1;
     if (p.bubble) { pl.bubble = String(p.bubble).slice(0, 80); pl.bubbleAt = Date.now(); }
+    if (p.map === 'farm' || p.map === 'town') pl.map = p.map;
+    if (p.emote) { pl.emote = String(p.emote).slice(0, 20); pl.emoteAt = Date.now(); }
+    // client mới luôn gửi visit (mã farm đang thăm hoặc null) → gán trực tiếp;
+    // client cũ không gửi key này (undefined) → giữ nguyên
+    if (p.visit !== undefined) pl.visit = (typeof p.visit === 'string' && p.visit) ? p.visit.toUpperCase().slice(0, 6) : null;
     pl.updatedAt = Date.now();
     emitSoon();
   });

@@ -1,16 +1,20 @@
 // ===== Làng local: multi-tab demo qua BroadcastChannel (không cần mạng) =====
 // Mở 2 tab cùng trình duyệt → thấy nhau đi lại, chat, thăm farm nhau.
 import type { ChatMsg, FarmPayload, FarmSnapshot, NetTransport, RemotePlayer, SelfInfo } from './transport';
-import { codeFromId } from './session';
+import { PRESENCE_PROTO, codeFromId } from './session';
 import { safeUid } from './uid';
 
 interface Wire {
   kind: 'hello' | 'pos' | 'chat' | 'farm' | 'bye' | 'farm-req';
   from: string;
+  /** version giao thức presence của tab gửi */
+  v?: number;
   name?: string;
   avatar?: number;
   code?: string;
   x?: number; y?: number; dir?: 1 | -1; moving?: boolean; bubble?: string;
+  map?: 'farm' | 'town'; emote?: string;
+  visit?: string | null;
   text?: string;
   snap?: FarmSnapshot;
 }
@@ -27,8 +31,11 @@ export class LocalTransport implements NetTransport {
   private chatCbs = new Set<(m: ChatMsg) => void>();
   private statusCbs = new Set<(ok: boolean) => void>();
   private timer: number | null = null;
+  private helloTimer: number | null = null;
   private lastFarmPush = 0;
   private lastSnap: FarmSnapshot | null = null;
+  /** trạng thái presence cuối của mình (để trả lời hello + re-broadcast tự chữa) */
+  private lastSelf: { x: number; y: number; dir: 1 | -1; moving: boolean; bubble?: string; map?: 'farm' | 'town'; emote?: string; visit?: string | null } | null = null;
 
   constructor(private playerId: string, codeOverride?: string) {
     this.code = codeOverride ?? codeFromId(playerId);
@@ -39,7 +46,7 @@ export class LocalTransport implements NetTransport {
     this.ch = new BroadcastChannel('nongtrai-village');
     this.ch.onmessage = (e) => this.handle(e.data as Wire);
     this.emitStatus(true);
-    this.send({ kind: 'hello', from: self.id, name: self.name, avatar: self.avatar, code: this.code });
+    this.sendHello();
     // chủ động đẩy farm mình lên để tab khác visit được ngay (không đợi 10s)
     setTimeout(() => { try { this.pushFarmForce(); } catch { /* ignore */ } }, 600);
     // dọn người chơi mất kết nối (quá 8s không pos)
@@ -51,23 +58,42 @@ export class LocalTransport implements NetTransport {
       }
       if (drop) this.emitPlayers();
     }, 2000);
+    // re-broadcast hello 5s/lần: tự chữa mọi lệch presence thoáng qua
+    // (tab ngủ đông, HMR, race khi 2 tab cùng vào)
+    this.helloTimer = window.setInterval(() => {
+      try { this.sendHello(); } catch { /* ignore */ }
+    }, 5000);
   }
 
   disconnect() {
-    this.send({ kind: 'bye', from: this.self.id });
+    this.send({ kind: 'bye', from: this.self.id, v: PRESENCE_PROTO });
     this.ch?.close();
     this.ch = null;
     if (this.timer) clearInterval(this.timer);
+    if (this.helloTimer) clearInterval(this.helloTimer);
+    this.timer = null; this.helloTimer = null;
     this.players.clear();
+  }
+
+  /** gói hello mang đủ trạng thái để bên kia vẽ ngay, không cần đợi pos */
+  private sendHello() {
+    const s = this.lastSelf;
+    this.send({
+      kind: 'hello', from: this.self.id, v: PRESENCE_PROTO,
+      name: this.self.name, avatar: this.self.avatar, code: this.code,
+      x: s?.x, y: s?.y, dir: s?.dir, moving: s?.moving,
+      bubble: s?.bubble, map: s?.map, emote: s?.emote, visit: s?.visit,
+    });
   }
 
   updateSelf(self: SelfInfo) {
     this.self = self;
-    this.send({ kind: 'hello', from: self.id, name: self.name, avatar: self.avatar, code: this.code });
+    this.sendHello();
   }
 
-  pushPosition(x: number, y: number, dir: 1 | -1, moving: boolean, bubble?: string) {
-    this.send({ kind: 'pos', from: this.self.id, name: this.self.name, avatar: this.self.avatar, code: this.code, x, y, dir, moving, bubble });
+  pushPosition(x: number, y: number, dir: 1 | -1, moving: boolean, bubble?: string, extra?: { map?: 'farm' | 'town'; emote?: string; visit?: string | null }) {
+    this.lastSelf = { x, y, dir, moving, bubble, map: extra?.map, emote: extra?.emote, visit: extra?.visit };
+    this.send({ kind: 'pos', from: this.self.id, v: PRESENCE_PROTO, name: this.self.name, avatar: this.self.avatar, code: this.code, x, y, dir, moving, bubble, map: extra?.map, emote: extra?.emote, visit: extra?.visit });
   }
 
   /** đẩy farm bỏ qua throttle (dùng khi mới connect / khi có tab hỏi) */
@@ -153,6 +179,7 @@ export class LocalTransport implements NetTransport {
   private handle(w: Wire) {
     if (!w || w.from === this.self.id) return;
     if (w.kind === 'hello' || w.kind === 'pos') {
+      const isNew = !this.players.has(w.from);
       const prev = this.players.get(w.from);
       this.players.set(w.from, {
         id: w.from,
@@ -165,21 +192,24 @@ export class LocalTransport implements NetTransport {
         moving: w.moving ?? false,
         bubble: w.bubble ?? prev?.bubble,
         bubbleAt: w.bubble ? Date.now() : prev?.bubbleAt,
+        map: w.map ?? prev?.map ?? 'farm',
+        emote: w.emote ?? prev?.emote,
+        emoteAt: w.emote ? Date.now() : prev?.emoteAt,
+        // visit client mới luôn gửi (mã hoặc null) → gán trực tiếp; client cũ thiếu key → giữ
+        visit: w.visit !== undefined ? w.visit : (prev?.visit ?? null),
+        proto: w.v ?? prev?.proto ?? 1,
         updatedAt: Date.now(),
       });
       this.emitPlayers();
-      // tab mới vào chưa có farm mình → đẩy lại 1 bản để nó visit được
-      if (w.kind === 'hello') {
-        const now = Date.now();
-        if (now - this.lastFarmPush > 3000) {
-          // village sẽ pushFarm định kỳ; ở đây chỉ báo đã nhận
-          void now;
-        }
+      // bắt tay 2 chiều: thấy người lạ chào → chào lại ngay kèm trạng thái đầy đủ
+      // để cả 2 bên cùng thấy nhau, kể cả khi 1 bên vào trước / ngủ đông / race
+      if (isNew && w.kind === 'hello') {
+        try { this.sendHello(); } catch { /* ignore */ }
       }
     } else if (w.kind === 'farm-req') {
       // tab khác muốn xin farm → phát lại bản mới nhất mình có (kèm hello để lộ code)
-      this.send({ kind: 'hello', from: this.self.id, name: this.self.name, avatar: this.self.avatar, code: this.code });
-      if (this.lastSnap) this.send({ kind: 'farm', from: this.self.id, snap: this.lastSnap });
+      this.sendHello();
+      if (this.lastSnap) this.send({ kind: 'farm', from: this.self.id, v: PRESENCE_PROTO, snap: this.lastSnap });
     } else if (w.kind === 'chat' && w.text) {
       const pl = this.players.get(w.from);
       if (pl) { pl.bubble = w.text; pl.bubbleAt = Date.now(); this.emitPlayers(); }
