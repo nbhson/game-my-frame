@@ -2,6 +2,7 @@
 import { createClient, type RealtimeChannel, type SupabaseClient } from '@supabase/supabase-js';
 import type { ChatMsg, FarmPayload, FarmSnapshot, NetTransport, RemotePlayer, SelfInfo } from './transport';
 import { codeFromId } from './session';
+import { safeUid } from './uid';
 
 const URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const ANON = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
@@ -59,7 +60,7 @@ export class SupabaseTransport implements NetTransport {
       })
       .on('broadcast', { event: 'chat' }, ({ payload }) => {
         const p = payload as { from: string; name: string; text: string };
-        this.chatCbs.forEach((cb) => cb({ id: crypto.randomUUID(), fromId: p.from, fromName: p.name, text: p.text, at: Date.now() }));
+        this.chatCbs.forEach((cb) => cb({ id: safeUid(), fromId: p.from, fromName: p.name, text: p.text, at: Date.now() }));
         // gắn bubble cho người gửi
         const pl = this.players.get(p.from);
         if (pl) { pl.bubble = p.text; pl.bubbleAt = Date.now(); this.emitPlayers(); }
@@ -110,7 +111,7 @@ export class SupabaseTransport implements NetTransport {
   }
 
   sendChat(text: string) {
-    const msg: ChatMsg = { id: crypto.randomUUID(), fromId: this.self.id, fromName: this.self.name, text, at: Date.now() };
+    const msg: ChatMsg = { id: safeUid(), fromId: this.self.id, fromName: this.self.name, text, at: Date.now() };
     this.chatCbs.forEach((cb) => cb(msg));
     void this.channel?.send({ type: 'broadcast', event: 'chat', payload: { from: this.self.id, name: this.self.name, text } });
     this.track({ bubble: text });

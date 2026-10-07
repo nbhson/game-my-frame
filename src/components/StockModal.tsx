@@ -6,7 +6,7 @@ export default function StockModal() {
   const s = useGame();
   return (
     <div>
-      <p className="text-sm flex items-center gap-1.5">Ao đang nuôi <b>{s.fishes.length}/{s.pondSlots}</b> (tối đa {MAX_POND}) — cá thả xuống sẽ tự bơi <GameIcon name="caro" size={18} /></p>
+      <p className="text-sm flex items-center gap-1.5">Ao đang nuôi <b>{s.fishes.length}/{s.pondSlots}</b> (tối đa {MAX_POND}) — mua cá ở shop là tự bơi ngay, đây chỉ là kho cá con dự trữ <GameIcon name="caro" size={18} /></p>
       <div className="flex flex-col gap-2 mt-2">
         {Object.values(FISHES)
           .filter((f) => s.level >= f.lv)

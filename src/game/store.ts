@@ -454,8 +454,18 @@ export const useGame = create<GameState>()(
         if (!f) return;
         if (s.level < f.lv) { sfx.error(); get().toast(`${f.name} cần đạt Lv${f.lv}!`); return; }
         if (s.xu < f.babyPrice) { sfx.error(); get().toast('Không đủ xu!'); return; }
-        set({ xu: s.xu - f.babyPrice }); get().addInv('babyfish:' + id, 1);
-        sfx.coin(); get().toast(`Mua cá con ${f.name}! Ra ao thả nhé`);
+        // Mua là thả thẳng xuống ao nếu còn chỗ (giống mua vật nuôi là thấy ngay),
+        // hết chỗ mới giữ cá con trong kho để thả sau.
+        if (s.fishes.length < s.pondSlots) {
+          const fishes = [...s.fishes, { uid: s.uidSeq, type: id, age: 0, grown: false, hunger: 80 }];
+          set((st) => ({ xu: st.xu - f.babyPrice, fishes, uidSeq: st.uidSeq + 1, stats: { ...st.stats, stockedFish: st.stats.stockedFish + 1 } }));
+          sfx.splash(); sfx.coin();
+          get().toast(`Đã thả ${f.name} xuống ao! (${fishes.length}/${s.pondSlots})`);
+          get().addXP(5); get().checkQuest();
+        } else {
+          set({ xu: s.xu - f.babyPrice }); get().addInv('babyfish:' + id, 1);
+          sfx.coin(); get().toast(`Ao đầy! Giữ cá con ${f.name} trong kho — mở rộng ao rồi ra ao thả`);
+        }
       },
       buyAnimal: (id) => {
         const a = ANIMALS[id]; const s = get();

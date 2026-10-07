@@ -1,11 +1,12 @@
 // ===== Phiên khách: id bền vững + mã bạn bè 6 ký tự =====
+import { safeUid } from './uid';
 const ID_KEY = 'nt-player-id';
 const ACCT_KEY = 'nt-account'; // username đăng nhập lần cuối (để điền sẵn)
 
 export function getPlayerId(): string {
   let id = localStorage.getItem(ID_KEY);
   if (!id) {
-    id = crypto.randomUUID();
+    id = safeUid();
     localStorage.setItem(ID_KEY, id);
   }
   return id;

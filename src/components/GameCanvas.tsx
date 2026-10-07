@@ -153,11 +153,11 @@ export default function GameCanvas({ target, onTarget }: Props) {
         } else playerRef.moving = false;
       } else playerRef.moving = false;
 
-      // --- viewport: cao 750 thường, zoom nhẹ còn 640 khi ra bờ sông ---
+      // --- viewport: cao 750 thường, zoom ra 600 khi ra bờ sông để thấy sông rộng ---
       // (máy quay lên cao / xa hơn, thấy rộng hơn; mượt bằng lerp mỗi frame)
       {
         const sc = screen.current;
-        const targetH = playerRef.y > 980 ? 640 : 750;
+        const targetH = playerRef.y > 980 ? 600 : 750;
         const k = Math.min(1, dt * 2.5);
         view.current.h += (targetH - view.current.h) * k;
         if (Math.abs(view.current.h - targetH) < 0.5) view.current.h = targetH;

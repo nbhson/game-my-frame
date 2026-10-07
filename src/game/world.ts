@@ -1,6 +1,6 @@
 // ===== Layout thế giới — tách khỏi render để dễ mở map mới =====
 export const TILE = 48;
-export const WORLD = { w: 1600, h: 1200 };
+export const WORLD = { w: 1600, h: 1320 };
 
 // Ruộng 45 ô (9 cột x 5 hàng), mở khóa dần từ 6 ô đầu
 export const FARM = { x: 40, y: 230, w: 940, h: 460, cols: 9, rows: 5 };
@@ -22,13 +22,13 @@ export function pondInner() {
 // Chuồng gà/vịt + trại bò/heo/cừu
 export const COOP = { x: 60, y: 790, w: 440, h: 230 };
 export const BARN = { x: 540, y: 790, w: 460, h: 230 };
-// Sông câu cá (dải nước cuối map) + bến câu
-export const RIVER = { x: 0, y: 1022, w: 1600, h: 178 };
-export const RIVER_WATER_Y = 1052; // từ đây trở xuống là nước (chặn đi)
+// Sông câu cá (dải nước cuối map, sâu để nhìn đã mắt) + bến câu
+export const RIVER = { x: 0, y: 1022, w: 1600, h: 298 };
+export const RIVER_WATER_Y = 1062; // từ đây trở xuống là nước (chặn đi) — bãi cát 40px
 export const PIERS = [
-  { x: 300, sitY: 1046, bobY: 1126 },
-  { x: 800, sitY: 1046, bobY: 1126 },
-  { x: 1300, sitY: 1046, bobY: 1126 },
+  { x: 300, sitY: 1046, bobY: 1180 },
+  { x: 800, sitY: 1046, bobY: 1180 },
+  { x: 1300, sitY: 1046, bobY: 1180 },
 ];
 export const SHOPD = { x: 1150, y: 820, w: 180, h: 140 };
 

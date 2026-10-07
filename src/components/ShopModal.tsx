@@ -67,8 +67,8 @@ export default function ShopModal() {
             {Object.values(FISHES).map((ff) => {
               const lock = s.level < ff.lv;
               return (
-                <Card key={ff.id} icon={ff.id} title={<>{ff.name} {lock && (<span className="inline-flex items-center gap-0.5"><GameIcon name="lock" size={12} />Lv{ff.lv}</span>)}</>} desc={<>{ff.desc} • {ff.grow}s • Bán <Coin v={ff.sell} /> • +{ff.xp}XP</>} price={<Coin v={ff.babyPrice} />}>
-                  <button disabled={lock} className="pixel-btn !text-[10px] !px-2 !py-2" onClick={() => s.buyFish(ff.id)}>Mua con</button>
+                <Card key={ff.id} icon={ff.id} title={<>{ff.name} {lock && (<span className="inline-flex items-center gap-0.5"><GameIcon name="lock" size={12} />Lv{ff.lv}</span>)}</>} desc={<>{ff.desc} • {ff.grow}s • Bán <Coin v={ff.sell} /> • +{ff.xp}XP • Mua là thả thẳng xuống ao</>} price={<Coin v={ff.babyPrice} />}>
+                  <button disabled={lock} className="pixel-btn !text-[10px] !px-2 !py-2" onClick={() => s.buyFish(ff.id)}>Mua + thả ao</button>
                 </Card>
               );
             })}

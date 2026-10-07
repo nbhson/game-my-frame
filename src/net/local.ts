@@ -2,6 +2,7 @@
 // Mở 2 tab cùng trình duyệt → thấy nhau đi lại, chat, thăm farm nhau.
 import type { ChatMsg, FarmPayload, FarmSnapshot, NetTransport, RemotePlayer, SelfInfo } from './transport';
 import { codeFromId } from './session';
+import { safeUid } from './uid';
 
 interface Wire {
   kind: 'hello' | 'pos' | 'chat' | 'farm' | 'bye';
@@ -98,7 +99,7 @@ export class LocalTransport implements NetTransport {
   }
 
   sendChat(text: string) {
-    const msg: ChatMsg = { id: crypto.randomUUID(), fromId: this.self.id, fromName: this.self.name, text, at: Date.now() };
+    const msg: ChatMsg = { id: safeUid(), fromId: this.self.id, fromName: this.self.name, text, at: Date.now() };
     this.chatCbs.forEach((cb) => cb(msg));
     this.send({ kind: 'chat', from: this.self.id, name: this.self.name, text });
   }
@@ -140,7 +141,7 @@ export class LocalTransport implements NetTransport {
     } else if (w.kind === 'chat' && w.text) {
       const pl = this.players.get(w.from);
       if (pl) { pl.bubble = w.text; pl.bubbleAt = Date.now(); this.emitPlayers(); }
-      this.chatCbs.forEach((cb) => cb({ id: crypto.randomUUID(), fromId: w.from, fromName: w.name ?? 'Bạn', text: w.text!, at: Date.now() }));
+      this.chatCbs.forEach((cb) => cb({ id: safeUid(), fromId: w.from, fromName: w.name ?? 'Bạn', text: w.text!, at: Date.now() }));
     } else if (w.kind === 'farm' && w.snap) {
       try { localStorage.setItem(LS_FARM + ':' + w.snap.code, JSON.stringify(w.snap)); } catch { /* ignore */ }
     } else if (w.kind === 'bye') {
