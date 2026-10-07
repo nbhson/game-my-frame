@@ -94,7 +94,7 @@ legacy-vanilla/           # bản vanilla JS cũ
 
 ```bash
 npm install
-npm run dev      # http://localhost:8000 (dev 1 mình / multi-tab)
+npm run dev      # http://localhost:5173 (dev 1 mình / multi-tab)
 npm run lan      # build + LAN server cho cả mạng cùng chơi (DB local)
 npm run server   # chỉ chạy server với bản build có sẵn trong dist/
 npm run build    # production → dist/
@@ -138,10 +138,10 @@ Mỗi **username là 1 tài khoản**, lưu TOÀN BỘ farm (xu, ruộng, cá, v
 **Trả lời ngắn: được, và không cần Supabase.** Chạy 1 lệnh trên máy bạn:
 
 ```bash
-npm run lan   # build web + khởi động LAN server ở cổng 8000
+npm run lan   # build web + khởi động LAN server ở cổng 8931
 ```
 
-Server in ra link LAN, ví dụ `http://192.168.1.10:8000/` — máy khác và điện thoại
+Server in ra link LAN, ví dụ `http://192.168.1.10:8931/` — máy khác và điện thoại
 **cùng WiFi** mở link đó là vào làng chơi chung ngay, không cài gì thêm.
 Đổi cổng: `PORT=9000 npm run lan`.
 
