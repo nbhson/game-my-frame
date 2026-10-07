@@ -439,10 +439,10 @@ const auraOf = (id: string): [string, string] => CROP_AURA[id] ?? ['255,225,80',
 
 /** Vẽ cây theo từng loại + giai đoạn 0..4. Gốc tại (cx, baseY). */
 function drawCropPlant(ctx: CanvasRenderingContext2D, cx: number, baseY: number, cropId: string, stage: number, t: number, seed: number) {
-  // Phóng to gấp đôi mọi giai đoạn quanh gốc (cây choán hết ô đất)
+  // Phóng to 1.5x mọi giai đoạn quanh gốc (cây choán hết ô đất)
   ctx.save();
   ctx.translate(cx, baseY);
-  ctx.scale(2, 2);
+  ctx.scale(1.5, 1.5);
   ctx.translate(-cx, -baseY);
   try {
     drawCropPlantInner(ctx, cx, baseY, cropId, stage, t, seed);

@@ -1,4 +1,4 @@
-// ===== Casino modal: sảnh + phòng + 3 bàn (tiến lên / bài cào / caro) =====
+// ===== Casino modal: sảnh + phòng + 5 bàn (tiến lên / bài cào / xì dách / caro / cờ vua) =====
 import { useEffect, useMemo, useState } from 'react';
 import { useGame } from '../game/store';
 import { CASINO_BAICAO_MS, CASINO_GAMES, CASINO_MAX_BET, CASINO_MIN_BET, CASINO_TURN_MS, useCasino, type CasinoGame, type CasinoRoom } from '../net/casino';
@@ -6,6 +6,11 @@ import { getPresenceId } from '../net/session';
 import { cardLabel, isRed, type Card } from '../game/casino/cards';
 import { comboOf } from '../game/casino/tienlen';
 import { scoreHand } from '../game/casino/baicao';
+import { xiDachLabel, xiDachValue, type XiDachState } from '../game/casino/xidach';
+import {
+  CHESS_DRAW_TEXT, CHESS_WIN_TEXT, capturedOf, legalMovesFor, materialLead,
+  type ChessState, type PieceType,
+} from '../game/casino/chess';
 import type { TienLenState } from '../game/casino/tienlen';
 import type { BaiCaoState } from '../game/casino/baicao';
 import type { CaroState } from '../game/casino/caro';
@@ -75,7 +80,7 @@ function Lobby() {
     <div className="flex flex-col gap-3">
       <div className="bg-gradient-to-r from-purple-700 to-pink-600 border-2 border-black rounded-xl px-3 py-2 text-white text-center">
         <div className="font-black text-lg">🎰 CASINO CÔNG VIÊN</div>
-        <div className="text-xs opacity-90">Tiến lên • Bài cào • Caro — cược {CASINO_MIN_BET}-{CASINO_MAX_BET} xu/ván • Nhất ăn tất</div>
+        <div className="text-xs opacity-90">Tiến lên • Bài cào • Xì dách • Caro • Cờ vua — cược {CASINO_MIN_BET}-{CASINO_MAX_BET} xu/ván • Nhất ăn tất</div>
         <div className="text-xs mt-1">Ví của bạn: <b className="text-yellow-300">{xu} xu</b> • {transport === 'socket' ? '🟢 Chơi chung LAN' : '🟡 Tab gần / máy'}</div>
       </div>
 
@@ -217,7 +222,9 @@ function Playing() {
       {room.status === 'finished' && <FinishedBanner />}
       {room.game === 'tienlen' && <TienLenBoard />}
       {room.game === 'baicao' && <BaiCaoBoard />}
+      {room.game === 'xidach' && <XiDachBoard />}
       {room.game === 'caro' && <CaroBoard />}
+      {room.game === 'chess' && <ChessBoard />}
     </div>
   );
 }
@@ -461,4 +468,273 @@ function CaroBoard() {
       </div>
     </div>
   );
+}
+
+// ---------------- XÌ DÁCH (đấu nhà cái) ----------------
+function FaceDownCard({ small }: { small?: boolean }) {
+  return (
+    <div className={`bg-gradient-to-br from-red-500 to-purple-600 border-2 border-black rounded-md flex items-center justify-center text-white font-black ${small ? 'w-9 h-12 text-sm' : 'w-11 h-14 text-base'}`}>
+      ?
+    </div>
+  );
+}
+
+function XiDachBoard() {
+  const room = useCasino((s) => s.room)!;
+  const st = room.state as XiDachState;
+  const me = myPid();
+  const done = st.phase === 'done';
+  const isMyTurn = st.turn === me && !done;
+  const myHand = st.hands[me] ?? [];
+  const dealerOpen = done;
+
+  return (
+    <div className="flex flex-col gap-2">
+      {!done && (
+        <TurnBanner turnPid={st.turn} deadline={st.deadline} fullMs={CASINO_TURN_MS} actionText="đang rút/dằn…" />
+      )}
+      {/* nhà cái */}
+      <div className={`border-[3px] rounded-xl px-2 py-1.5 text-center ${done ? 'bg-white border-black' : 'bg-slate-800 border-black text-white'}`}>
+        <div className="font-bold text-xs">
+          🎩 Nhà cái {dealerOpen ? `• ${xiDachLabel(st.dealer)}` : '• đang úp bài…'}
+          {done && (room.winners ?? []).length === 0 && <span className="ml-1 text-red-600">ăn hết!</span>}
+        </div>
+        <div className="flex gap-1 justify-center my-1">
+          {st.dealer.map((c, i) => (
+            <div key={c.id + i}>{dealerOpen ? <MiniCard c={c} small /> : <FaceDownCard small />}</div>
+          ))}
+        </div>
+      </div>
+      {/* các nhà con */}
+      <div className="grid grid-cols-2 gap-1.5">
+        {room.players.map((p) => {
+          const hand = st.hands[p.pid] ?? [];
+          const mine = p.pid === me;
+          const open = done || mine;
+          const win = (room.winners ?? []).includes(p.pid);
+          const stood = st.stood.includes(p.pid);
+          const isTurn = st.turn === p.pid && !done;
+          return (
+            <div key={p.pid} className={`border-[3px] rounded-xl px-2 py-1.5 text-center transition-all ${win ? 'bg-yellow-100 border-yellow-500 scale-105 shadow-lg' : isTurn ? 'bg-amber-50 border-amber-500 animate-pulse' : 'bg-white border-black opacity-90'}`}>
+              <div className="font-bold text-xs truncate">
+                {p.name} {mine && '(bạn)'} {win && '🏆'} {isTurn && '⏳'}
+              </div>
+              <div className="flex gap-1 justify-center my-1 flex-wrap">
+                {hand.map((c, i) => (
+                  <div key={c.id + i}>{open ? <MiniCard c={c} small /> : <FaceDownCard small />}</div>
+                ))}
+                {!open && <div className="text-[11px] text-gray-500 self-center">{hand.length} lá úp</div>}
+              </div>
+              <div className="text-xs font-black">
+                {open ? xiDachLabel(hand) : stood ? 'Đã dằn' : `${xiDachValue(hand) >= 16 ? 'Đủ tuổi' : 'Chưa đủ tuổi'}…`}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {!done && (
+        <div className="flex gap-2">
+          <button
+            onClick={() => useCasino.getState().hitOrStand(true)}
+            disabled={!isMyTurn || myHand.length >= 5}
+            className="flex-1 py-2 bg-red-500 text-white font-black rounded-xl border-[3px] border-black disabled:opacity-40 active:scale-95"
+          >
+            Rút thêm
+          </button>
+          <button
+            onClick={() => useCasino.getState().hitOrStand(false)}
+            disabled={!isMyTurn}
+            className="flex-1 py-2 bg-green-600 text-white font-black rounded-xl border-[3px] border-black disabled:opacity-40 active:scale-95"
+          >
+            Dằn ({xiDachValue(myHand)}đ)
+          </button>
+        </div>
+      )}
+      {!done && <div className="text-[11px] text-gray-500 text-center">Đủ 16 mới dằn • Quắc/Dằn non thua luôn • Hòa nhà cái vẫn thắng • Xì bàng &gt; Xì dách &gt; Ngũ linh</div>}
+    </div>
+  );
+}
+
+// ---------------- CỜ VUA ----------------
+const CHESS_GLYPH: Record<'w' | 'b', Record<PieceType, string>> = {
+  w: { k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' },
+  b: { k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' },
+};
+const CHESS_PROMOS: PieceType[] = ['q', 'r', 'b', 'n'];
+
+function ChessBoard() {
+  const room = useCasino((s) => s.room)!;
+  const st = room.state as ChessState;
+  const me = myPid();
+  const myColor = me === st.order[0] ? 'w' : me === st.order[1] ? 'b' : null;
+  const over = !!st.winner || st.draw;
+  const isMyTurn = st.turn === me && !over;
+  const [sel, setSel] = useState<[number, number] | null>(null);
+  const [promo, setPromo] = useState<{ f: [number, number]; t: [number, number] } | null>(null);
+  const [armResign, setArmResign] = useState(false);
+  useEffect(() => { setSel(null); setPromo(null); }, [st.turn, st.history.length]);
+  const targets = useMemo(
+    () => (sel && isMyTurn ? legalMovesFor(st, sel[0], sel[1], me) : []),
+    [st, sel, isMyTurn, me],
+  );
+  const targetSet = new Set(targets.map((m) => m.t[0] + ':' + m.t[1] + ':' + (m.pr ?? '')));
+  const lastF = st.lastMove ? st.lastMove.f[0] + ':' + st.lastMove.f[1] : null;
+  const lastT = st.lastMove ? st.lastMove.t[0] + ':' + st.lastMove.t[1] : null;
+  const { lostW, lostB } = capturedOf(st.board);
+  const lead = materialLead(st.board);
+  const flip = myColor === 'b';
+  const rows = flip ? [0, 1, 2, 3, 4, 5, 6, 7] : [7, 6, 5, 4, 3, 2, 1, 0];
+  const cols = flip ? [7, 6, 5, 4, 3, 2, 1, 0] : [0, 1, 2, 3, 4, 5, 6, 7];
+  const nameOf = (pid: string) => room.players.find((p) => p.pid === pid)?.name ?? '?';
+  const resultText = st.winner
+    ? `🏆 ${nameOf(st.winner)} thắng — ${st.winReason ? (CHESS_WIN_TEXT[st.winReason] ?? st.winReason) : 'Đối thủ rời phòng'}!`
+    : st.draw
+      ? `🤝 Hòa — ${st.drawReason ? (CHESS_DRAW_TEXT[st.drawReason] ?? '') : ''}! Hoàn cược`
+      : isMyTurn
+        ? (myColor === 'w' ? 'Bạn cầm Trắng — chạm quân để đi' : 'Bạn cầm Đen — chạm quân để đi')
+        : `Lượt: ${nameOf(st.turn)}`;
+
+  const clickSq = (r: number, c: number) => {
+    if (!isMyTurn || promo) return;
+    const key = r + ':' + c;
+    // đi tới ô đã highlight
+    if (sel && targetSet.has(key + ':')) {
+      const mv = targets.find((m) => m.t[0] === r && m.t[1] === c && !m.pr);
+      if (mv) { useCasino.getState().chessMove(mv.f, mv.t); setSel(null); return; }
+    }
+    if (sel && targets.some((m) => m.t[0] === r && m.t[1] === c && m.pr)) {
+      // cần chọn quân phong cấp
+      setPromo({ f: sel, t: [r, c] });
+      return;
+    }
+    const p = st.board[r][c];
+    if (p && myColor && p.c === myColor) setSel(sel && sel[0] === r && sel[1] === c ? null : [r, c]);
+    else setSel(null);
+  };
+
+  return (
+    <div className="flex flex-col gap-2 items-center">
+      {!over && (
+        <TurnBanner turnPid={st.turn} deadline={st.deadline} fullMs={CASINO_TURN_MS} actionText="đang nghĩ nước đi…" />
+      )}
+      <div className="flex gap-2 w-full max-w-[420px] text-xs font-bold">
+        <div className={`flex-1 border-2 rounded-lg px-2 py-1 text-center ${st.turn === st.order[0] && !over ? 'bg-white border-black' : 'bg-gray-100 border-gray-300 opacity-70'}`}>
+          ♚ {nameOf(st.order[0])} {myColor === 'w' && '(bạn)'}
+          {lead > 0 && <span className="text-green-600"> +{lead}</span>}
+        </div>
+        <div className={`flex-1 border-2 rounded-lg px-2 py-1 text-center ${st.turn === st.order[1] && !over ? 'bg-slate-800 text-white border-black' : 'bg-gray-100 border-gray-300 opacity-70'}`}>
+          ♚ {nameOf(st.order[1])} {myColor === 'b' && '(bạn)'}
+          {lead < 0 && <span className="text-green-600"> +{-lead}</span>}
+        </div>
+      </div>
+      {st.inCheck && !over && <div className="text-sm font-black text-red-600 animate-pulse">⚠️ CHIẾU! Bảo vệ Vua ngay</div>}
+      <div className="text-sm font-bold h-5">
+        {resultText}
+      </div>
+      <div className="relative w-full max-w-[420px]">
+        <div
+          className={`grid grid-cols-8 gap-[2px] bg-amber-800 border-[3px] rounded-lg p-1 transition-all ${isMyTurn ? 'border-yellow-400 shadow-[0_0_14px_rgba(234,179,8,.8)]' : 'border-black'}`}
+        >
+          {rows.map((r) =>
+            cols.map((c) => {
+              const p = st.board[r][c];
+              const isSel = sel?.[0] === r && sel?.[1] === c;
+              const isTarget = targetSet.has(r + ':' + c + ':') || targets.some((m) => m.t[0] === r && m.t[1] === c);
+              const isLast = lastF === r + ':' + c || lastT === r + ':' + c;
+              const isCheckK = p?.t === 'k' && st.inCheck && ((st.turn === st.order[0] && p.c === 'w') || (st.turn === st.order[1] && p.c === 'b'));
+              const light = (r + c) % 2 === 1;
+              return (
+                <button
+                  key={r + '-' + c}
+                  onClick={() => clickSq(r, c)}
+                  className={`aspect-square rounded-[3px] flex items-center justify-center leading-none relative
+                    ${isCheckK ? 'bg-red-500' : isSel ? 'bg-yellow-300' : isLast ? (light ? 'bg-amber-200' : 'bg-amber-400/70') : light ? 'bg-amber-100' : 'bg-amber-600/80'}
+                    ${isMyTurn && (p || isTarget) ? 'cursor-pointer' : ''}`}
+                >
+                  {p && (
+                    <span
+                      className="text-2xl sm:text-3xl"
+                      style={{ color: p.c === 'w' ? '#fff' : '#111', textShadow: p.c === 'w' ? '-1px -1px 0 #111,1px -1px 0 #111,-1px 1px 0 #111,1px 1px 0 #111' : '-1px -1px 0 #eee,1px -1px 0 #eee,-1px 1px 0 #eee,1px 1px 0 #eee' }}
+                    >
+                      {CHESS_GLYPH[p.c][p.t]}
+                    </span>
+                  )}
+                  {!p && isTarget && <span className="w-2.5 h-2.5 rounded-full bg-green-600/80" />}
+                  {p && isTarget && <span className="absolute inset-0 rounded-[3px] border-[3px] border-green-600" />}
+                </button>
+              );
+            }),
+          )}
+        </div>
+        {/* chọn quân phong cấp */}
+        {promo && (
+          <div className="absolute inset-0 bg-black/60 rounded-lg flex items-center justify-center z-10">
+            <div className="bg-white border-[3px] border-black rounded-xl p-3 text-center">
+              <div className="font-black text-sm mb-2">Phong cấp tốt thành:</div>
+              <div className="flex gap-2">
+                {CHESS_PROMOS.map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => {
+                      useCasino.getState().chessMove(promo.f, promo.t, t);
+                      setPromo(null); setSel(null);
+                    }}
+                    className="w-12 h-12 text-3xl bg-amber-100 border-2 border-black rounded-lg hover:bg-yellow-200 active:scale-95"
+                    style={{ color: myColor === 'w' ? '#fff' : '#111', textShadow: myColor === 'w' ? '-1px -1px 0 #111,1px -1px 0 #111,-1px 1px 0 #111,1px 1px 0 #111' : '-1px -1px 0 #eee,1px -1px 0 #eee,-1px 1px 0 #eee,1px 1px 0 #eee' }}
+                  >
+                    {CHESS_GLYPH[myColor ?? 'w'][t]}
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => setPromo(null)} className="mt-2 text-xs underline font-bold">Hủy</button>
+            </div>
+          </div>
+        )}
+      </div>
+      {/* quân đã ăn + lịch sử */}
+      <div className="flex gap-2 w-full max-w-[420px]">
+        <div className="flex-1 bg-white border-2 border-black rounded-lg px-2 py-1 text-xs min-h-[34px]">
+          <span className="font-bold">Trắng ăn: </span>
+          {lostB.map((t, i) => <span key={i} className="text-base" style={{ color: '#111' }}>{pieceMini(t, 'b')}</span>)}
+          {lostB.length === 0 && <span className="opacity-50">—</span>}
+        </div>
+        <div className="flex-1 bg-slate-800 text-white border-2 border-black rounded-lg px-2 py-1 text-xs min-h-[34px]">
+          <span className="font-bold">Đen ăn: </span>
+          {lostW.map((t, i) => <span key={i} className="text-base" style={{ color: '#fff', textShadow: '-1px -1px 0 #111,1px -1px 0 #111,-1px 1px 0 #111,1px 1px 0 #111' }}>{pieceMini(t, 'w')}</span>)}
+          {lostW.length === 0 && <span className="opacity-50">—</span>}
+        </div>
+      </div>
+      {st.history.length > 0 && (
+        <div className="w-full max-w-[420px] bg-white border-2 border-black rounded-lg px-2 py-1 text-xs max-h-20 overflow-y-auto">
+          {pairHistory(st.history).map((pair, i) => (
+            <span key={i} className="mr-2 whitespace-nowrap">
+              <b>{i + 1}.</b> {pair[0]}{pair[1] ? ` ${pair[1]}` : ''}
+            </span>
+          ))}
+        </div>
+      )}
+      {!over && isMyTurn && (
+        <button
+          onClick={() => {
+            if (armResign) { useCasino.getState().resignChess(); setArmResign(false); }
+            else { setArmResign(true); setTimeout(() => setArmResign(false), 3000); }
+          }}
+          className={`text-xs font-bold rounded-lg border-2 border-black px-3 py-1 ${armResign ? 'bg-red-500 text-white' : 'bg-white'}`}
+        >
+          {armResign ? 'Bấm lại để chịu thua' : 'Đầu hàng'}
+        </button>
+      )}
+      {!over && <div className="text-[11px] text-gray-500 text-center">Nhập thành, bắt tốt qua đường, phong cấp đầy đủ • Hòa: hết nước / thiếu quân / 50 nước / lặp 3 lần</div>}
+    </div>
+  );
+}
+
+function pieceMini(t: PieceType, c: 'w' | 'b'): string {
+  return CHESS_GLYPH[c][t];
+}
+
+function pairHistory(h: string[]): [string, string?][] {
+  const out: [string, string?][] = [];
+  for (let i = 0; i < h.length; i += 2) out.push([h[i], h[i + 1]]);
+  return out;
 }

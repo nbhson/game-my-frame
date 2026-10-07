@@ -13,7 +13,7 @@ import BaitModal from './BaitModal';
 import PenModal from './PenModal';
 import { GameIcon } from './GameIcon';
 
-// Casino (sảnh + 3 bàn + logic bài) nặng — tải lười khi mở, nhẹ bundle lúc đăng nhập
+// Casino (sảnh + 5 bàn + logic bài) nặng — tải lười khi mở, nhẹ bundle lúc đăng nhập
 const CasinoModal = lazy(() => import('./CasinoModal'));
 
 export default function ModalHost() {

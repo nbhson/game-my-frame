@@ -59,7 +59,7 @@ export default function HUD() {
       <div className="flex items-center gap-1.5">
         {inTown ? (
           <>
-            <button className="pixel-btn !text-[11px] !bg-purple-600 !text-white flex items-center gap-1" title="Mở Casino (Tiến lên • Bài cào • Caro)" onClick={() => s.setModal('casino')}>
+            <button className="pixel-btn !text-[11px] !bg-purple-600 !text-white flex items-center gap-1" title="Mở Casino (Tiến lên • Bài cào • Xì dách • Caro • Cờ vua)" onClick={() => s.setModal('casino')}>
               🎰 Casino
             </button>
             <button className="pixel-btn !text-[11px] !bg-green-500 !text-white flex items-center gap-1" title="Về nông trại (cổng phía đông)" onClick={() => goToFarm()}>

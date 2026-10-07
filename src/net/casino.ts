@@ -12,20 +12,26 @@ import { fullDeck, shuffle, type Card } from '../game/casino/cards';
 import { applyPass, applyPlay, botPick, newTienLenGame, validatePlay, type TienLenState } from '../game/casino/tienlen';
 import { findBaiCaoWinners, newBaiCaoGame, type BaiCaoState } from '../game/casino/baicao';
 import { applyCaroMove, caroBotMove, newCaroGame, type CaroState } from '../game/casino/caro';
+import { applyXiDachHit, applyXiDachStand, botXiDachAuto, newXiDachGame, removeXiDachPlayer, type XiDachState } from '../game/casino/xidach';
+import { applyChessMove, chessBotMove, chessResign, newChessGame, type ChessState } from '../game/casino/chess';
 // dùng chung detect LAN đã memoize (socket.ts) — không fetch riêng lẻ
 import { lanServerAvailable as lanAvailable } from './socket';
 
-export type CasinoGame = 'tienlen' | 'baicao' | 'caro';
+export type CasinoGame = 'tienlen' | 'baicao' | 'caro' | 'xidach' | 'chess';
 export const CASINO_MIN_BET = 10;
 export const CASINO_MAX_BET = 100;
-/** Mỗi lượt tiến lên/caro 30s, vòng lật bài cào 45s — hết giờ tự đánh (đồng bộ với server) */
+/** Mỗi lượt 30s, vòng lật bài cào 45s — hết giờ tự đánh (đồng bộ với server) */
 export const CASINO_TURN_MS = 30000;
 export const CASINO_BAICAO_MS = 45000;
 export const CASINO_GAMES: { id: CasinoGame; name: string; desc: string; emoji: string; max: number }[] = [
   { id: 'tienlen', name: 'Tiến lên', desc: '2-4 người • 13 lá • nhất ăn tất', emoji: '🃏', max: 4 },
   { id: 'baicao', name: 'Bài cào', desc: '2-4 người • 3 lá • nhiều nút thắng', emoji: '🎴', max: 4 },
+  { id: 'xidach', name: 'Xì dách', desc: '2-4 người • đấu nhà cái • 21 thắng', emoji: '♠️', max: 4 },
   { id: 'caro', name: 'Caro', desc: '2 người • 12x12 • 5 liên tiếp', emoji: '⭕', max: 2 },
+  { id: 'chess', name: 'Cờ vua', desc: '2 người • full luật • đấu trí', emoji: '♟️', max: 2 },
 ];
+/** game đấu 2 người (không thêm máy chờ, solo 1 máy) */
+export const isDuelGame = (g: CasinoGame): boolean => g === 'caro' || g === 'chess';
 
 export interface CasinoPlayer {
   pid: string;
@@ -42,7 +48,7 @@ export interface CasinoRoom {
   hostPid: string;
   players: CasinoPlayer[];
   status: 'waiting' | 'playing' | 'finished';
-  state: TienLenState | BaiCaoState | CaroState | null;
+  state: TienLenState | BaiCaoState | CaroState | XiDachState | ChessState | null;
   winners: string[] | null;
   updatedAt: number;
 }
@@ -81,6 +87,9 @@ interface CasinoStore {
   passTurn(): void;
   reveal(): void;
   moveCaro(r: number, c: number): void;
+  hitOrStand(hit: boolean): void;
+  chessMove(f: [number, number], t: [number, number], promo?: string): void;
+  resignChess(): void;
   setError(e: string): void;
 }
 
@@ -129,9 +138,14 @@ function settleIfFinished(room: CasinoRoom, prevStatus: string | null, settledKe
     g.addXu(share);
     g.toast(winners.length > 1 ? `Hòa! Mỗi người +${share} xu` : `Thắng +${share} xu! 🎉`);
   } else if (winners.length === 0) {
-    // caro hòa → hoàn cược (đã trừ lúc start)
-    g.addXu(room.bet);
-    g.toast('Hòa! Hoàn lại cược');
+    if (room.game === 'xidach') {
+      // nhà cái ăn hết → mất cược, không hoàn
+      g.toast('Nhà cái ăn hết! Gỡ ván sau');
+    } else {
+      // caro/cờ vua hòa → hoàn cược (đã trừ lúc start)
+      g.addXu(room.bet);
+      g.toast('Hòa! Hoàn lại cược');
+    }
   } else {
     g.toast('Thua mất cược, gỡ ván sau!');
   }
@@ -227,8 +241,9 @@ export const useCasino = create<CasinoStore>()((set, get) => ({
       players: [me], status: 'waiting', state: null, winners: null, updatedAt: Date.now(),
     };
     if (withBot) {
-      const max = game === 'caro' ? 2 : 4;
-      const need = game === 'caro' ? 2 : 3;
+      const max = isDuelGame(game) ? 2 : 4;
+      // caro/cờ vua solo: 1 máy; tiến lên/xì dách: 2 máy
+      const need = isDuelGame(game) ? 2 : 3;
       for (let i = 1; i < Math.min(max, need); i++) {
         const b = botName(i);
         room.players.push({ pid: `bot-${room.id}-${i}`, name: b.name, avatar: b.avatar, bot: true });
@@ -290,7 +305,7 @@ export const useCasino = create<CasinoStore>()((set, get) => ({
     }
     const host = localHostRooms.get(room.id);
     if (!host || host.hostPid !== myPid()) { useGame.getState().toast('Chỉ chủ phòng thêm máy'); return; }
-    const max = host.game === 'caro' ? 2 : 4;
+    const max = CASINO_GAMES.find((x) => x.id === host.game)?.max ?? 4;
     if (host.players.length >= max) return;
     const n = host.players.filter((x) => x.bot).length + 1;
     const b = botName(n + host.players.length);
@@ -420,6 +435,68 @@ export const useCasino = create<CasinoStore>()((set, get) => ({
     host.state = next;
     afterLocalAction(host);
   },
+
+  hitOrStand(hit) {
+    const { room } = get();
+    if (!room || room.status !== 'playing') return;
+    if (get().transport === 'socket' && !get().solo) {
+      socket?.emit('casino:action', { pid: myPid(), type: hit ? 'hit' : 'stand' });
+      return;
+    }
+    const host = localHostRooms.get(room.id);
+    if (!host || !host.state) return;
+    const me = myPid();
+    if (host.hostPid !== me) {
+      try { bc?.postMessage({ kind: 'action', roomId: room.id, pid: me, action: { type: hit ? 'hit' : 'stand' } }); } catch { /* ignore */ }
+      return;
+    }
+    const st = host.state as XiDachState;
+    const next = hit ? applyXiDachHit(st, me) : applyXiDachStand(st, me);
+    if (!next) { useGame.getState().toast('Chưa tới lượt rút/dằn'); return; }
+    host.state = next;
+    afterLocalAction(host);
+  },
+
+  chessMove(f, t, promo) {
+    const { room } = get();
+    if (!room || room.status !== 'playing') return;
+    const pr = promo === 'q' || promo === 'r' || promo === 'b' || promo === 'n' ? promo : undefined;
+    if (get().transport === 'socket' && !get().solo) {
+      socket?.emit('casino:action', { pid: myPid(), type: 'move', f, t, promo: pr });
+      return;
+    }
+    const host = localHostRooms.get(room.id);
+    if (!host || !host.state) return;
+    const me = myPid();
+    if (host.hostPid !== me) {
+      try { bc?.postMessage({ kind: 'action', roomId: room.id, pid: me, action: { type: 'move', f, t, promo: pr } }); } catch { /* ignore */ }
+      return;
+    }
+    const next = applyChessMove(host.state as ChessState, me, f, t, pr);
+    if (!next) { useGame.getState().toast('Nước đi không hợp lệ'); return; }
+    host.state = next;
+    afterLocalAction(host);
+  },
+
+  resignChess() {
+    const { room } = get();
+    if (!room || room.status !== 'playing') return;
+    if (get().transport === 'socket' && !get().solo) {
+      socket?.emit('casino:action', { pid: myPid(), type: 'resign' });
+      return;
+    }
+    const host = localHostRooms.get(room.id);
+    if (!host || !host.state) return;
+    const me = myPid();
+    if (host.hostPid !== me) {
+      try { bc?.postMessage({ kind: 'action', roomId: room.id, pid: me, action: { type: 'resign' } }); } catch { /* ignore */ }
+      return;
+    }
+    const next = chessResign(host.state as ChessState, me);
+    if (!next) return;
+    host.state = next;
+    afterLocalAction(host);
+  },
 }));
 
 // ---------- remote state (socket) ----------
@@ -499,6 +576,12 @@ function localStart(host: CasinoRoom): string | null {
   } else if (host.game === 'caro') {
     if (pids.length !== 2) return 'Caro cần đúng 2 người';
     host.state = newCaroGame([pids[0], pids[1]]);
+  } else if (host.game === 'xidach') {
+    const deck = shuffle(fullDeck());
+    host.state = newXiDachGame(pids, deck);
+  } else if (host.game === 'chess') {
+    if (pids.length !== 2) return 'Cờ vua cần đúng 2 người';
+    host.state = newChessGame([pids[0], pids[1]]);
   }
   host.status = 'playing';
   host.winners = null;
@@ -534,6 +617,22 @@ function afterLocalAction(host: CasinoRoom) {
       host.winners = s.winner ? [s.winner] : [];
     }
   }
+  // kết thúc xì dách (nhà cái đã xử)?
+  if (host.game === 'xidach' && host.state) {
+    const s = host.state as XiDachState;
+    if (s.phase === 'done' && host.status !== 'finished') {
+      host.status = 'finished';
+      host.winners = s.winners ?? [];
+    }
+  }
+  // kết thúc cờ vua?
+  if (host.game === 'chess' && host.state) {
+    const s = host.state as ChessState;
+    if ((s.winner || s.draw) && host.status !== 'finished') {
+      host.status = 'finished';
+      host.winners = s.winner ? [s.winner] : [];
+    }
+  }
   if (host.state) {
     // còn đánh tiếp (tiến lên/caro) → gia hạn lượt mới; xong ván → xóa deadline
     host.state.deadline = host.status === 'playing' && host.game !== 'baicao'
@@ -548,7 +647,7 @@ function afterLocalAction(host: CasinoRoom) {
 
 function handleLocalMsg(m: {
   kind: string; info?: CasinoRoomInfo; room?: CasinoRoom; roomId?: string;
-  player?: CasinoPlayer; pid?: string; from?: string; action?: { type: string; cards?: string[]; r?: number; c?: number };
+  player?: CasinoPlayer; pid?: string; from?: string; action?: { type: string; cards?: string[]; r?: number; c?: number; f?: [number, number]; t?: [number, number]; promo?: string };
 }) {
   const st = useCasino.getState();
   const me = myPid();
@@ -578,7 +677,7 @@ function handleLocalMsg(m: {
   if (m.kind === 'join-req' && m.roomId && m.player) {
     const host = localHostRooms.get(m.roomId);
     if (!host || host.status !== 'waiting') return;
-    const max = host.game === 'caro' ? 2 : 4;
+    const max = CASINO_GAMES.find((x) => x.id === host.game)?.max ?? 4;
     if (host.players.length >= max || host.players.some((x) => x.pid === m.player!.pid)) return;
     host.players.push(m.player);
     host.updatedAt = Date.now();
@@ -620,7 +719,7 @@ function handleLocalMsg(m: {
     if (!host.players.length) { localHostRooms.delete(m.roomId); return; }
     if (host.hostPid === m.pid) host.hostPid = host.players[0].pid;
     if (host.state && host.status === 'playing') {
-      // rời giữa ván → xử thua (tiến lên: bỏ bài; caro: đối thủ thắng)
+      // rời giữa ván → xử thua (tiến lên: bỏ bài; caro/cờ vua: đối thủ thắng; xì dách: dằn non + loại)
       if (host.game === 'tienlen') {
         const s = host.state as TienLenState;
         delete s.hands[m.pid!];
@@ -632,6 +731,21 @@ function handleLocalMsg(m: {
         const s = host.state as CaroState;
         const other = s.order.find((id) => id !== m.pid);
         if (other && !s.winner) { s.winner = other; host.status = 'finished'; host.winners = [other]; }
+      } else if (host.game === 'xidach') {
+        const s = host.state as XiDachState;
+        const next = removeXiDachPlayer(s, m.pid!);
+        host.state = next;
+        if (next.phase === 'done') {
+          host.status = 'finished';
+          host.winners = next.winners ?? [];
+        }
+      } else if (host.game === 'chess') {
+        const s = host.state as ChessState;
+        const other = s.order.find((id) => id !== m.pid);
+        if (other && !s.winner && !s.draw) {
+          const nx = chessResign(s, m.pid!);
+          if (nx) { host.state = nx; host.status = 'finished'; host.winners = [other]; }
+        }
       }
     }
     host.updatedAt = Date.now();
@@ -640,7 +754,7 @@ function handleLocalMsg(m: {
   }
 }
 
-function applyLocalGuestAction(host: CasinoRoom, pid: string, action: { type: string; cards?: string[]; r?: number; c?: number }) {
+function applyLocalGuestAction(host: CasinoRoom, pid: string, action: { type: string; cards?: string[]; r?: number; c?: number; f?: [number, number]; t?: [number, number]; promo?: string }) {
   if (host.status !== 'playing' || !host.state) return;
   if (host.game === 'tienlen' && host.state) {
     const s = host.state as TienLenState;
@@ -660,6 +774,24 @@ function applyLocalGuestAction(host: CasinoRoom, pid: string, action: { type: st
   } else if (host.game === 'caro' && host.state) {
     const next = applyCaroMove(host.state as CaroState, pid, Number(action.r), Number(action.c));
     if (next) host.state = next;
+  } else if (host.game === 'xidach' && host.state) {
+    const st = host.state as XiDachState;
+    if (action.type === 'hit') {
+      const next = applyXiDachHit(st, pid);
+      if (next) host.state = next;
+    } else if (action.type === 'stand') {
+      const next = applyXiDachStand(st, pid);
+      if (next) host.state = next;
+    }
+  } else if (host.game === 'chess' && host.state) {
+    if (action.type === 'resign') {
+      const next = chessResign(host.state as ChessState, pid);
+      if (next) host.state = next;
+    } else if (action.type === 'move' && action.f && action.t) {
+      const pr = action.promo === 'q' || action.promo === 'r' || action.promo === 'b' || action.promo === 'n' ? action.promo : undefined;
+      const next = applyChessMove(host.state as ChessState, pid, action.f, action.t, pr);
+      if (next) host.state = next;
+    }
   }
   afterLocalAction(host);
 }
@@ -695,6 +827,23 @@ function startBotLoop() {
       const mv = caroBotMove(s, cur.pid);
       if (mv) {
         const next = applyCaroMove(s, cur.pid, mv[0], mv[1]);
+        if (next) { host.state = next; afterLocalAction(host); }
+      }
+    } else if (host.game === 'xidach') {
+      const s = host.state as XiDachState;
+      if (s.phase !== 'play') return;
+      const cur = host.players.find((x) => x.pid === s.turn);
+      if (!cur?.bot) return;
+      const next = botXiDachAuto(s, cur.pid);
+      if (next) { host.state = next; afterLocalAction(host); }
+    } else if (host.game === 'chess') {
+      const s = host.state as ChessState;
+      if (s.winner || s.draw) return;
+      const cur = host.players.find((x) => x.pid === s.turn);
+      if (!cur?.bot) return;
+      const mv = chessBotMove(s, cur.pid);
+      if (mv) {
+        const next = applyChessMove(s, cur.pid, mv.f, mv.t, mv.pr);
         if (next) { host.state = next; afterLocalAction(host); }
       }
     }
@@ -735,6 +884,27 @@ function localAutoTimeout(host: CasinoRoom): boolean {
     const mv = caroBotMove(s, s.turn);
     if (!mv) return false;
     const next = applyCaroMove(s, s.turn, mv[0], mv[1]);
+    if (!next) return false;
+    host.state = next;
+    afterLocalAction(host);
+    return true;
+  }
+  if (host.game === 'xidach') {
+    // hết giờ lượt rút/dằn → máy xử giùm theo chiến thuật cơ bản
+    const s = host.state as XiDachState;
+    if (s.phase !== 'play') return false;
+    const next = botXiDachAuto(s, s.turn);
+    if (!next) return false;
+    host.state = next;
+    afterLocalAction(host);
+    return true;
+  }
+  if (host.game === 'chess') {
+    const s = host.state as ChessState;
+    if (s.winner || s.draw) return false;
+    const mv = chessBotMove(s, s.turn);
+    if (!mv) return false;
+    const next = applyChessMove(s, s.turn, mv.f, mv.t, mv.pr);
     if (!next) return false;
     host.state = next;
     afterLocalAction(host);

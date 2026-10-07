@@ -79,7 +79,7 @@ export const TOWN_PROPS: { id: string; x: number; y: number; label: string; hint
   { id: 'hall', x: TOWN_HALL.x + TOWN_HALL.w / 2, y: TOWN_HALL.y + TOWN_HALL.h + 30, label: 'Hội quán', hint: 'Hội quán công viên: sự kiện cuối tuần, bảng xếp hạng mùa vụ!' },
   { id: 'cafe', x: TOWN_CAFE.x + TOWN_CAFE.w / 2, y: TOWN_CAFE.y + TOWN_CAFE.h + 30, label: 'Quán Cà phê Mèo', hint: 'Thơm quá! Ngồi nhâm nhi, tám chuyện với cả làng.' },
   { id: 'shop', x: TOWN_SHOP.x + TOWN_SHOP.w / 2, y: TOWN_SHOP.y + TOWN_SHOP.h + 30, label: 'Shop Lưu niệm', hint: 'Shop lưu niệm: đổi gem lấy đồ trang trí (sắp mở)!' },
-  { id: 'casino', x: TOWN_CASINO.x + TOWN_CASINO.w / 2, y: TOWN_CASINO.y + TOWN_CASINO.h + 30, label: 'Casino', hint: 'Tiến lên • Bài cào • Caro — cược 10-100 xu/ván!' },
+  { id: 'casino', x: TOWN_CASINO.x + TOWN_CASINO.w / 2, y: TOWN_CASINO.y + TOWN_CASINO.h + 30, label: 'Casino', hint: 'Tiến lên • Bài cào • Xì dách • Caro • Cờ vua — cược 10-100 xu/ván!' },
   { id: 'stage', x: TOWN_STAGE.x + TOWN_STAGE.w / 2, y: TOWN_STAGE.y - 20, label: 'Sân khấu', hint: 'Sân khấu sự kiện: leo lên nhảy múa, thi thố cùng bạn bè!' },
 ];
 

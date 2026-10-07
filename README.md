@@ -40,10 +40,10 @@ chơi chung, chat và qua **thăm farm nhau**.
 
 ### 🎰 Casino công viên (multiplayer, cược xu 10-100/ván)
 - **Vị trí:** nhà Casino neon tím-vàng phía đông-bắc công viên (dưới shop lưu niệm) — lại gần bấm `E` hoặc nút 🎰 Casino trên HUD
-- **3 game:** Tiến lên (2-4 người, 13 lá, nhất ăn tất) • Bài cào (2-4 người, 3 lá, nhiều nút thắng) • Caro (2 người, 12×12, 5 liên tiếp)
+- **5 game:** Tiến lên (2-4 người, 13 lá, nhất ăn tất) • Bài cào (2-4 người, 3 lá, nhiều nút thắng) • Xì dách (2-4 người cùng đấu nhà cái, Xì bàng > Xì dách > Ngũ linh) • Caro (2 người, 12×12, 5 liên tiếp) • Cờ vua (2 người, full luật + AI minimax)
 - **Phòng:** tạo phòng theo game + mức cược, mã phòng 4 ký tự, chủ phòng bắt đầu, có thể thêm 🤖 máy, ván mới sau khi xong
 - **Mạng:** LAN server làm trọng tài (nhiều máy cùng WiFi) • 2 tab cùng máy qua BroadcastChannel • 1 mình chơi với máy
-- **Xu:** trừ cược khi ván bắt đầu, thắng nhận pot = cược × số người (hòa chia đều, caro hòa hoàn cược)
+- **Xu:** trừ cược khi ván bắt đầu, thắng nhận pot = cược × số người (hòa chia đều, caro/cờ vua hòa hoàn cược, xì dách nhà cái ăn hết thì mất)
 
 ## 🧱 Stack
 
