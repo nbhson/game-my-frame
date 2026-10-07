@@ -4,8 +4,8 @@ export const WORLD = { w: 1600, h: 1200 };
 
 // Ruộng 45 ô (9 cột x 5 hàng), mở khóa dần từ 6 ô đầu
 export const FARM = { x: 40, y: 230, w: 980, h: 500, cols: 9, rows: 5 };
-// Ao vuông tự nhiên (không chia ngăn, cá bơi tự do)
-export const POND = { x: 1080, y: 170, w: 440, h: 380 };
+// Ao vuông tự nhiên (không chia ngăn, cá bơi tự do) — top ngang hàng ruộng (y=230)
+export const POND = { x: 1080, y: 230, w: 440, h: 380 };
 export function pondCenter() {
   return { x: POND.x + POND.w / 2, y: POND.y + POND.h / 2 };
 }
@@ -45,7 +45,7 @@ export function isBlocked(x: number, y: number): boolean {
 
 /** Hòm thư trước ao/chuồng: xem thông tin + mở khóa */
 export const PEN_MB = {
-  pond: { x: 1300, y: 596 },
+  pond: { x: 1300, y: 656 },
   coop: { x: 280, y: 748 },
   barn: { x: 770, y: 748 },
 };
