@@ -122,7 +122,7 @@ export default function GameCanvas({ target, onTarget }: Props) {
   const targetRef = useRef<InteractTarget | null>(null);
   const keys = useRef<Record<string, boolean>>({});
   const cam = useRef({ x: 0, y: 0 });
-  const view = useRef({ w: 1200, h: 750 });
+  const view = useRef({ w: 1360, h: 850 });
   const zoom = useRef(1);
   // kích thước khung chứa (px css) + dpr: nguồn duy nhất để suy ra view/zoom
   const screen = useRef({ cssW: 960, cssH: 600, dpr: 1 });
@@ -211,11 +211,11 @@ export default function GameCanvas({ target, onTarget }: Props) {
         } else playerRef.moving = false;
       } else playerRef.moving = false;
 
-      // --- viewport: cao 750 thường, zoom ra 600 khi ra bờ sông để thấy sông rộng ---
+      // --- viewport: cao 850 thường, zoom ra 680 khi ra bờ sông để thấy sông rộng ---
       // (máy quay lên cao / xa hơn, thấy rộng hơn; mượt bằng lerp mỗi frame)
       {
         const sc = screen.current;
-        const targetH = playerRef.y > 980 ? 600 : 750;
+        const targetH = playerRef.y > 980 ? 680 : 850;
         const k = Math.min(1, dt * 2.5);
         view.current.h += (targetH - view.current.h) * k;
         if (Math.abs(view.current.h - targetH) < 0.5) view.current.h = targetH;
