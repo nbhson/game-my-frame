@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Nông Trại Pixel - Mini Avatar Farm</title>
+<link rel="stylesheet" href="style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Be+Vietnam+Pro:wght@400;600;800&display=swap" rel="stylesheet">
+</head>
+<body>
+<div id="app">
+  <!-- Màn hình loading / menu -->
+  <div id="menu-screen" class="screen">
+    <div class="menu-box pixel-panel">
+      <div class="logo-row"><span class="logo-emoji">🌾</span></div>
+      <h1 class="game-title">NÔNG TRẠI<br>PIXEL</h1>
+      <p class="subtitle">🌱 Trồng cây • 🎣 Nuôi cá • 🐔 Chăn nuôi<br>kiểu Avatar TeaMobi</p>
+      <div class="menu-avatar-row" id="avatar-select">
+        <button class="avatar-opt selected" data-avatar="0" title="Nông dân nam">🧑‍🌾</button>
+        <button class="avatar-opt" data-avatar="1" title="Nông dân nữ">👩‍🌾</button>
+        <button class="avatar-opt" data-avatar="2" title="Cậu bé">👦</button>
+        <button class="avatar-opt" data-avatar="3" title="Kỹ sư">🤠</button>
+      </div>
+      <input id="player-name" maxlength="12" placeholder="Tên nông dân..." value="NôngDân">
+      <button id="btn-start" class="pixel-btn big">▶ VÀO NÔNG TRẠI</button>
+      <button id="btn-continue" class="pixel-btn green hidden">↻ CHƠI TIẾP</button>
+      <p class="hint">WASD / Mũi tên để đi • E / Click để tương tác<br>📱 Mobile có joystick + nút hành động</p>
+    </div>
+  </div>
+
+  <!-- Game chính -->
+  <div id="game-screen" class="hidden">
+    <div id="top-hud">
+      <div class="hud-left">
+        <div class="hud-item avatar-mini" id="hud-avatar">🧑‍🌾</div>
+        <div class="hud-item">
+          <div id="hud-name">NôngDân</div>
+          <div class="level-bar"><div id="xp-fill"></div><span id="hud-level">Lv 1</span></div>
+        </div>
+      </div>
+      <div class="hud-center">
+        <div class="hud-item coin">🪙 <span id="hud-xu">0</span></div>
+        <div class="hud-item gem">💎 <span id="hud-gem">0</span></div>
+        <div class="hud-item day">📅 <span id="hud-day">Ngày 1</span> <span id="hud-clock">☀️</span></div>
+      </div>
+      <div class="hud-right">
+        <button class="icon-btn" id="btn-bag" title="Kho đồ (B)">🎒</button>
+        <button class="icon-btn" id="btn-shop" title="Cửa hàng (S)">🏪</button>
+        <button class="icon-btn" id="btn-quest" title="Nhiệm vụ (Q)">📜</button>
+        <button class="icon-btn" id="btn-help" title="Hướng dẫn (H)">❓</button>
+        <button class="icon-btn" id="btn-sound" title="Âm thanh">🔊</button>
+      </div>
+    </div>
+
+    <div id="canvas-wrap">
+      <canvas id="game" width="960" height="600"></canvas>
+      <div id="interact-hint" class="hidden">E: <span id="interact-text"></span></div>
+      <div id="toast-box"></div>
+      <!-- joystick mobile -->
+      <div id="joystick"><div id="joy-knob"></div></div>
+      <div id="mobile-actions">
+        <button id="mbtn-act" class="mbtn">E</button>
+        <button id="mbtn-shop" class="mbtn small">🏪</button>
+      </div>
+    </div>
+
+    <div id="bottom-bar">
+      <div id="quick-slots"></div>
+      <div id="quest-tracker">🌱 Nhiệm vụ: <span id="quest-text">Cày 1 ô đất đầu tiên!</span></div>
+    </div>
+  </div>
+
+  <!-- Modal chung -->
+  <div id="modal-bg" class="hidden">
+    <div id="modal" class="pixel-panel">
+      <div id="modal-head"><span id="modal-title">Cửa hàng</span><button id="modal-close">✖</button></div>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <!-- Mini game câu cá -->
+  <div id="fish-minigame" class="hidden">
+    <div class="fish-box pixel-panel">
+      <h3>🎣 CÂU CÁ!</h3>
+      <p>Bấm <b>CÂU!</b> khi kim vào vùng xanh!</p>
+      <div id="fish-bar"><div id="fish-zone"></div><div id="fish-needle"></div></div>
+      <button id="fish-catch" class="pixel-btn big">CÂU!</button>
+      <button id="fish-cancel" class="pixel-btn gray">Bỏ</button>
+      <div id="fish-result"></div>
+    </div>
+  </div>
+</div>
+<script src="main.js"></script>
+</body>
+</html>

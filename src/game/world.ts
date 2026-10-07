@@ -1,0 +1,51 @@
+// ===== Layout thế giới — tách khỏi render để dễ mở map mới =====
+export const TILE = 48;
+export const WORLD = { w: 1600, h: 1200 };
+
+// Ruộng 45 ô (9 cột x 5 hàng), mở khóa dần từ 6 ô đầu
+export const FARM = { x: 40, y: 230, w: 980, h: 500, cols: 9, rows: 5 };
+// Ao vuông tự nhiên (không chia ngăn, cá bơi tự do)
+export const POND = { x: 1080, y: 170, w: 440, h: 380 };
+export function pondCenter() {
+  return { x: POND.x + POND.w / 2, y: POND.y + POND.h / 2 };
+}
+/** Vùng bơi bên trong ao (trừ bờ) */
+export function pondInner() {
+  const c = pondCenter();
+  return { ...c, hw: POND.w / 2 - 30, hh: POND.h / 2 - 30 };
+}
+// Chuồng gà/vịt + trại bò/heo/cừu
+export const COOP = { x: 60, y: 790, w: 440, h: 230 };
+export const BARN = { x: 540, y: 790, w: 460, h: 230 };
+// Sông câu cá (dải nước cuối map) + bến câu
+export const RIVER = { x: 0, y: 1022, w: 1600, h: 178 };
+export const RIVER_WATER_Y = 1052; // từ đây trở xuống là nước (chặn đi)
+export const PIERS = [
+  { x: 300, sitY: 1046, bobY: 1126 },
+  { x: 800, sitY: 1046, bobY: 1126 },
+  { x: 1300, sitY: 1046, bobY: 1126 },
+];
+export const SHOPD = { x: 1150, y: 820, w: 180, h: 140 };
+
+export function plotPos(i: number) {
+  const c = i % FARM.cols, r = Math.floor(i / FARM.cols);
+  const cw = FARM.w / FARM.cols, rh = FARM.h / FARM.rows;
+  return { x: FARM.x + c * cw + cw / 2, y: FARM.y + r * rh + rh / 2, w: cw - 16, h: rh - 22 };
+}
+
+export function isBlocked(x: number, y: number): boolean {
+  // ao vuông (trừ bờ)
+  if (x > POND.x + 14 && x < POND.x + POND.w - 14 && y > POND.y + 14 && y < POND.y + POND.h - 14) return true;
+  // sông
+  if (y > RIVER_WATER_Y) return true;
+  if (x > SHOPD.x && x < SHOPD.x + SHOPD.w && y > SHOPD.y && y < SHOPD.y + SHOPD.h) return true;
+  if (x < 20 || y < 60 || x > WORLD.w - 20 || y > WORLD.h - 20) return true;
+  return false;
+}
+
+/** Hòm thư trước ao/chuồng: xem thông tin + mở khóa */
+export const PEN_MB = {
+  pond: { x: 1300, y: 596 },
+  coop: { x: 280, y: 748 },
+  barn: { x: 770, y: 748 },
+};

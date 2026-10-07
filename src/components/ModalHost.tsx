@@ -1,0 +1,57 @@
+import { AnimatePresence, motion } from 'framer-motion';
+import { X } from 'lucide-react';
+import { useGame } from '../game/store';
+import ShopModal from './ShopModal';
+import BagModal from './BagModal';
+import QuestModal from './QuestModal';
+import HelpModal from './HelpModal';
+import VillageModal from './VillageModal';
+import SeedModal from './SeedModal';
+import StockModal from './StockModal';
+import BaitModal from './BaitModal';
+import PenModal from './PenModal';
+
+export default function ModalHost() {
+  const modal = useGame((s) => s.modal);
+  const setModal = useGame((s) => s.setModal);
+  if (!modal) return null;
+
+  let title = '';
+  let body: React.ReactNode = null;
+  if (modal === 'shop') { title = '🏪 CỬA HÀNG NÔNG TRẠI'; body = <ShopModal />; }
+  else if (modal === 'bag') { title = '🎒 KHO ĐỒ'; body = <BagModal />; }
+  else if (modal === 'quest') { title = '📜 NHIỆM VỤ'; body = <QuestModal />; }
+  else if (modal === 'help') { title = '❓ HƯỚNG DẪN'; body = <HelpModal />; }
+  else if (modal === 'village') { title = '🛖 LÀNG NÔNG DÂN'; body = <VillageModal />; }
+  else if (typeof modal === 'object' && modal.name === 'seed') { title = `🌱 GIEO HẠT (ô ${modal.plot + 1})`; body = <SeedModal plot={modal.plot} />; }
+  else if (typeof modal === 'object' && modal.name === 'stock') { title = '🐟 THẢ CÁ XUỐNG AO'; body = <StockModal />; }
+  else if (typeof modal === 'object' && modal.name === 'bait') { title = '🎣 CHỌN MỒI CÂU'; body = <BaitModal pier={modal.pier} />; }
+  else if (typeof modal === 'object' && modal.name === 'pen') {
+    title = modal.pen === 'pond' ? '📮 AO CÁ' : modal.pen === 'coop' ? '📮 CHUỒNG GÀ–VỊT' : '📮 TRẠI BÒ–HEO–CỪU';
+    body = <PenModal pen={modal.pen} />;
+  }
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/60 flex items-center justify-center z-[70] p-3"
+        onClick={() => setModal(null)}
+      >
+        <motion.div
+          initial={{ scale: 0.94, y: 16 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.96, opacity: 0 }}
+          className="pixel-panel w-full max-w-2xl max-h-[88vh] flex flex-col overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex justify-between items-center bg-green-600 text-white px-4 py-2.5 font-pixel text-[13px] border-b-4 border-[#2b2117]">
+            <span>{title}</span>
+            <button onClick={() => setModal(null)} className="bg-red-500 border-2 border-black rounded-md w-8 h-8 flex items-center justify-center hover:bg-red-400">
+              <X size={16} />
+            </button>
+          </div>
+          <div className="p-3 overflow-y-auto">{body}</div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
