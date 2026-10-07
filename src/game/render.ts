@@ -215,16 +215,19 @@ function drawGrassBase(ctx: CanvasRenderingContext2D, cam: { x: number; y: numbe
       }
     }
   }
-  // cánh bồ công anh bay (điểm nhấn anime)
+  // cánh bồ công anh bay (điểm nhấn anime) — world-lock, trôi theo gió trong map
   for (let i = 0; i < 5; i++) {
-    const px = ((i * 397 + t * (18 + i * 4)) % (W + 80)) - 40;
-    const py = 90 + ((i * 173) % 320) + Math.sin(t * 1.5 + i * 2) * 18;
+    const px = pmod(i * 397 + t * (18 + i * 4), WORLD.w) - cam.x;
+    if (px < -40 || px > W + 40) continue;
+    const py = pmod(90 + ((i * 173) % 320), WORLD.h) - cam.y;
+    if (py < -40 || py > H + 40) continue;
+    const pyW = py + Math.sin(t * 1.5 + i * 2) * 18;
     ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 1.2;
-    ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + 5, py - 4); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(px, pyW); ctx.lineTo(px + 5, pyW - 4); ctx.stroke();
     ctx.fillStyle = 'rgba(255,255,255,.9)';
     for (let s = 0; s < 5; s++) {
       const a = (s / 5) * Math.PI * 2 + t * 0.8 + i;
-      ell(ctx, px + 5 + Math.cos(a) * 3.4, py - 4 + Math.sin(a) * 3.4, 1.3, 1.3);
+      ell(ctx, px + 5 + Math.cos(a) * 3.4, pyW - 4 + Math.sin(a) * 3.4, 1.3, 1.3);
     }
   }
 }
@@ -2451,26 +2454,36 @@ export function drawPlayerDetailed(ctx: CanvasRenderingContext2D, X: number, Y: 
 // ============================================================
 //  THỜI TIẾT — mưa / tuyết phủ toàn màn hình (không gian màn hình)
 //  Mưa: vệt xiên + mây xám + lớp phủ lạnh. Tuyết: bông bay lượn + phủ trắng.
+// ------------------------------------------------------------
+//  QUY ƯỚC LAYER (trời tách biệt nhân vật):
+//  - layer 0 (vô cực: mặt trời/mặt trăng/sao/vignette/phủ màu): dính màn hình
+//  - layer trời xa (mây): parallax 0.2 theo camera + tự trôi theo gió
+//  - layer hạt rơi (mưa/tuyết): parallax 0.3 — trượt nhẹ khi đi, không dính theo
+//  - layer mặt đất (gợn mưa, bồ công anh): world-lock 1.0 như mọi vật thể
 // ============================================================
-function drawWeather(ctx: CanvasRenderingContext2D, W: number, H: number, w: WeatherKind, t: number) {
+/** modulo dương (ôm vòng quanh, không nhảy số khi camera/gió âm) */
+function pmod(a: number, n: number): number {
+  return ((a % n) + n) % n;
+}
+function drawWeather(ctx: CanvasRenderingContext2D, W: number, H: number, cam: { x: number; y: number }, w: WeatherKind, t: number) {
   if (w === 'sunny') return;
   if (w === 'rain') {
-    // mây mưa xám trôi trên đỉnh màn hình
+    // mây mưa xám trôi trên đỉnh màn hình (layer trời xa)
     for (let i = 0; i < 5; i++) {
-      const cxm = ((t * 22 + i * 340) % (W + 300)) - 150;
+      const cxm = pmod(i * 340 + t * 22 - cam.x * 0.2, W + 300) - 150;
       axCloud(ctx, cxm, 26 + (i % 3) * 26, 22, 0.95);
       ctx.fillStyle = 'rgba(120,140,170,.35)';
       ell(ctx, cxm, 26 + (i % 3) * 26 + 12, 30, 9);
     }
     ctx.fillStyle = 'rgba(60,90,140,.10)';
     ctx.fillRect(0, 0, W, H);
-    // hạt mưa xiên
+    // hạt mưa xiên (layer hạt rơi)
     ctx.lineCap = 'round';
     const N = Math.min(140, Math.floor(W / 9));
     for (let i = 0; i < N; i++) {
       const speed = 620 + (i % 5) * 90;
-      const xx = ((i * 97.3 + t * 60) % (W + 60)) - 30;
-      const yy = ((i * 181.7 + t * speed) % (H + 60)) - 30;
+      const xx = pmod(i * 97.3 + t * 60 - cam.x * 0.3, W + 60) - 30;
+      const yy = pmod(i * 181.7 + t * speed - cam.y * 0.3, H + 60) - 30;
       const len = 13 + (i % 4) * 3;
       ctx.strokeStyle = i % 7 === 0 ? 'rgba(200,230,255,.85)' : 'rgba(150,200,245,.55)';
       ctx.lineWidth = i % 7 === 0 ? 2.2 : 1.5;
@@ -2485,11 +2498,13 @@ function drawWeather(ctx: CanvasRenderingContext2D, W: number, H: number, w: Wea
       ctx.fillStyle = 'rgba(255,255,220,.18)';
       ctx.fillRect(0, 0, W, H);
     }
-    // gợn nước dưới đất (vài vòng tròn loang)
+    // gợn nước dưới đất (vài vòng tròn loang) — world-lock như mặt đất
     ctx.strokeStyle = 'rgba(180,220,255,.4)';
     ctx.lineWidth = 1.6;
     for (let i = 0; i < 8; i++) {
-      const px = (i * 211 + 80) % W, py = (i * 347 + 120) % H;
+      const px = pmod(i * 211 + 80, WORLD.w) - cam.x;
+      const py = pmod(i * 347 + 120, WORLD.h) - cam.y;
+      if (px < -30 || py < -20 || px > W + 30 || py > H + 20) continue;
       const r = 6 + ((t * 22 + i * 9) % 16);
       ctx.globalAlpha = Math.max(0, 0.5 - r / 44);
       ctx.beginPath(); ctx.ellipse(px, py, r, r * 0.35, 0, 0, 7); ctx.stroke();
@@ -2504,8 +2519,8 @@ function drawWeather(ctx: CanvasRenderingContext2D, W: number, H: number, w: Wea
   for (let i = 0; i < N; i++) {
     const fall = 40 + (i % 5) * 14;
     const swayAmp = 18 + (i % 3) * 10;
-    const xx = ((i * 127.3) % (W + 40) + Math.sin(t * (0.8 + (i % 4) * 0.25) + i * 1.7) * swayAmp + W + 40) % (W + 40) - 20;
-    const yy = ((i * 251.9 + t * fall) % (H + 40)) - 20;
+    const xx = pmod(i * 127.3 - cam.x * 0.3 + Math.sin(t * (0.8 + (i % 4) * 0.25) + i * 1.7) * swayAmp, W + 40) - 20;
+    const yy = pmod(i * 251.9 + t * fall - cam.y * 0.3, H + 40) - 20;
     const r = 1.6 + (i % 4) * 0.9;
     ctx.fillStyle = `rgba(255,255,255,${0.65 + (i % 3) * 0.12})`;
     ctx.beginPath(); ctx.arc(xx, yy, r, 0, 7); ctx.fill();
@@ -2916,7 +2931,8 @@ export function renderWorld(ctx: CanvasRenderingContext2D, W: number, H: number,
     } else drawMoon(ctx, W - 60, 44, 14);
     if (isDay) {
       for (let i = 0; i < 4; i++) {
-        const cxm = ((t * 9 + i * 420) % (W + 260)) - 130;
+        // mây ngày: layer trời xa (parallax 0.2 + tự trôi)
+        const cxm = pmod(t * 9 + i * 420 - cam.x * 0.2, W + 260) - 130;
         axCloud(ctx, cxm, 54 + i * 24, 15, 0.92);
       }
     }
@@ -2926,8 +2942,8 @@ export function renderWorld(ctx: CanvasRenderingContext2D, W: number, H: number,
     vg.addColorStop(1, night ? 'rgba(5,5,25,.32)' : 'rgba(90,60,20,.14)');
     ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
   }
-  // lớp thời tiết phủ cuối cùng (không gian màn hình)
-  drawWeather(ctx, W, H, s.weather ?? 'sunny', t);
+  // lớp thời tiết phủ cuối cùng (layer trời riêng, parallax theo camera)
+  drawWeather(ctx, W, H, cam, s.weather ?? 'sunny', t);
 }
 
 /** Nông dân ngồi câu chi tiết: nón, áo, cần trúc, phao, gợn sóng, báo cắn vẽ tay */

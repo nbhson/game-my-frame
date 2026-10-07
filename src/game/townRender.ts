@@ -129,6 +129,12 @@ function hash2(a: number, b: number): number {
   h = (h ^ (h >> 13)) * 1274126177;
   return (((h ^ (h >> 16)) >>> 0) % 1000) / 1000;
 }
+// modulo dương + quy ước layer trời (giống farm render.ts):
+// mây parallax 0.2, hạt mưa/tuyết 0.3, vật bay thấp world-lock 1.0,
+// mặt trời/mặt trăng/sao/vignette/phủ màu dính màn hình (vô cực)
+function pmod(a: number, n: number): number {
+  return ((a % n) + n) % n;
+}
 
 // ---------- nền cỏ: gradient + mảng loang + quầng nắng + hoa cỏ ----------
 function drawTownBase(ctx: CanvasRenderingContext2D, cam: { x: number; y: number }, W: number, H: number, t: number) {
@@ -183,10 +189,13 @@ function drawTownBase(ctx: CanvasRenderingContext2D, cam: { x: number; y: number
       grassTuft(ctx, X + 8, Y, 1, t, i);
     } else grassTuft(ctx, X, Y, hash2(i, 7) > 0.5 ? 1 : 0.8, t, i);
   }
-  // bồ công anh bay
+  // bồ công anh bay — world-lock, trôi theo gió trong map
   for (let i = 0; i < 6; i++) {
-    const px = ((i * 397 + t * (18 + i * 4)) % (W + 80)) - 40;
-    const py = 90 + ((i * 173) % 320) + Math.sin(t * 1.5 + i * 2) * 18;
+    const px = pmod(i * 397 + t * (18 + i * 4), TOWN.w) - cam.x;
+    if (px < -40 || px > W + 40) continue;
+    const pyBase = pmod(90 + ((i * 173) % 320), TOWN.h) - cam.y;
+    if (pyBase < -40 || pyBase > H + 40) continue;
+    const py = pyBase + Math.sin(t * 1.5 + i * 2) * 18;
     ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 1.2;
     ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + 5, py - 4); ctx.stroke();
     ctx.fillStyle = 'rgba(255,255,255,.9)';
@@ -1758,7 +1767,8 @@ export function renderTown(ctx: CanvasRenderingContext2D, W: number, H: number, 
     drawSun(ctx, W - 60, 44, 15, t);
     if (Math.sin(t * 2) > 0.4) drawSparkle(ctx, W - 92, 30 + Math.sin(t) * 3, 5, 0.9);
     for (let i = 0; i < 4; i++) {
-      const cxm = ((t * 9 + i * 420) % (W + 260)) - 130;
+      // mây ngày: layer trời xa (parallax 0.2 + tự trôi)
+      const cxm = pmod(t * 9 + i * 420 - cam.x * 0.2, W + 260) - 130;
       cloud(ctx, cxm, 54 + i * 24, 15, 0.92);
     }
   } else drawMoon(ctx, W - 60, 44, 14);
@@ -1769,20 +1779,23 @@ export function renderTown(ctx: CanvasRenderingContext2D, W: number, H: number, 
   const w = s.weather ?? 'sunny';
   if (w === 'rain') {
     for (let i = 0; i < 5; i++) {
-      const cxm = ((t * 22 + i * 340) % (W + 300)) - 150;
+      // mây mưa: layer trời xa
+      const cxm = pmod(t * 22 + i * 340 - cam.x * 0.2, W + 300) - 150;
       cloud(ctx, cxm, 26 + (i % 3) * 26, 22, 0.95);
     }
     ctx.strokeStyle = 'rgba(170,210,255,.6)'; ctx.lineWidth = 1.6;
     for (let i = 0; i < 70; i++) {
-      const rx = (i * 97 + t * 300) % (W + 40) - 20;
-      const ry = (i * 211 + t * 700) % (H + 40) - 20;
+      // hạt mưa: layer hạt rơi (parallax 0.3)
+      const rx = pmod(i * 97 + t * 300 - cam.x * 0.3, W + 40) - 20;
+      const ry = pmod(i * 211 + t * 700 - cam.y * 0.3, H + 40) - 20;
       ctx.beginPath(); ctx.moveTo(rx, ry); ctx.lineTo(rx - 5, ry + 14); ctx.stroke();
     }
   } else if (w === 'snow') {
     ctx.fillStyle = 'rgba(255,255,255,.85)';
     for (let i = 0; i < 60; i++) {
-      const sx = (i * 131 + Math.sin(t * 0.8 + i) * 30) % W;
-      const sy = (i * 197 + t * 40) % H;
+      // tuyết: layer hạt rơi (parallax 0.3 + lượn)
+      const sx = pmod(i * 131 + Math.sin(t * 0.8 + i) * 30 - cam.x * 0.3, W + 8) - 4;
+      const sy = pmod(i * 197 + t * 40 - cam.y * 0.3, H + 8) - 4;
       ctx.beginPath(); ctx.arc(sx, sy, 2, 0, 7); ctx.fill();
     }
     const sg = ctx.createLinearGradient(0, H - 60, 0, H);
