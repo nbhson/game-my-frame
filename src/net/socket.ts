@@ -59,10 +59,14 @@ export class SocketTransport implements NetTransport {
   }
 
   async fetchFarm(code: string): Promise<FarmSnapshot | null> {
+    const want = code.trim().toUpperCase();
+    if (!want) return null;
     try {
-      const r = await fetch(`/api/farms/${code}`);
+      const r = await fetch(`/api/farms/${encodeURIComponent(want)}`, { cache: 'no-store' });
       if (!r.ok) return null;
-      return (await r.json()) as FarmSnapshot;
+      const snap = (await r.json()) as FarmSnapshot;
+      if (!snap?.plots) return null;
+      return snap;
     } catch {
       return null;
     }

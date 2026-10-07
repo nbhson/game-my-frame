@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Animal, AnimalType, CoopCap, ModalKind, Plot, PondFish, ShopTab, Stats } from './types';
+import type { Animal, AnimalType, CoopCap, ModalKind, Plot, PondFish, ShopTab, Stats, WeatherKind } from './types';
 import {
   ANIMALS, BITE_MAX, BITE_MIN, BITE_WINDOW, CROPS, DAY_LENGTH, FEED_PRO_PRICE, FEED_PRICE,
   BAIT_PRO_PRICE, BAIT_PRICE, FISHES, MAX_CAP, MAX_PLOTS, MAX_POND, QUESTS,
@@ -28,6 +28,8 @@ interface GameState {
   // kinh tế
   xu: number; gem: number; level: number; xp: number;
   day: number; dayTime: number;
+  // thời tiết: đổi tự động, mưa tự tưới cây, tuyết làm cây lớn chậm lại
+  weather: WeatherKind; weatherLeft: number;
   // world state
   inv: Record<string, number>;
   plots: Plot[];
@@ -53,6 +55,7 @@ interface GameState {
   loadAccount: (name: string, avatar: number, data: {
     xu: number; gem: number; level: number; xp: number;
     day: number; dayTime: number;
+    weather?: WeatherKind; weatherLeft?: number;
     inv: Record<string, number>;
     plots: Plot[]; fishes: PondFish[]; animals: Animal[];
     pondSlots?: number; coopCap?: CoopCap;
@@ -121,6 +124,14 @@ function migrateFishes(old: PondFish[] | undefined, uidSeqRef: { v: number }): P
 
 export const xpNeed = (level: number) => level * 100;
 
+/** Thời tiết kế tiếp: nắng nhiều, mưa vừa, tuyết hiếm (farm nhiệt đới mà có tuyết là sự kiện!) */
+export function rollWeather(): { w: WeatherKind; dur: number } {
+  const r = Math.random();
+  const w: WeatherKind = r < 0.62 ? 'sunny' : r < 0.85 ? 'rain' : 'snow';
+  return { w, dur: 60 + Math.random() * 70 };
+}
+export const WEATHER_LABEL: Record<WeatherKind, string> = { sunny: 'Nắng', rain: 'Mưa', snow: 'Tuyết' };
+
 function questDone(stats: Stats, level: number, idx: number): boolean {
   switch (QUESTS[idx]?.id) {
     case 'hoe': return stats.hoed >= 1;
@@ -151,6 +162,7 @@ export const useGame = create<GameState>()(
       name: 'NôngDân', avatar: 0,
       xu: 500, gem: 5, level: 1, xp: 0,
       day: 1, dayTime: 0.3,
+      weather: 'sunny', weatherLeft: 90,
       inv: { 'seed:lua': 3, feed: 3, bait: 3 },
       plots: freshPlots(),
       pondSlots: START_POND,
@@ -177,6 +189,7 @@ export const useGame = create<GameState>()(
             started: true, name, avatar,
             xu: data.xu, gem: data.gem, level: data.level, xp: data.xp,
             day: data.day, dayTime: data.dayTime,
+            weather: data.weather ?? 'sunny', weatherLeft: data.weatherLeft ?? 90,
             inv: data.inv, plots: migratePlots(data.plots), fishes,
             pondSlots: Math.min(MAX_POND, Math.max(START_POND, data.pondSlots ?? (data.fishes?.length >= 6 ? 6 : START_POND))),
             animals: data.animals, coopCap: cap,
@@ -187,6 +200,7 @@ export const useGame = create<GameState>()(
           set({
             started: true, name, avatar,
             xu: 500, gem: 5, level: 1, xp: 0, day: 1, dayTime: 0.3,
+            weather: 'sunny', weatherLeft: 90,
             inv: { 'seed:lua': 4, feed: 4, bait: 4 },
             plots: freshPlots(), pondSlots: START_POND, fishes: [], animals: [],
             coopCap: freshCap(),
@@ -230,6 +244,20 @@ export const useGame = create<GameState>()(
         let dayTime = s.dayTime + dt / DAY_LENGTH;
         let day = s.day;
         if (dayTime >= 1) { dayTime = 0; day++; s.toast(`Ngày mới: ngày ${day}`); }
+        // --- thời tiết: đếm ngược rồi đổi ngẫu nhiên ---
+        let { weather, weatherLeft } = s;
+        weatherLeft -= dt;
+        if (weatherLeft <= 0) {
+          const r = rollWeather();
+          // tránh lặp lại thời tiết cũ liên tục
+          weather = (r.w === weather && Math.random() < 0.5) ? 'sunny' : r.w;
+          weatherLeft = r.dur;
+          if (weather === 'rain') s.toast('Trời mưa! Cây được tưới tự động');
+          else if (weather === 'snow') s.toast('Tuyết rơi! Cây lớn chậm lại');
+          else if (s.weather !== 'sunny') s.toast('Trời nắng trở lại!');
+        }
+        const raining = weather !== 'sunny'; // mưa + tuyết đều giữ ẩm đất
+        const growthMul = weather === 'snow' ? 0.5 : 1;
         // cây
         let changed = false;
         const plots = s.plots.map((pl) => {
@@ -237,11 +265,12 @@ export const useGame = create<GameState>()(
           const c = CROPS[pl.crop];
           if (!c) return pl;
           let { progress, watered, waterLeft } = pl;
+          if (raining) { watered = true; waterLeft = Math.max(waterLeft, 12); }
           if (watered) {
             waterLeft -= dt;
             if (waterLeft <= 0) { watered = false; waterLeft = 0; }
             else {
-              progress += dt / c.grow;
+              progress += (dt * growthMul) / c.grow;
               if (progress >= 1) {
                 progress = 1;
                 sfx.harvest();
@@ -253,7 +282,6 @@ export const useGame = create<GameState>()(
           if (progress !== pl.progress || watered !== pl.watered) { changed = true; return { ...pl, progress, watered, waterLeft }; }
           return pl;
         });
-        // cá
         const fishes = s.fishes.map((f) => {
           if (f.grown) return f;
           const F = FISHES[f.type];
@@ -278,7 +306,8 @@ export const useGame = create<GameState>()(
           }
           return { ...a, hunger, productT, ready };
         });
-        if (changed || day !== s.day || dayTime !== s.dayTime) set({ plots, fishes, animals, day, dayTime });
+        if (changed || day !== s.day || dayTime !== s.dayTime || weather !== s.weather) set({ plots, fishes, animals, day, dayTime, weather, weatherLeft });
+        else if (weatherLeft !== s.weatherLeft) set({ fishes, animals, weatherLeft });
         else set({ fishes, animals });
       },
 
@@ -586,6 +615,7 @@ export const useGame = create<GameState>()(
         set({
           started: false, name: 'NôngDân', avatar: 0,
           xu: 500, gem: 5, level: 1, xp: 0, day: 1, dayTime: 0.3,
+          weather: 'sunny', weatherLeft: 90,
           inv: { 'seed:lua': 3, feed: 3, bait: 3 },
           plots: freshPlots(), pondSlots: START_POND, fishes: [], animals: [],
           coopCap: freshCap(),
@@ -602,6 +632,7 @@ export const useGame = create<GameState>()(
         name: s.name, avatar: s.avatar,
         xu: s.xu, gem: s.gem, level: s.level, xp: s.xp,
         day: s.day, dayTime: s.dayTime,
+        weather: s.weather, weatherLeft: s.weatherLeft,
         inv: s.inv, plots: s.plots, pondSlots: s.pondSlots, fishes: s.fishes, animals: s.animals,
         coopCap: s.coopCap,
         stats: s.stats, questIdx: s.questIdx, uidSeq: s.uidSeq,

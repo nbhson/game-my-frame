@@ -3,7 +3,7 @@
 // nhà cửa, đạo cụ, hiệu ứng sống động + thể hiện rõ 5 giai đoạn phát triển cây
 // và 3 giai đoạn lớn của vật nuôi (non -> tơ -> trưởng thành).
 import { ANIMALS, CROPS, FISHES, MAX_POND, SHIRTS, plotReq } from './data';
-import type { Animal, CoopCap, Plot, PondFish } from './types';
+import type { Animal, CoopCap, Plot, PondFish, WeatherKind } from './types';
 import { BARN, COOP, FARM, PEN_MB, PIERS, POND, RIVER, RIVER_WATER_Y, ROAD_H, ROAD_V, SHOPD, TILE, WORLD, plotPos, roadHCenter, roadVCenter } from './world';
 import { animalPos, fishPos, PETS, petPos } from './systems';
 import { drawBasket, drawChickenHead, drawCowHead, drawCropGeneric, drawDrop, drawEnvelope, drawExclaimBadge, drawFeedBowl, drawFish, drawHoeMini, drawLock, drawMoon, drawPumpkin, drawSeedDot, drawSleepZ, drawSparkle, drawSprout, drawStar, drawSun, drawTreeFruit } from './icons';
@@ -23,6 +23,7 @@ export interface RenderState {
   player: { x: number; y: number; dir: number; moving: boolean; tx: number | null; ty: number | null; name: string };
   avatar: number;
   dayTime: number;
+  weather?: WeatherKind;
   visitors?: VisitorDraw[];
   selfBubble?: string;
   sit?: { x: number; y: number; bx: number; by: number; bite: boolean } | null;
@@ -2149,6 +2150,83 @@ function drawPlayerDetailed(ctx: CanvasRenderingContext2D, X: number, Y: number,
 // ============================================================
 //  RENDER CHÍNH
 // ============================================================
+// ============================================================
+//  THỜI TIẾT — mưa / tuyết phủ toàn màn hình (không gian màn hình)
+//  Mưa: vệt xiên + mây xám + lớp phủ lạnh. Tuyết: bông bay lượn + phủ trắng.
+// ============================================================
+function drawWeather(ctx: CanvasRenderingContext2D, W: number, H: number, w: WeatherKind, t: number) {
+  if (w === 'sunny') return;
+  if (w === 'rain') {
+    // mây mưa xám trôi trên đỉnh màn hình
+    for (let i = 0; i < 5; i++) {
+      const cxm = ((t * 22 + i * 340) % (W + 300)) - 150;
+      axCloud(ctx, cxm, 26 + (i % 3) * 26, 22, 0.95);
+      ctx.fillStyle = 'rgba(120,140,170,.35)';
+      ell(ctx, cxm, 26 + (i % 3) * 26 + 12, 30, 9);
+    }
+    ctx.fillStyle = 'rgba(60,90,140,.10)';
+    ctx.fillRect(0, 0, W, H);
+    // hạt mưa xiên
+    ctx.lineCap = 'round';
+    const N = Math.min(140, Math.floor(W / 9));
+    for (let i = 0; i < N; i++) {
+      const speed = 620 + (i % 5) * 90;
+      const xx = ((i * 97.3 + t * 60) % (W + 60)) - 30;
+      const yy = ((i * 181.7 + t * speed) % (H + 60)) - 30;
+      const len = 13 + (i % 4) * 3;
+      ctx.strokeStyle = i % 7 === 0 ? 'rgba(200,230,255,.85)' : 'rgba(150,200,245,.55)';
+      ctx.lineWidth = i % 7 === 0 ? 2.2 : 1.5;
+      ctx.beginPath();
+      ctx.moveTo(xx, yy);
+      ctx.lineTo(xx - 4, yy + len);
+      ctx.stroke();
+    }
+    // tia chớp thỉnh thoảng
+    const bolt = Math.sin(t * 0.7) + Math.sin(t * 1.9);
+    if (bolt > 1.92) {
+      ctx.fillStyle = 'rgba(255,255,220,.18)';
+      ctx.fillRect(0, 0, W, H);
+    }
+    // gợn nước dưới đất (vài vòng tròn loang)
+    ctx.strokeStyle = 'rgba(180,220,255,.4)';
+    ctx.lineWidth = 1.6;
+    for (let i = 0; i < 8; i++) {
+      const px = (i * 211 + 80) % W, py = (i * 347 + 120) % H;
+      const r = 6 + ((t * 22 + i * 9) % 16);
+      ctx.globalAlpha = Math.max(0, 0.5 - r / 44);
+      ctx.beginPath(); ctx.ellipse(px, py, r, r * 0.35, 0, 0, 7); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    return;
+  }
+  // tuyết
+  ctx.fillStyle = 'rgba(220,235,255,.08)';
+  ctx.fillRect(0, 0, W, H);
+  const N = Math.min(120, Math.floor(W / 10));
+  for (let i = 0; i < N; i++) {
+    const fall = 40 + (i % 5) * 14;
+    const swayAmp = 18 + (i % 3) * 10;
+    const xx = ((i * 127.3) % (W + 40) + Math.sin(t * (0.8 + (i % 4) * 0.25) + i * 1.7) * swayAmp + W + 40) % (W + 40) - 20;
+    const yy = ((i * 251.9 + t * fall) % (H + 40)) - 20;
+    const r = 1.6 + (i % 4) * 0.9;
+    ctx.fillStyle = `rgba(255,255,255,${0.65 + (i % 3) * 0.12})`;
+    ctx.beginPath(); ctx.arc(xx, yy, r, 0, 7); ctx.fill();
+    // nhánh bông tuyết cho hạt to
+    if (i % 6 === 0) {
+      ctx.strokeStyle = 'rgba(255,255,255,.8)';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(xx - r * 1.8, yy); ctx.lineTo(xx + r * 1.8, yy); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(xx, yy - r * 1.8); ctx.lineTo(xx, yy + r * 1.8); ctx.stroke();
+    }
+  }
+  // đọng tuyết nhẹ 2 mép dưới (viền trắng mờ)
+  const sg = ctx.createLinearGradient(0, H - 60, 0, H);
+  sg.addColorStop(0, 'rgba(255,255,255,0)');
+  sg.addColorStop(1, 'rgba(255,255,255,.22)');
+  ctx.fillStyle = sg;
+  ctx.fillRect(0, H - 60, W, 60);
+}
+
 export function renderWorld(ctx: CanvasRenderingContext2D, W: number, H: number, cam: { x: number; y: number }, s: RenderState, t: number) {
   ctx.clearRect(0, 0, W, H);
   drawGrassBase(ctx, cam, W, H, t);
@@ -2401,6 +2479,8 @@ export function renderWorld(ctx: CanvasRenderingContext2D, W: number, H: number,
     vg.addColorStop(1, night ? 'rgba(5,5,25,.32)' : 'rgba(90,60,20,.14)');
     ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
   }
+  // lớp thời tiết phủ cuối cùng (không gian màn hình)
+  drawWeather(ctx, W, H, s.weather ?? 'sunny', t);
 }
 
 /** Nông dân ngồi câu chi tiết: nón, áo, cần trúc, phao, gợn sóng, báo cắn vẽ tay */

@@ -16,8 +16,15 @@ export default function VillageModal() {
 
   const copyCode = async () => {
     const link = `${window.location.origin}${window.location.pathname}?visit=${v.myCode}`;
-    try { await navigator.clipboard.writeText(link); useGame.getState().toast('Đã copy link mời!'); }
-    catch { useGame.getState().toast('Mã của bạn: ' + v.myCode); }
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(link);
+        useGame.getState().toast('Đã copy link mời!');
+      } else {
+        // http LAN / trình duyệt cũ không có clipboard → hiện mã để gõ tay
+        window.prompt('Copy link mời thăm farm:', link);
+      }
+    } catch { useGame.getState().toast('Mã của bạn: ' + v.myCode); }
     sfx.coin();
   };
 
@@ -65,7 +72,15 @@ export default function VillageModal() {
           )}
           <div className="flex flex-col gap-2">
             {v.players.map((p) => (
-              <PlayerRow key={p.id} name={p.name} avatar={p.avatar} sub="đang trong làng" actionLabel="Thăm farm" onAction={() => { /* visit cần code; local: gửi yêu cầu */ useGame.getState().toast('Xin mã farm 6 ký tự của ' + p.name + ' ở tab Thăm bạn'); setTab('visit'); }} />
+              <PlayerRow
+                key={p.id} name={p.name} avatar={p.avatar}
+                sub={p.code ? `mã ${p.code} • đang trong làng` : 'đang trong làng'}
+                actionLabel="Thăm farm"
+                onAction={() => {
+                  if (p.code) { void doVisit(p.code); }
+                  else { useGame.getState().toast('Xin mã farm 6 ký tự của ' + p.name + ' ở tab Thăm bạn'); setTab('visit'); }
+                }}
+              />
             ))}
             {v.demoBots && (
               <>

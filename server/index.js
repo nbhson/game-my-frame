@@ -130,8 +130,8 @@ const players = new Map();
 let broadcastTimer = null;
 
 function publicList() {
-  return [...players.values()].map(({ id, name, avatar, x, y, dir, moving, bubble, bubbleAt }) => (
-    { id, name, avatar, x, y, dir, moving, bubble, bubbleAt, updatedAt: Date.now() }
+  return [...players.values()].map(({ id, name, avatar, code, x, y, dir, moving, bubble, bubbleAt }) => (
+    { id, name, avatar, code, x, y, dir, moving, bubble, bubbleAt, updatedAt: Date.now() }
   ));
 }
 function emitPlayers() {

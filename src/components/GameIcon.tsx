@@ -9,6 +9,7 @@ export type IconName =
   | 'chicken' | 'duck' | 'cow' | 'pig' | 'sheep'
   | 'trung' | 'trungvit' | 'sua' | 'thit' | 'len' | 'ung' | 'rong'
   | 'field' | 'pond' | 'shop' | 'mail' | 'rod' | 'calendar' | 'sun' | 'moon'
+  | 'rain' | 'snow'
   | 'gift' | 'check' | 'quest' | 'bag' | 'star'
   | 'farmer0' | 'farmer1' | 'farmer2' | 'farmer3';
 
@@ -20,17 +21,19 @@ export function GameIcon({ name, size = 28 }: { name: string; size?: number }) {
   );
 }
 
-/** Map productId/inv key → icon name */
+/** Map productId/inv key → icon name (không đệ quy, an toàn mọi key lạ) */
 export function iconForPid(pid: string): string {
+  if (!pid) return 'basket';
   if (pid.startsWith('seed:')) return 'seed';
-  if (pid.startsWith('baby')) return iconForPid(pid.replace('baby:', ''));
+  if (pid.startsWith('babyfish:')) return pid.slice(9) || 'caro';
+  if (pid.startsWith('baby:')) return pid.slice(5) || 'chicken';
   const known: Record<string, string> = {
     feed: 'feed', feedPro: 'feedPro', bait: 'bait', baitPro: 'baitPro',
     trung: 'trung', trungvit: 'trungvit', sua: 'sua', thit: 'thit', len: 'len',
     ung: 'ung', rong: 'rong',
   };
   if (known[pid]) return known[pid];
-  return pid; // crop/fish/animal id dùng trực tiếp làm icon name
+  return pid; // crop/fish/animal id dùng trực tiếp làm icon name (renderIcon có default)
 }
 
 function renderIcon(name: string) {
@@ -95,6 +98,8 @@ function renderIcon(name: string) {
     case 'calendar': return (<g><rect x="6" y="8" width="20" height="18" rx="2.5" fill="#fff" stroke="#4e342e" strokeWidth="2" /><rect x="6" y="8" width="20" height="6" fill="#e53935" /><line x1="11" y1="5" x2="11" y2="10" stroke="#4e342e" strokeWidth="2.4" strokeLinecap="round" /><line x1="21" y1="5" x2="21" y2="10" stroke="#4e342e" strokeWidth="2.4" strokeLinecap="round" /></g>);
     case 'sun': return (<g><circle cx="16" cy="16" r="7" fill="#ffeb3b" stroke="#ff9800" strokeWidth="2" />{[0, 45, 90, 135, 180, 225, 270, 315].map((a) => { const r1 = 10, r2 = 13, rad = (a * Math.PI) / 180; return (<line key={a} x1={16 + Math.cos(rad) * r1} y1={16 + Math.sin(rad) * r1} x2={16 + Math.cos(rad) * r2} y2={16 + Math.sin(rad) * r2} stroke="#ff9800" strokeWidth="2" strokeLinecap="round" />); })}</g>);
     case 'moon': return (<g><path d="M22 18 A9 9 0 1 1 14 5 A7 7 0 0 0 22 18 Z" fill="#fffde7" stroke="#c9b458" strokeWidth="1.8" strokeLinejoin="round" /></g>);
+    case 'rain': return (<g><ellipse cx="16" cy="12" rx="9" ry="6" fill="#b0bec5" stroke="#546e7a" strokeWidth="1.8" /><ellipse cx="13" cy="10" rx="3" ry="2.4" fill="#eceff1" /><line x1="10" y1="20" x2="8" y2="26" stroke="#29b6f6" strokeWidth="2.2" strokeLinecap="round" /><line x1="16" y1="20" x2="14" y2="26" stroke="#29b6f6" strokeWidth="2.2" strokeLinecap="round" /><line x1="22" y1="20" x2="20" y2="26" stroke="#29b6f6" strokeWidth="2.2" strokeLinecap="round" /></g>);
+    case 'snow': return (<g><ellipse cx="16" cy="10" rx="9" ry="6" fill="#cfd8dc" stroke="#78909c" strokeWidth="1.8" /><line x1="16" y1="18" x2="16" y2="29" stroke="#eceff1" strokeWidth="2" strokeLinecap="round" /><line x1="11" y1="20.5" x2="21" y2="26.5" stroke="#eceff1" strokeWidth="2" strokeLinecap="round" /><line x1="21" y1="20.5" x2="11" y2="26.5" stroke="#eceff1" strokeWidth="2" strokeLinecap="round" /><circle cx="16" cy="23.5" r="2" fill="#fff" /></g>);
     case 'gift': return (<g><rect x="7" y="13" width="18" height="13" rx="1.5" fill="#ab47bc" stroke="#4a148c" strokeWidth="2" /><rect x="14" y="13" width="4" height="13" fill="#ffeb3b" /><path d="M16 13 Q10 13 10 9 Q10 6 13 7 Q16 8 16 13 Q16 8 19 7 Q22 6 22 9 Q22 13 16 13" fill="none" stroke="#7b1fa2" strokeWidth="2" /></g>);
     case 'check': return (<g><circle cx="16" cy="16" r="11" fill="#66bb6a" stroke="#1b5e20" strokeWidth="2.5" /><path d="M10 16.5 L14.5 21 L22 11" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></g>);
     case 'quest': return (<g><rect x="9" y="5" width="14" height="21" rx="1.5" fill="#fff8e1" stroke="#6d4c41" strokeWidth="2" /><line x1="12" y1="10" x2="20" y2="10" stroke="#8b5a2b" strokeWidth="1.8" /><line x1="12" y1="14" x2="20" y2="14" stroke="#8b5a2b" strokeWidth="1.8" /><line x1="12" y1="18" x2="17" y2="18" stroke="#8b5a2b" strokeWidth="1.8" /><circle cx="21" cy="21" r="4.4" fill="#ffca28" stroke="#8b5a2b" strokeWidth="1.6" /><path d="M19.4 21 l1.2 1.2 2.2-2.4" stroke="#4e342e" strokeWidth="1.6" fill="none" strokeLinecap="round" /></g>);

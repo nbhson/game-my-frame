@@ -9,6 +9,8 @@ export interface RemotePlayer {
   id: string;
   name: string;
   avatar: number;
+  /** mã farm 6 ký tự của người này (để bấm Thăm farm trực tiếp) */
+  code?: string;
   x: number; y: number;
   dir: 1 | -1;
   moving: boolean;

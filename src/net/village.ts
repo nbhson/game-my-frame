@@ -159,13 +159,32 @@ export const useVillage = create<VillageState>()((set, get) => ({
   },
 
   async visit(code) {
-    if (!transport) return false;
-    const c = code.trim().toUpperCase();
-    if (!c || c === transport.code) return false;
-    // 1. farm của mình (local echo)
-    const snap = await transport.fetchFarm(c);
+    // cho phép dán cả link mời ?visit=ABC123 hoặc mã kèm khoảng trắng
+    let c = (code || '').trim().toUpperCase();
+    const m = c.match(/VISIT=([A-Z0-9]{4,8})/);
+    if (m) c = m[1];
+    c = c.replace(/[^A-Z0-9]/g, '').slice(0, 6);
+    if (!c) { useGame.getState().toast('Nhập mã farm 6 ký tự của bạn bè!'); return false; }
+    // chưa connect (vào bằng link mời sớm) → connect trước rồi mới tìm
+    if (!transport) {
+      try { await get().connect(); } catch { /* ignore */ }
+    }
+    if (!transport) { useGame.getState().toast('Chưa vào làng, thử lại sau 2 giây!'); return false; }
+    if (c === transport.code) { useGame.getState().toast('Đây là farm của bạn mà!'); return false; }
+    useGame.getState().toast('Đang tìm farm ' + c + '…');
+    let snap: FarmSnapshot | null = null;
+    try {
+      snap = await transport.fetchFarm(c);
+    } catch {
+      snap = null;
+    }
     if (!snap || !snap.plots) {
-      useGame.getState().toast('Không tìm thấy farm mã ' + c);
+      const modeHint = transport.mode === 'local'
+        ? ' (Local: bạn phải mở tab farm đó trên cùng máy)'
+        : transport.mode === 'socket'
+          ? ' (LAN: chủ farm phải từng online để server lưu)'
+          : ' (Cloud: chủ farm phải từng online)';
+      useGame.getState().toast('Không tìm thấy farm mã ' + c + modeHint);
       return false;
     }
     set({ visiting: { code: c, snap } });

@@ -16,13 +16,22 @@ export default function App() {
   const onTarget = useCallback((t: InteractTarget | null) => setTarget(t), []);
 
   // link mời kiểu Avatar: ?visit=ABC123 → vào game rồi tự qua thăm farm bạn
+  // connect dò mạng mất ~2s nên thử lại vài lần thay vì 1 lần duy nhất
   useEffect(() => {
     if (!started) return;
     const code = new URLSearchParams(window.location.search).get('visit');
-    if (code && code.length >= 4) {
-      const t = setTimeout(() => { void useVillage.getState().visit(code); }, 1500);
-      return () => clearTimeout(t);
-    }
+    if (!code || code.length < 4) return;
+    let tries = 0;
+    let cancelled = false;
+    const timer = setInterval(() => {
+      if (cancelled) return;
+      tries++;
+      const v = useVillage.getState();
+      if (v.visiting) { clearInterval(timer); return; }
+      void v.visit(code).then((ok) => { if (ok || tries >= 6) clearInterval(timer); });
+      if (tries >= 6) clearInterval(timer);
+    }, 1500);
+    return () => { cancelled = true; clearInterval(timer); };
   }, [started]);
 
   // ngắt làng khi về menu

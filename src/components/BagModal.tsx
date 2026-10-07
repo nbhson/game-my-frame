@@ -30,7 +30,25 @@ export default function BagModal() {
         })}
       </div>
       <div className="mt-3 flex gap-2">
-        <button className="pixel-btn !text-[10px] inline-flex items-center gap-1" onClick={() => s.setShopTab('sell')}><GameIcon name="coin" size={14} /> Bán nhanh</button>
+        <button
+          className="pixel-btn !text-[10px] inline-flex items-center gap-1"
+          onClick={() => { s.setShopTab('sell'); s.setModal('shop'); }}
+        >
+          <GameIcon name="coin" size={14} /> Bán nhanh
+        </button>
+        <button
+          className="pixel-btn !text-[10px] !bg-emerald-500 !text-white inline-flex items-center gap-1"
+          title="Bán toàn bộ nông sản/thành phẩm trong kho"
+          onClick={() => {
+            const keys = Object.keys(s.inv).filter((pid) => !pid.startsWith('seed:') && !pid.startsWith('baby') && pid !== 'feed' && pid !== 'feedPro' && pid !== 'bait' && pid !== 'baitPro');
+            if (!keys.length) { s.toast('Kho không có gì để bán nhanh!'); return; }
+            let total = 0;
+            for (const pid of keys) { const n = s.inv[pid] || 0; if (n > 0) { total += sellPrice(pid) * n; s.sell(pid, true); } }
+            void total;
+          }}
+        >
+          Bán hết kho
+        </button>
         <button className="pixel-btn !text-[10px] !bg-stone-300" onClick={() => s.setModal(null)}>Đóng</button>
       </div>
     </div>

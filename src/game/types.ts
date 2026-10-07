@@ -1,6 +1,9 @@
 // ===== Core domain types — dễ mở rộng thêm cây/cá/vật nuôi mới =====
 export type PlotState = 'grass' | 'soil' | 'growing' | 'ready';
 
+/** Thời tiết farm: nắng / mưa / tuyết (đổi tự động theo thời gian trong game) */
+export type WeatherKind = 'sunny' | 'rain' | 'snow';
+
 export interface Plot {
   state: PlotState;
   crop: string | null; // crop id

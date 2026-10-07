@@ -5,10 +5,11 @@ import { codeFromId } from './session';
 import { safeUid } from './uid';
 
 interface Wire {
-  kind: 'hello' | 'pos' | 'chat' | 'farm' | 'bye';
+  kind: 'hello' | 'pos' | 'chat' | 'farm' | 'bye' | 'farm-req';
   from: string;
   name?: string;
   avatar?: number;
+  code?: string;
   x?: number; y?: number; dir?: 1 | -1; moving?: boolean; bubble?: string;
   text?: string;
   snap?: FarmSnapshot;
@@ -27,6 +28,7 @@ export class LocalTransport implements NetTransport {
   private statusCbs = new Set<(ok: boolean) => void>();
   private timer: number | null = null;
   private lastFarmPush = 0;
+  private lastSnap: FarmSnapshot | null = null;
 
   constructor(private playerId: string, codeOverride?: string) {
     this.code = codeOverride ?? codeFromId(playerId);
@@ -37,8 +39,9 @@ export class LocalTransport implements NetTransport {
     this.ch = new BroadcastChannel('nongtrai-village');
     this.ch.onmessage = (e) => this.handle(e.data as Wire);
     this.emitStatus(true);
-    this.send({ kind: 'hello', from: self.id, name: self.name, avatar: self.avatar });
-    // xin farm snapshot của các tab khác để visit được
+    this.send({ kind: 'hello', from: self.id, name: self.name, avatar: self.avatar, code: this.code });
+    // chủ động đẩy farm mình lên để tab khác visit được ngay (không đợi 10s)
+    setTimeout(() => { try { this.pushFarmForce(); } catch { /* ignore */ } }, 600);
     // dọn người chơi mất kết nối (quá 8s không pos)
     this.timer = window.setInterval(() => {
       const now = Date.now();
@@ -60,40 +63,66 @@ export class LocalTransport implements NetTransport {
 
   updateSelf(self: SelfInfo) {
     this.self = self;
-    this.send({ kind: 'hello', from: self.id, name: self.name, avatar: self.avatar });
+    this.send({ kind: 'hello', from: self.id, name: self.name, avatar: self.avatar, code: this.code });
   }
 
   pushPosition(x: number, y: number, dir: 1 | -1, moving: boolean, bubble?: string) {
-    this.send({ kind: 'pos', from: this.self.id, name: this.self.name, avatar: this.self.avatar, x, y, dir, moving, bubble });
+    this.send({ kind: 'pos', from: this.self.id, name: this.self.name, avatar: this.self.avatar, code: this.code, x, y, dir, moving, bubble });
+  }
+
+  /** đẩy farm bỏ qua throttle (dùng khi mới connect / khi có tab hỏi) */
+  private pushFarmForce() {
+    this.lastFarmPush = 0;
+    // lấy snapshot mới nhất từ callback ngoài? transport không giữ game state,
+    // nên nhờ village gọi pushFarm ngay sau connect (đã có setTimeout 2s).
+    // ở đây chỉ gửi lại hello để các tab biết code của mình.
+    this.send({ kind: 'hello', from: this.self.id, name: this.self.name, avatar: this.self.avatar, code: this.code });
   }
 
   pushFarm(snap: FarmPayload) {
     // throttle 3s + lưu local để tab khác fetch được
     const now = Date.now();
+    const full: FarmSnapshot = { ...snap, code: this.code, updatedAt: now };
+    this.lastSnap = full;
+    try { localStorage.setItem(LS_FARM + ':' + this.code, JSON.stringify(full)); } catch { /* ignore */ }
     if (now - this.lastFarmPush < 3000) return;
     this.lastFarmPush = now;
-    const full: FarmSnapshot = { ...snap, code: this.code, updatedAt: now };
-    try { localStorage.setItem(LS_FARM + ':' + this.code, JSON.stringify(full)); } catch { /* ignore */ }
     this.send({ kind: 'farm', from: this.self.id, snap: full });
   }
 
   async fetchFarm(code: string): Promise<FarmSnapshot | null> {
+    const want = code.trim().toUpperCase();
     // 1. farm của chính mình (tab này hoặc tab khác cùng máy)
     try {
-      const raw = localStorage.getItem(LS_FARM + ':' + code);
-      if (raw) return JSON.parse(raw) as FarmSnapshot;
+      const raw = localStorage.getItem(LS_FARM + ':' + want);
+      if (raw) {
+        const snap = JSON.parse(raw) as FarmSnapshot;
+        if (snap?.plots) return snap;
+      }
     } catch { /* ignore */ }
-    // 2. hỏi các tab đang online
+    // 1b. quét toàn bộ localStorage (phòng khi code lưu hoa/thường khác)
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k || !k.startsWith(LS_FARM + ':')) continue;
+        if (k.slice((LS_FARM + ':').length).toUpperCase() !== want) continue;
+        const snap = JSON.parse(localStorage.getItem(k) || 'null') as FarmSnapshot | null;
+        if (snap?.plots) return snap;
+      }
+    } catch { /* ignore */ }
+    // 2. hỏi các tab đang online (gửi yêu cầu + đợi farm hoặc trả lời trực tiếp)
     const found = await new Promise<FarmSnapshot | null>((resolve) => {
       const handler = (e: MessageEvent) => {
         const w = e.data as Wire;
-        if (w.kind === 'farm' && w.snap?.code === code) {
+        if (w.kind === 'farm' && w.snap?.code?.toUpperCase() === want && w.snap?.plots) {
           this.ch?.removeEventListener('message', handler);
           resolve(w.snap);
         }
       };
       this.ch?.addEventListener('message', handler);
-      setTimeout(() => { this.ch?.removeEventListener('message', handler); resolve(null); }, 1200);
+      // yêu cầu các tab đẩy lại farm của họ
+      try { this.ch?.postMessage({ kind: 'farm-req', from: this.self.id }); } catch { /* ignore */ }
+      setTimeout(() => { this.ch?.removeEventListener('message', handler); resolve(null); }, 2000);
     });
     return found;
   }
@@ -129,6 +158,7 @@ export class LocalTransport implements NetTransport {
         id: w.from,
         name: w.name ?? prev?.name ?? 'Bạn',
         avatar: w.avatar ?? prev?.avatar ?? 0,
+        code: w.code ?? prev?.code,
         x: w.x ?? prev?.x ?? 700,
         y: w.y ?? prev?.y ?? 600,
         dir: w.dir ?? prev?.dir ?? 1,
@@ -138,6 +168,18 @@ export class LocalTransport implements NetTransport {
         updatedAt: Date.now(),
       });
       this.emitPlayers();
+      // tab mới vào chưa có farm mình → đẩy lại 1 bản để nó visit được
+      if (w.kind === 'hello') {
+        const now = Date.now();
+        if (now - this.lastFarmPush > 3000) {
+          // village sẽ pushFarm định kỳ; ở đây chỉ báo đã nhận
+          void now;
+        }
+      }
+    } else if (w.kind === 'farm-req') {
+      // tab khác muốn xin farm → phát lại bản mới nhất mình có (kèm hello để lộ code)
+      this.send({ kind: 'hello', from: this.self.id, name: this.self.name, avatar: this.self.avatar, code: this.code });
+      if (this.lastSnap) this.send({ kind: 'farm', from: this.self.id, snap: this.lastSnap });
     } else if (w.kind === 'chat' && w.text) {
       const pl = this.players.get(w.from);
       if (pl) { pl.bubble = w.text; pl.bubbleAt = Date.now(); this.emitPlayers(); }

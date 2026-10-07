@@ -39,7 +39,7 @@ export class SupabaseTransport implements NetTransport {
     });
     this.channel
       .on('presence', { event: 'sync' }, () => {
-        const state = this.channel!.presenceState() as Record<string, { name: string; avatar: number; x: number; y: number; dir: 1 | -1; moving: boolean; bubble?: string }[]>;
+        const state = this.channel!.presenceState() as Record<string, { name: string; avatar: number; code?: string; x: number; y: number; dir: 1 | -1; moving: boolean; bubble?: string }[]>;
         const now = Date.now();
         const next = new Map<string, RemotePlayer>();
         for (const [id, metas] of Object.entries(state)) {
@@ -48,7 +48,8 @@ export class SupabaseTransport implements NetTransport {
           if (!m) continue;
           const prev = this.players.get(id);
           next.set(id, {
-            id, name: m.name, avatar: m.avatar, x: m.x, y: m.y,
+            id, name: m.name, avatar: m.avatar, code: m.code ?? prev?.code,
+            x: m.x, y: m.y,
             dir: m.dir, moving: m.moving,
             bubble: m.bubble ?? prev?.bubble,
             bubbleAt: m.bubble ? now : prev?.bubbleAt,
@@ -105,9 +106,13 @@ export class SupabaseTransport implements NetTransport {
   }
 
   async fetchFarm(code: string): Promise<FarmSnapshot | null> {
-    const { data, error } = await this.sb.from('farms').select('snapshot').eq('code', code).maybeSingle();
+    const want = code.trim().toUpperCase();
+    if (!want) return null;
+    const { data, error } = await this.sb.from('farms').select('snapshot').eq('code', want).maybeSingle();
     if (error || !data) return null;
-    return data.snapshot as FarmSnapshot;
+    const snap = data.snapshot as FarmSnapshot;
+    if (!snap?.plots) return null;
+    return snap;
   }
 
   sendChat(text: string) {
@@ -138,7 +143,7 @@ export class SupabaseTransport implements NetTransport {
       this.lastPos = { x: extra.x, y: extra.y ?? this.lastPos.y, dir: extra.dir ?? this.lastPos.dir, moving: extra.moving ?? false };
     }
     void this.channel.track({
-      name: this.self.name, avatar: this.self.avatar,
+      name: this.self.name, avatar: this.self.avatar, code: this.code,
       x: this.lastPos.x, y: this.lastPos.y,
       dir: this.lastPos.dir, moving: this.lastPos.moving,
       ...(extra?.bubble ? { bubble: extra.bubble } : {}),

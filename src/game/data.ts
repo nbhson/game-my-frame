@@ -85,6 +85,9 @@ export function itemName(pid: string): [string, string] {
   if (PRODUCT_NAMES[pid]) return PRODUCT_NAMES[pid];
   if (pid.startsWith('seed:')) { const c = CROPS[pid.slice(5)]; if (c) return ['Hạt ' + c.name, '']; }
   if (pid.startsWith('babyfish:')) { const c = FISHES[pid.slice(9)]; if (c) return ['Cá con ' + c.name, '']; }
+  if (pid.startsWith('baby:')) { const c = FISHES[pid.slice(5)] ?? ANIMALS[pid.slice(5)]; if (c) return ['Con non ' + c.name, '']; }
+  if (pid === 'feedPro') return PRODUCT_NAMES.feedPro;
+  if (pid === 'baitPro') return PRODUCT_NAMES.baitPro;
   return [pid, ''];
 }
 

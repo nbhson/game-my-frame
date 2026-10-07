@@ -218,7 +218,7 @@ export default function GameCanvas({ target, onTarget }: Props) {
         plots: viewPlots, fishes: viewFishes, animals: viewAnimals,
         pondSlots: st.pondSlots, coopCap: st.coopCap,
         player: { x: playerRef.x, y: playerRef.y, dir: playerRef.dir, moving: playerRef.moving, tx: playerRef.tx, ty: playerRef.ty, name: st.name },
-        avatar: st.avatar, dayTime: st.dayTime,
+        avatar: st.avatar, dayTime: st.dayTime, weather: st.weather,
         visitors,
         selfBubble: village.selfBubble || undefined,
         sit: fs ? { x: fs.x, y: fs.y, bx: fs.bx, by: fs.by, bite: biting } : null,

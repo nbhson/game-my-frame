@@ -1,7 +1,7 @@
 // ===== Account theo username: TOÀN BỘ farm nằm trong DB =====
 // Nhập đúng username → lấy lại farm, bất kể reload/tab khác/máy khác.
 // Backend tự chọn: LAN server (DB `server/data/db.json`) → localStorage theo user.
-import type { Animal, CoopCap, PondFish, Plot, Stats } from '../game/types';
+import type { Animal, CoopCap, PondFish, Plot, Stats, WeatherKind } from '../game/types';
 import { useGame } from '../game/store';
 import { useVillage } from './village';
 import { lanServerAvailable } from './socket';
@@ -12,6 +12,7 @@ export interface AccountData {
   avatar: number;
   xu: number; gem: number; level: number; xp: number;
   day: number; dayTime: number;
+  weather?: WeatherKind; weatherLeft?: number;
   inv: Record<string, number>;
   plots: Plot[];
   fishes: PondFish[];
@@ -34,19 +35,40 @@ export interface AccountBackend {
 class ServerAccountBackend implements AccountBackend {
   readonly kind = 'server' as const;
   private url(u: string) { return `/api/players/${encodeURIComponent(normalizeUsername(u))}`; }
+  private async withTimeout<T>(p: Promise<T>, ms = 4000): Promise<T> {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), ms);
+    try {
+      // fetch không nhận signal ở đây (đã có cache no-store) — chỉ guard treo
+      return await p;
+    } finally { clearTimeout(t); void ctl; }
+  }
   async load(username: string) {
-    const r = await fetch(this.url(username), { cache: 'no-store' });
-    if (!r.ok) return null;
-    const acc = await r.json();
-    if (!acc?.data) return null;
-    return { name: acc.name as string, avatar: acc.avatar as number, data: acc.data as AccountData };
+    try {
+      const r = await this.withTimeout(fetch(this.url(username), { cache: 'no-store' }));
+      if (!r.ok) return null;
+      const acc = await r.json();
+      if (!acc?.data) return null;
+      return { name: acc.name as string, avatar: acc.avatar as number, data: acc.data as AccountData };
+    } catch {
+      // server chết giữa chừng → rớt về local để game vẫn vào được
+      resetBackendToLocal();
+      const local = new LocalAccountBackend();
+      try { return await local.load(username); } catch { return null; }
+    }
   }
   async save(username: string, name: string, avatar: number, data: AccountData) {
-    await fetch(this.url(username), {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, avatar, data }),
-    });
+    try {
+      await this.withTimeout(fetch(this.url(username), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, avatar, data }),
+      }));
+    } catch {
+      // mất server khi đang chơi: lưu local tạm, lần sau sync tiếp
+      resetBackendToLocal();
+      try { await new LocalAccountBackend().save(username, name, avatar, data); } catch { /* ignore */ }
+    }
   }
   beaconSave(username: string, name: string, avatar: number, data: AccountData) {
     try {
@@ -78,8 +100,18 @@ class LocalAccountBackend implements AccountBackend {
 
 let backend: AccountBackend | null = null;
 export async function getAccountBackend(): Promise<AccountBackend> {
-  if (!backend) backend = (await lanServerAvailable()) ? new ServerAccountBackend() : new LocalAccountBackend();
+  if (!backend) {
+    try {
+      backend = (await lanServerAvailable()) ? new ServerAccountBackend() : new LocalAccountBackend();
+    } catch {
+      backend = new LocalAccountBackend();
+    }
+  }
   return backend;
+}
+/** server chết giữa chừng → rớt về local ngay, game không kẹt */
+export function resetBackendToLocal() {
+  backend = new LocalAccountBackend();
 }
 /** backend đang dùng (để autosync không phải dò lại) */
 export function currentBackend(): AccountBackend | null { return backend; }
@@ -91,6 +123,7 @@ export function exportAccount(): AccountData {
     name: g.name, avatar: g.avatar,
     xu: g.xu, gem: g.gem, level: g.level, xp: g.xp,
     day: g.day, dayTime: g.dayTime,
+    weather: g.weather, weatherLeft: g.weatherLeft,
     inv: g.inv, plots: g.plots, fishes: g.fishes, animals: g.animals,
     pondSlots: g.pondSlots, coopCap: g.coopCap,
     stats: g.stats, questIdx: g.questIdx, uidSeq: g.uidSeq,

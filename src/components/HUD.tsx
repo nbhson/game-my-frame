@@ -1,6 +1,6 @@
 import { Backpack, CircleHelp, ScrollText, Store, Users, Volume2, VolumeX } from 'lucide-react';
 import { useState } from 'react';
-import { xpNeed, useGame } from '../game/store';
+import { xpNeed, useGame, WEATHER_LABEL } from '../game/store';
 import { useVillage } from '../net/village';
 import { isSoundOn, setSoundOn } from '../game/audio';
 import { GameIcon } from './GameIcon';
@@ -12,6 +12,8 @@ export default function HUD() {
   const [mute, setMute] = useState(!isSoundOn());
   const pct = Math.min(100, (s.xp / xpNeed(s.level)) * 100);
   const clockIcon = s.dayTime < 0.05 || s.dayTime > 0.92 ? 'moon' : s.dayTime > 0.75 ? 'sun' : s.dayTime < 0.2 ? 'sun' : 'sun';
+  const weatherIcon = s.weather === 'rain' ? 'rain' : s.weather === 'snow' ? 'snow' : clockIcon;
+  const weatherLabel = WEATHER_LABEL[s.weather] + (s.weather === 'rain' ? ' (tự tưới)' : s.weather === 'snow' ? ' (chậm lớn)' : '');
   const cloudColor = cloud === 'synced' ? '#4ade80' : cloud === 'local' ? '#facc15' : cloud === 'syncing' ? '#f97316' : '#ef4444';
 
   return (
@@ -32,6 +34,7 @@ export default function HUD() {
         <div className="bg-[#3e3428] border-2 border-black rounded-lg px-2 py-1 text-yellow-300 flex items-center gap-1"><GameIcon name="coin" size={17} /> {s.xu.toLocaleString('vi-VN')}</div>
         <div className="bg-[#3e3428] border-2 border-black rounded-lg px-2 py-1 text-sky-300 flex items-center gap-1"><GameIcon name="gem" size={17} /> {s.gem}</div>
         <div className="bg-[#3e3428] border-2 border-black rounded-lg px-2 py-1 hidden sm:flex items-center gap-1"><GameIcon name="calendar" size={16} /> Ngày {s.day} <GameIcon name={clockIcon} size={16} /></div>
+        <div className="bg-[#3e3428] border-2 border-black rounded-lg px-2 py-1 hidden sm:flex items-center gap-1" title={weatherLabel}><GameIcon name={weatherIcon} size={16} /> {WEATHER_LABEL[s.weather]}</div>
       </div>
       <div className="flex items-center gap-1.5">
         <button className="icon-btn !text-black relative" title="Làng (V)" onClick={() => s.setModal('village')}>
