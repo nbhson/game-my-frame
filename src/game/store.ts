@@ -11,6 +11,7 @@ import {
 } from './data';
 import { PIERS } from './world';
 import { sfx } from './audio';
+import { GIFTCODES, normalizeCode, rewardSummary } from './giftcodes';
 
 // ---------- toasts (UI-only, không persist) ----------
 export interface Toast { id: number; msg: string }
@@ -42,6 +43,8 @@ interface GameState {
   stats: Stats;
   questIdx: number;
   uidSeq: number;
+  /** code quà đã nhận (chuẩn hóa lowercase) — mỗi code 1 lần / farm, persist + sync DB */
+  redeemedCodes: string[];
   // ui state (persist một phần, modal/toast không persist)
   modal: ModalKind;
   shopTab: ShopTab;
@@ -68,6 +71,7 @@ interface GameState {
     plots: Plot[]; fishes: PondFish[]; animals: Animal[];
     pondSlots?: number; coopCap?: CoopCap;
     stats: Stats; questIdx: number; uidSeq: number;
+    redeemedCodes?: string[];
   } | null) => void;
   toast: (msg: string) => void;
   dismissToast: (id: number) => void;
@@ -76,7 +80,10 @@ interface GameState {
   setScene: (s: SceneKind) => void;
   addXP: (n: number) => void;
   addXu: (n: number) => void;
+  addGem: (n: number) => void;
   addInv: (pid: string, n: number) => void;
+  /** Nhập giftcode: trả về { ok, msg } để modal hiển thị. Mỗi code 1 lần / farm. */
+  redeemCode: (raw: string) => { ok: boolean; msg: string };
   tick: (dt: number) => void;
   interactPlot: (i: number) => void;
   unlockPlot: (i: number) => void;
@@ -182,6 +189,7 @@ export const useGame = create<GameState>()(
       coopCap: freshCap(),
       stats: freshStats(),
       questIdx: 0, uidSeq: 1,
+      redeemedCodes: [],
       modal: null, shopTab: 'seed', scene: 'farm',
       fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null,
       biteCatchId: null, biteCombo: null, biteProgress: 0,
@@ -206,6 +214,7 @@ export const useGame = create<GameState>()(
             pondSlots: Math.min(MAX_POND, Math.max(START_POND, data.pondSlots ?? (data.fishes?.length >= 6 ? 6 : START_POND))),
             animals: data.animals, coopCap: cap,
             stats: data.stats, questIdx: data.questIdx, uidSeq: uidRef.v,
+            redeemedCodes: Array.isArray(data.redeemedCodes) ? data.redeemedCodes.map((c) => String(c).toLowerCase()) : [],
             modal: null, fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null, biteCatchId: null, biteCombo: null, biteProgress: 0, scene: 'farm',
           });
         } else {
@@ -217,6 +226,7 @@ export const useGame = create<GameState>()(
             plots: freshPlots(), pondSlots: START_POND, fishes: [], animals: [],
             coopCap: freshCap(),
             stats: freshStats(), questIdx: 0, uidSeq: 1,
+            redeemedCodes: [],
             modal: null, fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null, biteCatchId: null, biteCombo: null, biteProgress: 0, scene: 'farm',
           });
         }
@@ -244,12 +254,35 @@ export const useGame = create<GameState>()(
         if (leveled) { sfx.lvup(); get().toast(`LÊN CẤP ${level}! +${level * 50} xu +1 gem`); get().checkQuest(); }
       },
       addXu: (n) => set((s) => ({ xu: s.xu + n, stats: { ...s.stats, earned: s.stats.earned + Math.max(0, n) } })),
+      addGem: (n) => set((s) => ({ gem: s.gem + n })),
       addInv: (pid, n) => set((s) => {
         const inv = { ...s.inv };
         inv[pid] = (inv[pid] || 0) + n;
         if (inv[pid] <= 0) delete inv[pid];
         return { inv };
       }),
+
+      redeemCode: (raw) => {
+        const code = normalizeCode(raw);
+        if (!code) return { ok: false, msg: 'Nhập code đã nhé!' };
+        const reward = GIFTCODES[code];
+        if (!reward) return { ok: false, msg: 'Code không tồn tại!' };
+        const s = get();
+        if (s.redeemedCodes.includes(code)) return { ok: false, msg: 'Code này đã nhận rồi!' };
+        const inv = { ...s.inv };
+        for (const [pid, n] of Object.entries(reward.items)) inv[pid] = (inv[pid] || 0) + n;
+        set({
+          inv,
+          xu: s.xu + reward.xu,
+          gem: s.gem + reward.gem,
+          stats: { ...s.stats, earned: s.stats.earned + Math.max(0, reward.xu) },
+          redeemedCodes: [...s.redeemedCodes, code],
+        });
+        sfx.coin();
+        const msg = `Nhận quà ${reward.title}! ${rewardSummary(reward)}`;
+        get().toast(msg);
+        return { ok: true, msg };
+      },
 
       tick: (dt) => {
         const s = get();
@@ -693,6 +726,7 @@ export const useGame = create<GameState>()(
           plots: freshPlots(), pondSlots: START_POND, fishes: [], animals: [],
           coopCap: freshCap(),
           stats: freshStats(), questIdx: 0, uidSeq: 1,
+          redeemedCodes: [],
           modal: null, fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null, biteCatchId: null, biteCombo: null, biteProgress: 0, toasts: [], scene: 'farm',
         });
       },
@@ -709,6 +743,7 @@ export const useGame = create<GameState>()(
         inv: s.inv, plots: s.plots, pondSlots: s.pondSlots, fishes: s.fishes, animals: s.animals,
         coopCap: s.coopCap,
         stats: s.stats, questIdx: s.questIdx, uidSeq: s.uidSeq,
+        redeemedCodes: s.redeemedCodes,
       }),
     }
   )

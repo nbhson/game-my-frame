@@ -11,6 +11,7 @@ import SeedModal from './SeedModal';
 import StockModal from './StockModal';
 import BaitModal from './BaitModal';
 import PenModal from './PenModal';
+import GiftCodeModal from './GiftCodeModal';
 import { GameIcon } from './GameIcon';
 
 // Casino (sảnh + 5 bàn + logic bài) nặng — tải lười khi mở, nhẹ bundle lúc đăng nhập
@@ -30,6 +31,7 @@ export default function ModalHost() {
   else if (modal === 'help') { icon = 'quest'; title = 'HƯỚNG DẪN'; body = <HelpModal />; }
   else if (modal === 'village') { icon = 'field'; title = 'LÀNG NÔNG DÂN'; body = <VillageModal />; }
   else if (modal === 'casino') { icon = 'coin'; title = '🎰 CASINO CÔNG VIÊN'; body = (<Suspense fallback={<div className="p-6 text-center font-bold">Đang mở Casino…</div>}><CasinoModal /></Suspense>); }
+  else if (modal === 'gift') { icon = 'gift'; title = 'NHẬP CODE NHẬN QUÀ'; body = <GiftCodeModal />; }
   else if (typeof modal === 'object' && modal.name === 'seed') { icon = 'sprout'; title = `GIEO HẠT (ô ${modal.plot + 1})`; body = <SeedModal plot={modal.plot} />; }
   else if (typeof modal === 'object' && modal.name === 'stock') { icon = 'pond'; title = 'THẢ CÁ XUỐNG AO'; body = <StockModal />; }
   else if (typeof modal === 'object' && modal.name === 'bait') { icon = 'rod'; title = 'CHỌN MỒI CÂU'; body = <BaitModal pier={modal.pier} />; }

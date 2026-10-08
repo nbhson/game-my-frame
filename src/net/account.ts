@@ -22,6 +22,7 @@ export interface AccountData {
   stats: Stats;
   questIdx: number;
   uidSeq: number;
+  redeemedCodes?: string[];
 }
 
 export interface AccountBackend {
@@ -128,6 +129,7 @@ export function exportAccount(): AccountData {
     inv: g.inv, plots: g.plots, fishes: g.fishes, animals: g.animals,
     pondSlots: g.pondSlots, coopCap: g.coopCap,
     stats: g.stats, questIdx: g.questIdx, uidSeq: g.uidSeq,
+    redeemedCodes: g.redeemedCodes,
   };
 }
 

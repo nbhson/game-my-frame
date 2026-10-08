@@ -858,6 +858,11 @@ function localAutoTimeout(host: CasinoRoom): boolean {
     if (s.winner) return false;
     const cur = s.turn;
     if (!host.players.some((x) => x.pid === cur)) return false;
+    // ván thiếu 3♠ (chia 2-3 người) → bỏ luật 3♠ để khỏi kẹt
+    if (s.firstTurn && !s.lastPlay) {
+      const anyoneHas = Object.values(s.hands).some((h) => (h ?? []).some((c) => c.r === 3 && c.s === 0));
+      if (!anyoneHas) s.firstTurn = false;
+    }
     const mv = botPick(s, cur);
     if (mv) host.state = applyPlay(s, cur, mv);
     else if (s.lastPlay) host.state = applyPass(s, cur);

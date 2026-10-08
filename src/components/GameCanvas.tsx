@@ -168,6 +168,7 @@ export default function GameCanvas({ target, onTarget }: Props) {
       if (k === 'q') st.setModal('quest');
       if (k === 'h') st.setModal('help');
       if (k === 'v') st.setModal('village');
+      if (k === 'g') st.setModal('gift');
     };
     const keyup = (e: KeyboardEvent) => { keys.current[e.key.toLowerCase()] = false; };
     window.addEventListener('keydown', keydown);

@@ -293,8 +293,11 @@ function casinoStartRoom(room) {
     for (let k = 0; k < 13; k++) for (const id of pids) { const c = deck.pop(); if (c) hands[id].push(c); }
     for (const id of pids) hands[id].sort(cCmp);
     let first = pids[0];
-    for (const [id, h] of Object.entries(hands)) if (h.some((c) => c.r === 3 && c.s === 0)) first = id;
-    room.state = { order: pids, hands, turn: first, leader: first, lastPlay: null, lastPlayer: null, passed: [], firstTurn: true, winner: null, rank: [], deadline: null };
+    let hasThree = false;
+    for (const [id, h] of Object.entries(hands)) if (h.some((c) => c.r === 3 && c.s === 0)) { first = id; hasThree = true; }
+    // 2-3 người chia 13 lá → 3♠ có thể nằm trong chồng dư, không ai có.
+    // Khi đó cho chủ phòng đi trước tự do (không bắt buộc 3♠) để khỏi kẹt ván.
+    room.state = { order: pids, hands, turn: first, leader: first, lastPlay: null, lastPlayer: null, passed: [], firstTurn: hasThree, winner: null, rank: [], deadline: null };
   } else if (room.game === 'baicao') {
     const deck = cDeck();
     const hands = {};
@@ -879,7 +882,13 @@ function casinoAction(room, pid, p) {
       if (cards.length !== ids.size || !cards.length) return 'Chọn bài trong tay';
       const info = cCombo(cards);
       if (!info) return 'Bộ không hợp lệ';
-      if (st.firstTurn && !cards.some((c) => c.r === 3 && c.s === 0)) return 'Ván đầu phải ra 3♠';
+      // Tự chữa ván kẹt cũ: firstTurn=true nhưng không ai còn giữ 3♠ (chia 2-3 người,
+      // 3♠ nằm ở chồng dư) → bỏ luật 3♠, cho đi tự do.
+      if (st.firstTurn) {
+        const anyoneHasThree = Object.values(st.hands).some((h) => (h || []).some((c) => c.r === 3 && c.s === 0));
+        if (!anyoneHasThree) st.firstTurn = false;
+        else if (!cards.some((c) => c.r === 3 && c.s === 0)) return 'Ván đầu phải ra 3♠';
+      }
       const isLead = !st.lastPlay || st.lastPlayer === pid || tlAllPassed(st, pid);
       if (!isLead) {
         const prev = cCombo(st.lastPlay);
@@ -985,6 +994,11 @@ function casinoAutoTimeout(room) {
   if (room.game === 'tienlen') {
     if (st.winner) return false;
     const cur = st.turn;
+    // Ván cũ đang kẹt (firstTurn=true mà không ai có 3♠) → mở khóa ngay để hết kẹt.
+    if (st.firstTurn && !st.lastPlay) {
+      const anyoneHasThree = Object.values(st.hands).some((h) => (h || []).some((c) => c.r === 3 && c.s === 0));
+      if (!anyoneHasThree) st.firstTurn = false;
+    }
     const mv = tlBotPick(st, cur);
     if (mv) casinoAction(room, cur, { type: 'play', cards: mv.map((c) => c.id) });
     else if (st.lastPlay) casinoAction(room, cur, { type: 'pass' });
@@ -992,6 +1006,8 @@ function casinoAutoTimeout(room) {
       // đầu vòng mà không có nước hợp lệ (hiếm) → ra lá nhỏ nhất
       const h = (st.hands[cur] || []).slice().sort(cCmp);
       if (!h.length) return false;
+      // ép đi tự do nếu luật 3♠ đang chặn (ván thiếu 3♠)
+      st.firstTurn = false;
       casinoAction(room, cur, { type: 'play', cards: [h[0].id] });
     }
     if (room.status === 'playing') touchDeadline(room);
@@ -1141,7 +1157,11 @@ function tlBotPick(st, pid) {
   }
   const isLead = !st.lastPlay || st.lastPlayer === pid || tlAllPassed(st, pid);
   let list = cands;
-  if (st.firstTurn) list = list.filter((c) => c.some((x) => x.r === 3 && x.s === 0));
+  if (st.firstTurn) {
+    const need = list.filter((c) => c.some((x) => x.r === 3 && x.s === 0));
+    // chỉ ép 3♠ khi thật sự có nước chứa 3♠ (không thì ra nhỏ nhất để khỏi kẹt)
+    if (need.length) list = need;
+  }
   if (!list.length) return null;
   if (isLead) {
     list.sort((a, b) => { const ia = cCombo(a); const ib = cCombo(b); return ia.topRank - ib.topRank || ia.len - ib.len; });

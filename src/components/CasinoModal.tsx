@@ -305,7 +305,7 @@ function TienLenBoard() {
       </div>
       <div className="bg-green-800 border-2 border-black rounded-xl px-2 py-2 min-h-[76px] flex items-center justify-center gap-1 flex-wrap">
         {!st.lastPlay || st.lastPlay.length === 0 ? (
-          <span className="text-green-200 text-sm">{st.firstTurn ? 'Ván mới — người có 3♠ đi trước' : isMyTurn ? 'Bạn đi đầu vòng — ra bộ bất kỳ' : 'Vòng mới…'}</span>
+          <span className="text-green-200 text-sm">{st.firstTurn ? 'Ván mới — người có 3♠ đi trước' : isMyTurn ? 'Bạn đi đầu vòng — ra bộ bất kỳ' : st.turn === me ? 'Bạn đi trước — ra bộ bất kỳ (ván thiếu 3♠)' : 'Vòng mới — ra bộ bất kỳ…'}</span>
         ) : (
           st.lastPlay.map((c) => <MiniCard key={c.id} c={c} small />)
         )}

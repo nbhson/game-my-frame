@@ -99,6 +99,8 @@ export function firstPlayer(hands: Record<string, Card[]>): string {
 export function newTienLenGame(playerIds: string[], deck: Card[]): TienLenState {
   const hands = dealTienLen(playerIds, deck.slice());
   const first = firstPlayer(hands);
+  // 2-3 người chia 13 lá → 3♠ có thể nằm ở chồng dư, không ai có → đi tự do, khỏi kẹt
+  const hasThree = Object.values(hands).some((h) => h.some(isThreeSpade));
   return {
     order: playerIds.slice(),
     hands,
@@ -107,7 +109,7 @@ export function newTienLenGame(playerIds: string[], deck: Card[]): TienLenState 
     lastPlay: null,
     lastPlayer: null,
     passed: [],
-    firstTurn: true,
+    firstTurn: hasThree,
     winner: null,
     rank: [],
     deadline: null,
@@ -125,8 +127,10 @@ export function validatePlay(st: TienLenState, playerId: string, cards: Card[]):
   }
   const info = comboOf(cards);
   if (!info) return 'Bộ không hợp lệ (lẻ/đôi/sám/sảnh/tứ quý)';
-  // ván mới phải có 3♠
+  // ván mới phải có 3♠ — nhưng nếu không ai có (chia 2-3 người, 3♠ ở chồng dư) thì cho đi tự do
   if (st.firstTurn) {
+    const anyoneHas = Object.values(st.hands).some((h) => (h ?? []).some(isThreeSpade));
+    if (!anyoneHas) return null;
     if (!cards.some(isThreeSpade)) return 'Ván đầu phải ra 3♠';
   }
   // đầu vòng: ra tự do
@@ -234,8 +238,11 @@ export function botPick(st: TienLenState, playerId: string): Card[] | null {
   if (!hand.length) return null;
   const isLead = !st.lastPlay || st.lastPlayer === playerId || everyOneElsePassed(st, playerId);
   let cands = allSimpleCombos(hand);
-  // ván đầu bắt buộc có 3♠
-  if (st.firstTurn) cands = cands.filter((c) => c.some(isThreeSpade));
+  // ván đầu bắt buộc có 3♠ — chỉ ép khi thật sự có nước chứa 3♠ (không thì ra nhỏ nhất, khỏi kẹt)
+  if (st.firstTurn) {
+    const need = cands.filter((c) => c.some(isThreeSpade));
+    if (need.length) cands = need;
+  }
   if (isLead) {
     // ra lá/bộ nhỏ nhất
     cands.sort((a, b) => {

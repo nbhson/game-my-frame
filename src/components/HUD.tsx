@@ -1,4 +1,4 @@
-import { Backpack, CircleHelp, MessageCircle, ScrollText, Store, Tractor, Users, Volume2, VolumeX } from 'lucide-react';
+import { Backpack, CircleHelp, Gift, MessageCircle, ScrollText, Store, Tractor, Users, Volume2, VolumeX } from 'lucide-react';
 import { useState } from 'react';
 import { xpNeed, useGame, WEATHER_LABEL } from '../game/store';
 import { townCount, useVillage } from '../net/village';
@@ -65,6 +65,9 @@ export default function HUD() {
             <button className="pixel-btn !text-[11px] !bg-green-500 !text-white flex items-center gap-1" title="Về nông trại (cổng phía đông)" onClick={() => goToFarm()}>
               <Tractor size={16} /> Về farm
             </button>
+            <button className="icon-btn !text-black" title="Nhập code nhận quà (G)" onClick={() => s.setModal('gift')}>
+              <Gift size={20} />
+            </button>
             <button className="icon-btn !text-black relative" title="Chat công viên" onClick={() => s.setModal('village')}>
               <MessageCircle size={20} />
             </button>
@@ -88,6 +91,9 @@ export default function HUD() {
               )}
             </button>
             <button className="icon-btn !text-black" title="Kho (B)" onClick={() => s.setModal('bag')}><Backpack size={20} /></button>
+            <button className="icon-btn !text-black" title="Nhập code nhận quà (G)" onClick={() => s.setModal('gift')}>
+              <Gift size={20} />
+            </button>
             <button className="icon-btn !text-black" title="Cửa hàng (bấm E ở shop)" onClick={() => { s.setShopTab('seed'); s.setModal('shop'); }}><Store size={20} /></button>
             <button className="icon-btn !text-black" title="Nhiệm vụ (Q)" onClick={() => s.setModal('quest')}><ScrollText size={20} /></button>
             <button className="icon-btn !text-black" title="Trợ giúp (H)" onClick={() => s.setModal('help')}><CircleHelp size={20} /></button>
