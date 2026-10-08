@@ -5,9 +5,13 @@ export type IconName =
   | 'feed' | 'feedPro' | 'bait' | 'baitPro' | 'pesticide'
   | 'lua' | 'carot' | 'caixanh' | 'cachua' | 'khoai' | 'bap' | 'dualeo'
   | 'catim' | 'dautay' | 'duahau' | 'nho' | 'bingo' | 'caphe' | 'nam' | 'sam'
+  | 'ot' | 'hanh' | 'mia' | 'dauphong' | 'thanhlog' | 'saurieng' | 'bo' | 'mangcut' | 'vaithieu'
   | 'caro' | 'cachep' | 'tom' | 'cua' | 'caloc' | 'cakoi' | 'bachtuoc' | 'camap'
+  | 'cadieu' | 'catre' | 'luon' | 'ech' | 'cahoi' | 'tomhum' | 'cavang'
   | 'chicken' | 'duck' | 'cow' | 'pig' | 'sheep'
+  | 'cut' | 'bocau' | 'rabbit' | 'goose' | 'ong' | 'goat' | 'buffalo'
   | 'trung' | 'trungvit' | 'sua' | 'thit' | 'len' | 'ung' | 'rong'
+  | 'longtho' | 'suade' | 'suatrau' | 'trungngong' | 'trungcau' | 'trungcut' | 'matong'
   | 'field' | 'pond' | 'shop' | 'mail' | 'rod' | 'calendar' | 'sun' | 'moon'
   | 'rain' | 'snow'
   | 'gift' | 'check' | 'quest' | 'bag' | 'star'
@@ -32,6 +36,8 @@ export function iconForPid(pid: string): string {
     pesticide: 'pesticide',
     trung: 'trung', trungvit: 'trungvit', sua: 'sua', thit: 'thit', len: 'len',
     ung: 'ung', rong: 'rong',
+    longtho: 'longtho', suade: 'suade', suatrau: 'suatrau',
+    trungngong: 'trungngong', trungcau: 'trungcau', trungcut: 'trungcut', matong: 'matong',
   };
   if (known[pid]) return known[pid];
   return pid; // crop/fish/animal id dùng trực tiếp làm icon name (renderIcon có default)
@@ -112,6 +118,40 @@ function renderIcon(name: string) {
     case 'farmer1': return (<g><circle cx="16" cy="18" r="8" fill="#ffcc9e" stroke="#b0713a" strokeWidth="1.8" /><path d="M8 15 Q8 6 16 6 Q24 6 24 15 L22 12 Q16 9 10 12 Z" fill="#e53935" /><circle cx="13" cy="18" r="1.4" fill="#212121" /><circle cx="19" cy="18" r="1.4" fill="#212121" /><path d="M13 22 Q16 24 19 22" stroke="#6d4c41" strokeWidth="1.6" fill="none" strokeLinecap="round" /><circle cx="9" cy="23" r="1.6" fill="#f0986c" /><circle cx="23" cy="23" r="1.6" fill="#f0986c" /></g>);
     case 'farmer2': return (<g><circle cx="16" cy="19" r="7.6" fill="#ffd9a8" stroke="#b0713a" strokeWidth="1.8" /><path d="M9 14 Q9 7 16 7 Q23 7 23 14 L21 12 Q16 10 11 12 Z" fill="#5d4037" /><rect x="9" y="11" width="14" height="2.6" fill="#1e63a6" /><circle cx="13.2" cy="19" r="1.4" fill="#212121" /><circle cx="18.8" cy="19" r="1.4" fill="#212121" /><path d="M13.5 23 Q16 25 18.5 23" stroke="#6d4c41" strokeWidth="1.6" fill="none" strokeLinecap="round" /></g>);
     case 'farmer3': return (<g><circle cx="16" cy="19" r="7.6" fill="#ffcc9e" stroke="#b0713a" strokeWidth="1.8" /><ellipse cx="16" cy="11" rx="11" ry="3" fill="#6d4c41" /><path d="M10 11 Q10 4 16 4 Q22 4 22 11 Z" fill="#6d4c41" /><rect x="10" y="8.6" width="12" height="2.4" fill="#e53935" /><circle cx="13.2" cy="19" r="1.4" fill="#212121" /><circle cx="18.8" cy="19" r="1.4" fill="#212121" /><path d="M13 20.5 h6" stroke="#6d4c41" strokeWidth="1.8" strokeLinecap="round" /></g>);
+    // ---------- cây mới ----------
+    case 'ot': return (<g><path d="M16 8 Q20 16 14 24 Q12 26 10 24 Q16 18 14 8 Z" fill="#d32f2f" stroke="#7f0000" strokeWidth="1.6" /><path d="M14 8 Q14 5 17 4" stroke="#2e7d32" strokeWidth="2" fill="none" /></g>);
+    case 'hanh': return (<g><line x1="12" y1="28" x2="12" y2="8" stroke="#33691e" strokeWidth="2.4" strokeLinecap="round" /><line x1="16" y1="28" x2="16" y2="6" stroke="#43a047" strokeWidth="2.4" strokeLinecap="round" /><line x1="20" y1="28" x2="20" y2="8" stroke="#33691e" strokeWidth="2.4" strokeLinecap="round" /><ellipse cx="16" cy="26" rx="6" ry="3" fill="#fff" stroke="#b0bec5" strokeWidth="1.4" /></g>);
+    case 'mia': return (<g><line x1="16" y1="28" x2="16" y2="5" stroke="#8b5a2b" strokeWidth="3.4" strokeLinecap="round" /><line x1="13" y1="22" x2="19" y2="22" stroke="#558b2f" strokeWidth="1.4" /><line x1="13" y1="15" x2="19" y2="15" stroke="#558b2f" strokeWidth="1.4" /><path d="M16 5 Q10 3 8 6 M16 5 Q22 3 24 6" stroke="#43a047" strokeWidth="2" fill="none" /></g>);
+    case 'dauphong': return (<g><ellipse cx="16" cy="19" rx="8" ry="6.5" fill="#d7b56d" stroke="#8b5a2b" strokeWidth="2" /><ellipse cx="16" cy="19" rx="4" ry="3.4" fill="#a06a35" /><circle cx="16" cy="12" r="2" fill="#8b5a2b" /></g>);
+    case 'thanhlog': return (<g><ellipse cx="16" cy="17" rx="8" ry="9" fill="#e91e63" stroke="#880e4f" strokeWidth="1.8" /><path d="M8 14 L4 11 M8 18 L4 18 M9 22 L5 24 M24 14 L28 11 M24 18 L28 18 M23 22 L27 24" stroke="#2e7d32" strokeWidth="1.8" strokeLinecap="round" /></g>);
+    case 'saurieng': return (<g><ellipse cx="16" cy="18" rx="9" ry="8" fill="#7cb342" stroke="#33691e" strokeWidth="2" /><path d="M10 12 L8 9 M14 11 L13 7 M18 11 L19 7 M22 13 L24 10" stroke="#33691e" strokeWidth="1.8" strokeLinecap="round" /></g>);
+    case 'bo': return (<g><ellipse cx="16" cy="17" rx="8" ry="9.5" fill="#33691e" stroke="#1b5e20" strokeWidth="2" /><ellipse cx="16" cy="18" rx="4.5" ry="6" fill="#c5e1a5" /><circle cx="16" cy="15" r="2" fill="#8b5a2b" /></g>);
+    case 'mangcut': return (<g><circle cx="16" cy="18" r="8.5" fill="#4a148c" stroke="#280e10" strokeWidth="2" /><path d="M10 12 L16 8 L22 12 L20 15 L12 15 Z" fill="#2e7d32" /></g>);
+    case 'vaithieu': return (<g><circle cx="16" cy="18" r="8.5" fill="#ef9a9a" stroke="#b71c1c" strokeWidth="1.8" /><circle cx="13" cy="15" r="1" fill="#fff" /><path d="M16 9 Q16 5 20 4" stroke="#33691e" strokeWidth="2" fill="none" /></g>);
+    // ---------- cá mới ----------
+    case 'cadieu': return (<g><ellipse cx="14" cy="16" rx="9" ry="6" fill="#f48fb1" stroke="#ad1457" strokeWidth="1.8" /><polygon points="5,16 0,11 0,21" fill="#d81b60" /><circle cx="19" cy="14" r="2" fill="#102027" /><circle cx="19.6" cy="13.4" r="0.7" fill="#fff" /></g>);
+    case 'catre': return (<g><ellipse cx="14" cy="16" rx="10" ry="5" fill="#616161" stroke="#212121" strokeWidth="1.8" /><polygon points="4,16 -1,12 -1,20" fill="#424242" /><circle cx="20" cy="15" r="1.8" fill="#102027" /><path d="M22 16 Q26 15 28 12 M22 18 Q26 19 28 22" stroke="#9e9e9e" strokeWidth="1.2" fill="none" /></g>);
+    case 'luon': return (<g><path d="M6 22 Q12 10 20 12 Q26 14 24 20" stroke="#7b8f3a" strokeWidth="5" fill="none" strokeLinecap="round" /><circle cx="24" cy="19" r="2.4" fill="#556b2f" /><circle cx="24.6" cy="18.4" r="0.8" fill="#fff" /></g>);
+    case 'ech': return (<g><ellipse cx="16" cy="18" rx="9" ry="7" fill="#43a047" stroke="#1b5e20" strokeWidth="1.8" /><circle cx="11" cy="10" r="3.4" fill="#43a047" stroke="#1b5e20" strokeWidth="1.4" /><circle cx="21" cy="10" r="3.4" fill="#43a047" stroke="#1b5e20" strokeWidth="1.4" /><circle cx="11" cy="10" r="1.4" fill="#212121" /><circle cx="21" cy="10" r="1.4" fill="#212121" /></g>);
+    case 'cahoi': return (<g><ellipse cx="14" cy="16" rx="9.5" ry="5.5" fill="#ff8a65" stroke="#bf360c" strokeWidth="1.8" /><polygon points="4.5,16 -0.5,11 -0.5,21" fill="#e64a19" /><circle cx="20" cy="14" r="1.8" fill="#102027" /><circle cx="14" cy="16" r="1.2" fill="#bf360c" /></g>);
+    case 'tomhum': return (<g><path d="M10 23 A8 8 0 0 1 24 12" stroke="#b71c1c" strokeWidth="6" fill="none" strokeLinecap="round" /><circle cx="24" cy="11" r="4.6" fill="#b71c1c" /><circle cx="25" cy="10" r="1.5" fill="#212121" /><circle cx="27" cy="7" r="3" fill="#d32f2f" stroke="#7f0000" strokeWidth="1.4" /></g>);
+    case 'cavang': return (<g><ellipse cx="14" cy="16" rx="8" ry="6" fill="#ff9800" stroke="#e65100" strokeWidth="1.8" /><polygon points="6,16 0,10 0,22" fill="#ffb74d" /><polygon points="6,16 0,10 0,22" fill="none" stroke="#e65100" strokeWidth="1" /><circle cx="19" cy="14" r="2.2" fill="#102027" /><circle cx="19.7" cy="13.3" r="0.8" fill="#fff" /></g>);
+    // ---------- vật nuôi mới ----------
+    case 'cut': return (<g><ellipse cx="15" cy="18" rx="9" ry="7" fill="#a1887f" stroke="#5d4037" strokeWidth="1.8" /><circle cx="21" cy="12" r="5.5" fill="#bcaaa4" /><circle cx="19" cy="12" r="1.4" fill="#5d4037" /><circle cx="23" cy="12" r="1.4" fill="#5d4037" /><polygon points="25,14 29,15 25,17" fill="#ff8f00" /></g>);
+    case 'bocau': return (<g><ellipse cx="15" cy="18" rx="9" ry="7" fill="#eceff1" stroke="#78909c" strokeWidth="1.8" /><circle cx="21" cy="12" r="5.5" fill="#cfd8dc" /><circle cx="22" cy="11" r="1.6" fill="#e91e63" /><polygon points="25,13 29,14 25,16" fill="#ffb300" /></g>);
+    case 'rabbit': return (<g><ellipse cx="15" cy="19" rx="9" ry="7" fill="#fafafa" stroke="#b0bec5" strokeWidth="1.8" /><ellipse cx="12" cy="7" rx="2.4" ry="5.5" fill="#fafafa" stroke="#b0bec5" strokeWidth="1.4" /><ellipse cx="18" cy="7" rx="2.4" ry="5.5" fill="#fafafa" stroke="#b0bec5" strokeWidth="1.4" /><circle cx="21" cy="16" r="1.8" fill="#212121" /><circle cx="24" cy="19" r="2" fill="#f8bbd0" /></g>);
+    case 'goose': return (<g><ellipse cx="14" cy="18" rx="10" ry="7.5" fill="#fafafa" stroke="#90a4ae" strokeWidth="1.8" /><path d="M20 12 Q22 6 26 6" stroke="#eceff1" strokeWidth="5" fill="none" strokeLinecap="round" /><circle cx="26" cy="7" r="3.4" fill="#fafafa" stroke="#90a4ae" strokeWidth="1.4" /><polygon points="29,7 33,8 29,10" fill="#ef6c00" /><circle cx="26.5" cy="6.4" r="1" fill="#212121" /></g>);
+    case 'ong': return (<g><ellipse cx="16" cy="17" rx="8" ry="6.5" fill="#ffca28" stroke="#8b5a2b" strokeWidth="1.8" /><line x1="12" y1="11" x2="12" y2="23" stroke="#212121" strokeWidth="2.4" /><line x1="17" y1="11" x2="17" y2="23" stroke="#212121" strokeWidth="2.4" /><ellipse cx="11" cy="9" rx="4" ry="2.4" fill="#e1f5fe" /><ellipse cx="21" cy="9" rx="4" ry="2.4" fill="#e1f5fe" /></g>);
+    case 'goat': return (<g><ellipse cx="15" cy="19" rx="9" ry="7" fill="#e8e0d0" stroke="#8b5a2b" strokeWidth="1.8" /><path d="M12 10 A6 6 0 0 1 8 4 M20 10 A6 6 0 0 0 24 4" stroke="#8d6e63" strokeWidth="2.2" fill="none" strokeLinecap="round" /><circle cx="22" cy="15" r="5" fill="#e8e0d0" stroke="#8b5a2b" strokeWidth="1.6" /><circle cx="23" cy="14" r="1.5" fill="#212121" /><path d="M20 19 L24 19 L22 22 Z" fill="#b0bec5" /></g>);
+    case 'buffalo': return (<g><ellipse cx="15" cy="19" rx="10" ry="7.5" fill="#5d5d6e" stroke="#2c2c38" strokeWidth="1.8" /><path d="M10 12 A10 10 0 0 1 22 12" stroke="#2c2c38" strokeWidth="2.6" fill="none" strokeLinecap="round" /><circle cx="22" cy="16" r="5" fill="#5d5d6e" stroke="#2c2c38" strokeWidth="1.6" /><circle cx="23" cy="15" r="1.5" fill="#ffe082" /></g>);
+    // ---------- sản phẩm mới ----------
+    case 'longtho': return (<g><circle cx="16" cy="16" r="8" fill="#fafafa" stroke="#b0bec5" strokeWidth="2" /><path d="M10 14 Q16 10 22 14 M10 18 Q16 14 22 18" stroke="#e0e0e0" strokeWidth="1.4" fill="none" /></g>);
+    case 'suade': return (<g><path d="M11 8 H21 L19.5 26 H12.5 Z" fill="#fff8e1" stroke="#8b5a2b" strokeWidth="2" strokeLinejoin="round" /><rect x="11" y="8" width="10" height="4" fill="#8b5a2b" /><ellipse cx="16" cy="18" rx="3.4" ry="4" fill="#fff" /><circle cx="13" cy="12" r="1.4" fill="#4d7c0f" /></g>);
+    case 'suatrau': return (<g><path d="M11 8 H21 L19.5 26 H12.5 Z" fill="#e8eaf6" stroke="#37474f" strokeWidth="2" strokeLinejoin="round" /><rect x="11" y="8" width="10" height="4" fill="#37474f" /><ellipse cx="16" cy="18" rx="3.4" ry="4" fill="#fff" /></g>);
+    case 'trungngong': return (<g><ellipse cx="16" cy="17" rx="8.5" ry="10.5" fill="#fafafa" stroke="#78909c" strokeWidth="2" /><ellipse cx="13.5" cy="14" rx="2.2" ry="3.4" fill="#fff" /></g>);
+    case 'trungcau': return (<g><ellipse cx="16" cy="17" rx="6" ry="7.5" fill="#fce4ec" stroke="#a1887f" strokeWidth="1.8" /><circle cx="18" cy="20" r="1.6" fill="#bcaaa4" /></g>);
+    case 'trungcut': return (<g><ellipse cx="16" cy="17" rx="5.5" ry="7" fill="#efebe9" stroke="#8d6e63" strokeWidth="1.8" /><circle cx="14" cy="15" r="1.2" fill="#5d4037" /><circle cx="18" cy="18" r="1" fill="#5d4037" /></g>);
+    case 'matong': return (<g><ellipse cx="16" cy="17" rx="7" ry="8.5" fill="#ffb300" stroke="#8b5a2b" strokeWidth="2" /><ellipse cx="13.5" cy="15" rx="2" ry="3.4" fill="#ffe082" /><path d="M12 8 h8" stroke="#8b5a2b" strokeWidth="2.4" strokeLinecap="round" /></g>);
     default: return (<g><circle cx="16" cy="16" r="11" fill="#eceff1" stroke="#90a4ae" strokeWidth="2" /><circle cx="16" cy="16" r="4" fill="#90a4ae" /></g>);
   }
 }

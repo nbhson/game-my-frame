@@ -5,7 +5,7 @@ import type { InteractTarget } from '../game/types';
 import { FARM_GATE_SPAWN, PIERS, WORLD, isBlocked, plotPos } from '../game/world';
 import { FARM_GATE, TOWN, TOWN_PROPS, TOWN_SPAWN, isTownBlocked } from '../game/town';
 import { MAX_PLOTS } from '../game/data';
-import { nearestInteract, nearestStealPlot, nearestTownInteract } from '../game/systems';
+import { KEM_UID, nearestInteract, nearestPet, nearestStealPlot, nearestTownInteract } from '../game/systems';
 import { renderWorld, type VisitorDraw } from '../game/render';
 import { renderTown } from '../game/townRender';
 import { startAutoSync, stopAutoSync } from '../net/account';
@@ -24,6 +24,9 @@ export interface PlayerRef {
 // module-level để BottomBar nút E dùng chung
 export const playerRef: PlayerRef = { x: 700, y: 600, dir: 1, moving: false, tx: null, ty: null };
 export const joyRef = { x: 0, y: 0 };
+/** Kem — mèo cam đi theo chủ (lệnh kemkem). Vị trí mượt theo frame, render + interact đọc ở đây. */
+export const kemRef = { x: 660, y: 630, flip: true };
+let kemInit = false;
 
 export function doInteractWith(t: InteractTarget | null | undefined) {
   const s = useGame.getState();
@@ -62,6 +65,8 @@ export function doInteractWith(t: InteractTarget | null | undefined) {
   }
   // hái trộm trong farm bạn (E khi đang visit) — cho qua trước chặn visit
   if (t.kind === 'steal' && t.index != null) { void v.stealFromVisit(t.index); return; }
+  // xoa đầu / vuốt ve pet (farm mình hay farm bạn đều được) — cho qua trước chặn visit
+  if (t.kind === 'pet' && t.uid != null) { s.petPet(t.uid); return; }
   if (v.visiting) {
     // đang thăm farm bạn: chỉ được đi dạo + chat (kiểu Avatar)
     s.toast('Đang thăm farm bạn — về farm mình để làm việc nhé!');
@@ -166,6 +171,9 @@ export default function GameCanvas({ target, onTarget }: Props) {
         return;
       }
       if (st.modal) return;
+      // Zoom khung nhìn: + gần lại, − xa rộng ra (lưu lại, áp dụng cả farm + công viên)
+      if (k === '=' || k === '+') { st.setViewH(st.viewH - 70); return; }
+      if (k === '-' || k === '_') { st.setViewH(st.viewH + 70); return; }
       // Mini-game giật cá: dãy mũi tên thay cho E (cá giá trị cao → dãy dài hơn, 3s)
       if (st.fishingSpot && (k === 'arrowup' || k === 'arrowdown' || k === 'arrowleft' || k === 'arrowright')) {
         const dir = k === 'arrowup' ? 'up' : k === 'arrowdown' ? 'down' : k === 'arrowleft' ? 'left' : 'right';
@@ -228,11 +236,12 @@ export default function GameCanvas({ target, onTarget }: Props) {
         } else playerRef.moving = false;
       } else playerRef.moving = false;
 
-      // --- viewport: cao 850 thường, zoom ra 680 khi ra bờ sông để thấy sông rộng ---
+      // --- viewport: mặc định xa rộng (viewH), zoom ra thêm 0.8x khi ra bờ sông để thấy sông rộng ---
       // (máy quay lên cao / xa hơn, thấy rộng hơn; mượt bằng lerp mỗi frame)
       {
         const sc = screen.current;
-        const targetH = playerRef.y > 980 ? 680 : 850;
+        const base = st.viewH || 1050;
+        const targetH = st.scene === 'town' ? base : (playerRef.y > 980 ? base * 0.8 : base);
         const k = Math.min(1, dt * 2.5);
         view.current.h += (targetH - view.current.h) * k;
         if (Math.abs(view.current.h - targetH) < 0.5) view.current.h = targetH;
@@ -253,18 +262,48 @@ export default function GameCanvas({ target, onTarget }: Props) {
       // phát vị trí cho làng (để bạn bè thấy mình đi lại, kèm map + emote)
       village.pushPosition(playerRef.x, playerRef.y, playerRef.dir, playerRef.moving);
 
+      // --- Kem đi theo chủ (mèo cam lệnh kemkem): bám sau lưng, xa thì chạy, gần thì ngồi ---
+      // neo sau lưng chủ 44px + lệch xuống 34px; đổi map/teleport (>550px) thì bắt kịp ngay
+      const kemAnchor = st.fishingSpot ? { x: st.fishingSpot.x, y: st.fishingSpot.y } : playerRef;
+      let kem: { x: number; y: number } | null = null;
+      let kemMoving = false;
+      if (st.kem) {
+        if (!kemInit) { kemRef.x = kemAnchor.x - 40; kemRef.y = kemAnchor.y + 30; kemInit = true; }
+        const kx = kemAnchor.x - playerRef.dir * 44, ky = kemAnchor.y + 34;
+        const kdx = kx - kemRef.x, kdy = ky - kemRef.y;
+        const kd = Math.hypot(kdx, kdy);
+        if (kd > 550) { kemRef.x = kx; kemRef.y = ky; }
+        else if (kd > 4) {
+          const ksp = kd > 170 ? 400 : 250; // xa thì phi, gần thì đủng đỉnh đi bộ
+          const kstep = Math.min(kd, ksp * dt);
+          kemRef.x += (kdx / kd) * kstep;
+          kemRef.y += (kdy / kd) * kstep;
+        }
+        if (Math.abs(kdx) > 6) kemRef.flip = kdx >= 0;
+        kemMoving = Math.hypot(kx - kemRef.x, ky - kemRef.y) > 46;
+        kem = { x: kemRef.x, y: kemRef.y };
+      } else kemInit = false;
+      const kemPos = kem ? { x: kem.x, y: kem.y, moving: kemMoving, flip: kemRef.flip, sitting: !kemMoving } : null;
+
       // --- interact scan ---
       // farm mình: tương tác đủ thứ; farm bạn: chỉ tìm ô chín để hái trộm (coi chừng chó!); town: luôn tương tác props/cổng
       const visitSnap = village.visiting?.snap;
+      // farm bạn: ưu tiên ô chín để hái trộm, rồi pet nhà bạn, rồi Kem đi theo mình
+      const visitSteal = village.visiting && visitSnap ? nearestStealPlot(visitSnap.plots, playerRef.x, playerRef.y) : null;
+      const visitPet = !visitSteal && village.visiting ? nearestPet(playerRef.x, playerRef.y, t) : null;
+      const visitKem = !visitSteal && (!visitPet || visitPet.d >= 95) && kem
+        ? Math.hypot(playerRef.x - kem.x, playerRef.y - kem.y)
+        : Infinity;
       const near = st.scene === 'town'
-        ? nearestTownInteract({ px: playerRef.x, py: playerRef.y })
+        ? nearestTownInteract({ px: playerRef.x, py: playerRef.y, kem })
         : village.visiting && visitSnap
-          ? nearestStealPlot(visitSnap.plots, playerRef.x, playerRef.y)
+          ? visitSteal ?? (visitPet && visitPet.d < 95 ? visitPet.target : null)
+            ?? (visitKem < 95 ? { kind: 'pet', uid: KEM_UID, label: 'Vuốt ve Kem' } : null)
           : nearestInteract({
             px: playerRef.x, py: playerRef.y,
             plots: (visitSnap?.plots ?? st.plots), fishes: (visitSnap?.fishes ?? st.fishes), pondSlots: st.pondSlots, animals: (visitSnap?.animals ?? st.animals),
             pesticide: st.inv.pesticide || 0,
-            now: nowMs, t,
+            now: nowMs, t, kem,
           });
       const prev = targetRef.current;
       if (JSON.stringify(prev) !== JSON.stringify(near)) {
@@ -308,6 +347,8 @@ export default function GameCanvas({ target, onTarget }: Props) {
           visitors,
           selfBubble: village.selfBubble || undefined,
           selfEmote: village.selfEmote || undefined,
+          selfEmoteAt: village.selfEmoteAt || undefined,
+          kemPos, petFx: st.petFx,
           outfit: st.outfit,
           quality: st.quality,
         }, t);
@@ -324,12 +365,15 @@ export default function GameCanvas({ target, onTarget }: Props) {
           visitors,
           selfBubble: village.selfBubble || undefined,
           selfEmote: village.selfEmote || undefined,
+          selfEmoteAt: village.selfEmoteAt || undefined,
+          kemPos,
           sit: fs ? { x: fs.x, y: fs.y, bx: fs.bx, by: fs.by, bite: biting, combo: st.biteCombo, progress: st.biteProgress, fishId: st.biteCatchId } : null,
           catchPop: st.catchPop,
           outfit: st.outfit,
           plotFx: st.plotFx,
           quality: st.quality,
           thiefBite: st.thiefBiteUntil,
+          petFx: st.petFx,
         }, t);
       }
 

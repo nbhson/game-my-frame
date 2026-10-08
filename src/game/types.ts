@@ -17,7 +17,8 @@ export interface Plot {
   pest: boolean; // đang bị sâu (ngừng lớn cho tới khi phun thuốc)
 }
 
-export type AnimalType = 'chicken' | 'duck' | 'cow' | 'pig' | 'sheep';
+export type AnimalType = 'chicken' | 'duck' | 'cow' | 'pig' | 'sheep'
+  | 'goat' | 'buffalo' | 'rabbit' | 'goose' | 'ong' | 'bocau' | 'cut';
 
 export interface PondFish {
   uid: number;
@@ -37,9 +38,7 @@ export interface Animal {
 }
 
 /** Sức chứa mỗi chuồng (mở rộng dần, tối đa theo MAX_CAP) */
-export interface CoopCap {
-  chicken: number; duck: number; cow: number; pig: number; sheep: number;
-}
+export type CoopCap = Record<AnimalType, number>;
 
 export interface Stats {
   hoed: number; planted: number; watered: number; harvested: number;
@@ -54,7 +53,9 @@ export type ModalKind =
   | { name: 'stock' }
   | { name: 'bait'; pier: number }
   | { name: 'house'; house: string }
-  | { name: 'pen'; pen: 'pond' | 'coop' | 'barn' };
+  | { name: 'pen'; pen: 'pond' | 'coop' | 'barn' }
+  | { name: 'bulk' }
+  | { name: 'wolf' };
 
 export type ShopTab = 'seed' | 'fish' | 'animal' | 'food' | 'sell';
 
@@ -62,12 +63,13 @@ export type ShopTab = 'seed' | 'fish' | 'animal' | 'food' | 'sell';
 export type SceneKind = 'farm' | 'town';
 
 /** Cảm xúc / hành động realtime ở công viên */
-export type TownEmote = 'wave' | 'dance' | 'sit' | 'laugh' | 'heart' | 'sleep' | 'angry' | 'clap';
+export type TownEmote = 'wave' | 'dance' | 'sit' | 'laugh' | 'heart' | 'sleep' | 'angry' | 'clap'
+  | 'hun' | 'hug' | 'fight' | 'tease' | 'handshake';
 
 export interface InteractTarget {
-  kind: 'plot' | 'pond' | 'river' | 'pen' | 'animal' | 'shop' | 'townGate' | 'farmGate' | 'townProp' | 'steal';
+  kind: 'plot' | 'pond' | 'river' | 'pen' | 'animal' | 'shop' | 'townGate' | 'farmGate' | 'townProp' | 'steal' | 'pet';
   index?: number; // plot index / pier index
-  uid?: number; // animal uid / fish uid
+  uid?: number; // animal uid / fish uid / pet uid
   pen?: 'pond' | 'coop' | 'barn';
   propId?: string; // townProp: fountain | board | hall | cafe | shop | sakura...
   label: string;

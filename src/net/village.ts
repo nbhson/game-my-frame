@@ -54,6 +54,41 @@ let unsubs: (() => void)[] = [];
 let farmTimer: number | null = null;
 let lastPos = 0;
 
+// ---- KÊNH TIN NHẮN GAME ẨN (thi câu cá / ma sói / ...): đi qua chat broadcast
+// nhưng UI chat không hiện — module game đăng ký tiền tố để nhận. Tin đi + về
+// (cả người gửi cũng nhận echo) nên bên gửi KHÔNG tự áp dụng, chờ echo để 1 luồng.
+// ----
+type GameMsgCb = (m: ChatMsg) => void;
+const gameHandlers: { prefix: string; cb: GameMsgCb }[] = [];
+/** Đăng ký nhận tin nhắn game có tiền tố (trả về hàm hủy). Gọi ở top-level module game. */
+export function onGameMsg(prefix: string, cb: GameMsgCb): () => void {
+  gameHandlers.push({ prefix, cb });
+  return () => {
+    const i = gameHandlers.findIndex((h) => h.cb === cb);
+    if (i >= 0) gameHandlers.splice(i, 1);
+  };
+}
+/** Gửi tin nhắn game ẩn (không hiện chat). Tên/số tự làm sạch ký tự phân tách. */
+export function sendGameMsg(text: string) {
+  if (!transport) return;
+  transport.sendChat(text);
+}
+/** Tên mình (đã làm sạch) + id presence — định danh người chơi trong game chung */
+export function gameMe(): { id: string; name: string } {
+  const raw = useGame.getState().name || 'Bạn';
+  return { id: getPresenceId(), name: raw.replace(/[|,]/g, '').slice(0, 16) || 'Bạn' };
+}
+/** true nếu tin nhắn game đã xử lý (chống echo trùng) — mỗi store game giữ 1 Set riêng */
+export function markSeen(seen: Set<string>, id: string): boolean {
+  if (seen.has(id)) return true;
+  seen.add(id);
+  if (seen.size > 300) {
+    const drop = [...seen].slice(0, seen.size - 300);
+    for (const d of drop) seen.delete(d);
+  }
+  return false;
+}
+
 /** Thứ tự ưu tiên: LAN server (nếu có) → Supabase (nếu cấu hình) → làng local */
 async function buildTransport(): Promise<NetTransport> {
   // presence id riêng mỗi tab → 2 tab cùng máy vẫn thấy nhau
@@ -172,6 +207,13 @@ export const useVillage = create<VillageState>()((set, get) => ({
         set({ players: list, mismatch });
       }),
       transport.onChat((msg) => {
+        // tin nhắn game ẩn → chuyển cho module game, KHÔNG hiện lên chat
+        for (const h of gameHandlers) {
+          if (msg.text.startsWith(h.prefix)) {
+            try { h.cb(msg); } catch (e) { console.warn('[gameMsg]', e); }
+            return;
+          }
+        }
         set((s) => ({ chat: [...s.chat.slice(-49), msg] }));
         // nếu là người khác → gắn bubble vào player
         if (msg.fromId !== getPresenceId()) {
@@ -234,8 +276,41 @@ export const useVillage = create<VillageState>()((set, get) => ({
       // phát qua kênh emote (presence) để cả làng thấy trứng bay,
       // không gửi chat nên không ai thấy chữ "pupu"
       get().sendEmote('🥚');
-      sfx.splash();
-      useGame.getState().toast('PUPU! Ném trứng thối vào cả làng 🥚💨');
+      // tiếng vút + bẹp khớp nhịp 3 quả trứng (tung ở 0.15/0.6/1.05s, bay 0.6s)
+      sfx.whoosh();
+      setTimeout(() => sfx.whoosh(), 450);
+      setTimeout(() => sfx.whoosh(), 900);
+      setTimeout(() => sfx.splat(), 750);
+      setTimeout(() => sfx.splat(), 1200);
+      setTimeout(() => sfx.splat(), 1650);
+      useGame.getState().toast('PUPU! Ném trứng thối vào đứa đứng gần nhất 🥚💨');
+      return;
+    }
+    // --- lệnh ẩn "kiki": gọi chó khổng lồ chạy quanh mình rồi chạy đi ---
+    if (t.toLowerCase() === 'kiki') {
+      get().sendEmote('🐕');
+      sfx.bark();
+      setTimeout(() => sfx.bark(), 900);
+      useGame.getState().toast('KIKI! Chó khổng lồ tới chơi 🐕💨');
+      return;
+    }
+    // --- lệnh ẩn "mimi": gọi đàn mèo từ mọi phía vây quanh mình ---
+    if (t.toLowerCase() === 'mimi') {
+      get().sendEmote('🐈');
+      sfx.meow();
+      setTimeout(() => sfx.meow(), 500);
+      setTimeout(() => sfx.meow(), 1100);
+      useGame.getState().toast('MIMI! Đàn mèo kéo tới vây quanh bạn 🐈💖');
+      return;
+    }
+    // --- lệnh ẩn "kemkem": triệu hồi mèo cam Kem đi theo mình mãi mãi (đúng 1 con) ---
+    if (t.toLowerCase() === 'kemkem') {
+      const g = useGame.getState();
+      // đã có Kem rồi → không có gì xảy ra (đúng yêu cầu: chỉ 1 con duy nhất)
+      if (g.summonKem()) {
+        sfx.meow();
+        g.toast('KEMKEM! Mèo cam Kem xuất hiện, từ nay bám theo bạn khắp farm + công viên 🐱💖');
+      }
       return;
     }
     transport.sendChat(t);

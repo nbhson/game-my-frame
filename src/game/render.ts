@@ -2,12 +2,12 @@
 // Triết lý: mỗi khu (ruộng / chuồng gà / trại bò / ao / sông / shop) có nền riêng,
 // nhà cửa, đạo cụ, hiệu ứng sống động + thể hiện rõ 5 giai đoạn phát triển cây
 // và 3 giai đoạn lớn của vật nuôi (non -> tơ -> trưởng thành).
-import { ANIMALS, CROPS, FISHES, MAX_POND, OUTFITS, SHIRTS, plotReq, shirtColorOf } from './data';
+import { ANIMALS, COOP_TYPES, BARN_TYPES, CROPS, FISHES, MAX_POND, OUTFITS, SHIRTS, plotReq, shirtColorOf } from './data';
 import type { Animal, CoopCap, GraphicsQuality, Plot, PondFish, WeatherKind } from './types';
 import type { BiteDir } from './data';
 import type { FishIconId } from './icons';
 import { BARN, COOP, FARM, PEN_MB, PIERS, POND, RIVER, RIVER_WATER_Y, ROAD_H, ROAD_V, SHOPD, TILE, TOWN_GATE, WORLD, plotPos, roadHCenter, roadVCenter, townGateCenter } from './world';
-import { animalPos, fishPos, PETS, petPos } from './systems';
+import { animalPos, fishPos, KEM_UID, PETS, petPos } from './systems';
 import { drawBasket, drawChickenHead, drawCowHead, drawCropGeneric, drawDrop, drawEnvelope, drawExclaimBadge, drawFeedBowl, drawFish, drawHoeMini, drawLock, drawMoon, drawPumpkin, drawSeedDot, drawSleepZ, drawSparkle, drawSprout, drawStar, drawSun, drawTreeFruit, setFxLow } from './icons';
 
 export interface VisitorDraw {
@@ -30,6 +30,8 @@ export interface RenderState {
   visitors?: VisitorDraw[];
   selfBubble?: string;
   selfEmote?: string;
+  /** mốc giờ tự bấm emote (để animation theo thời gian chạy đúng cho chính mình) */
+  selfEmoteAt?: number;
   sit?: { x: number; y: number; bx: number; by: number; bite: boolean; combo?: BiteDir[] | null; progress?: number; fishId?: string | null } | null;
   /** cá vừa giật dính đang giãy trên dây (world coords, có until) */
   catchPop?: { x: number; y: number; fishId: string; label: string; until: number } | null;
@@ -41,6 +43,10 @@ export interface RenderState {
   quality?: GraphicsQuality;
   /** hiệu ứng bị chó cắn khi hái trộm (epoch ms hết hạn) — vẽ GÂU! + sao xoay trên đầu */
   thiefBite?: number | null;
+  /** đang xoa đầu / vuốt ve pet nào (vẽ animation 2 chiều người ↔ pet) */
+  petFx?: { uid: number; at: number } | null;
+  /** Kem — mèo cam đi theo chủ (lệnh kemkem). null = chưa triệu hồi */
+  kemPos?: { x: number; y: number; moving: boolean; flip: boolean; sitting: boolean } | null;
 }
 
 // ===== Cấp đồ họa: renderWorld đặt mỗi frame, các hàm vẽ đọc để giảm tải =====
@@ -585,6 +591,15 @@ const CROP_AURA: Record<string, [string, string]> = {
   caphe: ['255,90,90', '255,170,170'],
   nam: ['255,115,110', '255,185,170'],
   sam: ['255,170,80', '255,220,170'],
+  ot: ['255,60,60', '255,150,150'],
+  hanh: ['150,255,150', '220,255,220'],
+  mia: ['200,230,120', '240,250,200'],
+  dauphong: ['220,180,120', '245,225,180'],
+  thanhlog: ['255,80,150', '255,170,200'],
+  saurieng: ['150,200,80', '210,240,170'],
+  bo: ['120,180,90', '190,230,170'],
+  mangcut: ['150,90,220', '200,170,250'],
+  vaithieu: ['255,150,150', '255,210,210'],
 };
 const auraOf = (id: string): [string, string] => CROP_AURA[id] ?? ['255,225,80', '255,240,160'];
 
@@ -2172,8 +2187,8 @@ function drawTreeDetailed(ctx: CanvasRenderingContext2D, x: number, y: number, s
 //  VẬT NUÔI — 3 GIAI ĐOẠN: non / tơ / trưởng thành
 //  age01 = (now-bornAt)/grow ; <0.35 non, <1 tơ, >=1 trưởng thành
 // ============================================================
-function drawAnimalDetailed(ctx: CanvasRenderingContext2D, X: number, Y: number, type: string, age01: number, ready: boolean, hunger: number, t: number, uid: number, flip: boolean) {
-  const walk = Math.sin(t * 9 + uid * 1.3) * (ready ? 1 : 2.2);
+function drawAnimalDetailed(ctx: CanvasRenderingContext2D, X: number, Y: number, type: string, age01: number, ready: boolean, hunger: number, t: number, uid: number, flip: boolean, moving = true) {
+  const walk = moving ? Math.sin(t * 9 + uid * 1.3) * (ready ? 1 : 2.2) : Math.sin(t * 2 + uid) * 0.5;
   const sc = age01 < 0.35 ? 0.62 : age01 < 1 ? 0.85 : 1.05;
   axShadow(ctx, X, Y + 15 * sc, 20 * sc, 7 * sc, 0.26);
   // bụi bước chạy anime khi di chuyển
@@ -2306,7 +2321,7 @@ function drawAnimalDetailed(ctx: CanvasRenderingContext2D, X: number, Y: number,
     // đuôi xoắn
     ctx.strokeStyle = '#ec407a'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(-18, -4 + Math.sin(t * 6 + uid) * 1.5, 3.4, 0, 5.5); ctx.stroke();
-  } else { // sheep
+  } else if (type === 'sheep') {
     const baby = age01 < 0.35;
     // chân đen
     ctx.fillStyle = '#212121';
@@ -2328,6 +2343,79 @@ function drawAnimalDetailed(ctx: CanvasRenderingContext2D, X: number, Y: number,
     if (age01 >= 1) {
       // nơ len trên đầu
       ctx.fillStyle = '#e1bee7'; ctx.beginPath(); ctx.arc(4, -17, 4, 0, 7); ctx.fill();
+    }
+  } else {
+    // --- loài mới (dê/trâu/thỏ/ngỗng/ong/bồ câu/cút): vẽ tổng quát theo nhóm ---
+    const bird = type === 'goose' || type === 'bocau' || type === 'cut';
+    const baby = age01 < 0.35;
+    const coats: Record<string, string> = {
+      goat: '#e8e0d0', buffalo: '#5d5d6e', rabbit: '#f5f5f5',
+      goose: '#eceff1', ong: '#ffca28', bocau: '#b0bec5', cut: '#a1887f',
+    };
+    const coat = coats[type] ?? '#cfd8dc';
+    if (type === 'ong') {
+      // ong mật: thân sọc + cánh trong
+      ctx.fillStyle = coat;
+      ctx.beginPath(); ctx.ellipse(0, -2, baby ? 7 : 10, baby ? 5 : 7, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = '#212121';
+      ctx.fillRect(-4, -8, 2.4, 12); ctx.fillRect(1, -8, 2.4, 12);
+      ctx.fillStyle = 'rgba(255,255,255,.75)';
+      const fw = Math.abs(Math.sin(t * 30 + uid)) * 4;
+      ctx.beginPath(); ctx.ellipse(-3, -11 - fw * 0.3, 5, 2.6 + fw, -0.4, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(3, -11 - fw * 0.3, 5, 2.6 + fw, 0.4, 0, 7); ctx.fill();
+      ctx.fillStyle = '#212121'; ctx.beginPath(); ctx.arc(8, -3, 1.8, 0, 7); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(8.6, -3.6, 0.7, 0, 7); ctx.fill();
+    } else if (bird) {
+      // chim: thân bầu + đầu + mỏ + cánh
+      ctx.strokeStyle = '#ef6c00'; ctx.lineWidth = 2.2;
+      ctx.beginPath(); ctx.moveTo(-4, 8); ctx.lineTo(-4 + legSwing, 15); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(5, 8); ctx.lineTo(5 - legSwing, 15); ctx.stroke();
+      ctx.fillStyle = coat;
+      ctx.beginPath(); ctx.ellipse(0, 0, baby ? 10 : 14, baby ? 8 : 10, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = 'rgba(0,0,0,.12)';
+      ctx.beginPath(); ctx.ellipse(-2, 1, 7, 4.5, -0.3, 0, 7); ctx.fill();
+      ctx.fillStyle = coat; ctx.beginPath(); ctx.arc(9, -8, baby ? 6 : 7.5, 0, 7); ctx.fill();
+      ctx.fillStyle = type === 'cut' ? '#ff8f00' : '#ffb300';
+      ctx.beginPath(); ctx.moveTo(15, -9); ctx.lineTo(20, -7); ctx.lineTo(15, -4.5); ctx.closePath(); ctx.fill();
+      if (type === 'goose' && age01 >= 1) { // mào ngỗng
+        ctx.fillStyle = '#e53935'; ctx.beginPath(); ctx.arc(9, -15, 2.6, 0, 7); ctx.fill();
+      }
+      ctx.fillStyle = '#212121'; ctx.beginPath(); ctx.arc(10, -9, 1.7, 0, 7); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(10.6, -9.6, 0.6, 0, 7); ctx.fill();
+    } else {
+      // thú 4 chân: thân + đầu + tai/sừng theo loài
+      ctx.fillStyle = coat;
+      ctx.fillRect(-12, 2 + legSwing * 0.5, 6, 12); ctx.fillRect(-3, 2 - legSwing * 0.5, 6, 12);
+      ctx.fillRect(5, 2 + legSwing * 0.5, 6, 12); ctx.fillRect(12, 2 - legSwing * 0.5, 6, 12);
+      ctx.fillStyle = coat;
+      rr(ctx, -17, -12, 33, 17, 8); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.28)'; ell(ctx, -4, -6, 8, 4);
+      ctx.fillStyle = coat; ctx.beginPath(); ctx.arc(20, -8, 8.5, 0, 7); ctx.fill();
+      if (type === 'goat') { // sừng cong + râu
+        ctx.strokeStyle = '#8d6e63'; ctx.lineWidth = 2.6;
+        ctx.beginPath(); ctx.arc(15, -16, 5, Math.PI * 0.9, Math.PI * 1.9); ctx.stroke();
+        ctx.beginPath(); ctx.arc(25, -16, 5, Math.PI * 1.1, Math.PI * 2.1); ctx.stroke();
+        ctx.fillStyle = '#b0bec5';
+        ctx.beginPath(); ctx.moveTo(18, -1); ctx.lineTo(22, -1); ctx.lineTo(20, 3); ctx.closePath(); ctx.fill();
+      } else if (type === 'buffalo') { // sừng trâu vòng cung
+        ctx.strokeStyle = '#4e342e'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(20, -14, 11, Math.PI * 1.05, Math.PI * 1.95); ctx.stroke();
+        ctx.fillStyle = '#4e342e';
+        ctx.beginPath(); ctx.arc(10, -20, 2.2, 0, 7); ctx.fill();
+        ctx.beginPath(); ctx.arc(30, -20, 2.2, 0, 7); ctx.fill();
+      } else if (type === 'rabbit') { // tai dài dựng
+        ctx.fillStyle = coat;
+        ctx.beginPath(); ctx.ellipse(16, -22, 3, 8, 0.15, 0, 7); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(23, -22, 3, 8, -0.15, 0, 7); ctx.fill();
+        ctx.fillStyle = '#f8bbd0';
+        ctx.beginPath(); ctx.ellipse(16, -22, 1.4, 5, 0.15, 0, 7); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(23, -22, 1.4, 5, -0.15, 0, 7); ctx.fill();
+      }
+      ctx.fillStyle = '#212121'; ctx.beginPath(); ctx.arc(21, -10, 1.9, 0, 7); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(21.6, -10.6, 0.7, 0, 7); ctx.fill();
+      const wag = Math.sin(t * 5 + uid) * 3;
+      ctx.strokeStyle = coat; ctx.lineWidth = 2.4;
+      ctx.beginPath(); ctx.moveTo(-17, -8); ctx.quadraticCurveTo(-23, -3, -22 + wag, 2); ctx.stroke();
     }
   }
   // má hồng anime phủ lên mặt (vị trí tương đối theo loài)
@@ -2505,7 +2593,11 @@ function drawCatDetailed(ctx: CanvasRenderingContext2D, X: number, Y: number, fl
   ctx.restore();
 }
 
-function drawPets(ctx: CanvasRenderingContext2D, cam: { x: number; y: number }, W: number, H: number, t: number) {
+/** Thú cưng + animation được xoa đầu / vuốt ve:
+ *  petFx = { uid, at } trong 2.6s → pet nhảy cẫng + tim bay + kêu,
+ *  đồng thời vẽ tay người + vệt vuốt ve giữa người và pet (hành động 2 chiều). */
+function drawPets(ctx: CanvasRenderingContext2D, cam: { x: number; y: number }, W: number, H: number, t: number, petFx?: { uid: number; at: number } | null, player?: { x: number; y: number } | null) {
+  const nowMs = Date.now();
   const coats: Record<number, [string, string]> = {
     101: ['#e8b34a', '#8b5a2b'], // Vàng
     102: ['#4e4e4e', '#212121'], // Mực đen
@@ -2517,11 +2609,14 @@ function drawPets(ctx: CanvasRenderingContext2D, cam: { x: number; y: number }, 
     // đồ họa Thấp: chỉ vẽ 2 chó giữ nhà (mèo nghỉ), vẫn thấy chó bắt trộm
     if (Q_LOW && pet.kind === 'cat') continue;
     const p = petPos(pet, t);
-    const X = p.x - cam.x, Y = p.y - cam.y;
+    const petted = !!petFx && petFx.uid === pet.uid && nowMs - petFx.at < 2600;
+    // được vuốt ve → nhảy cẫng sung sướng (nảy lên theo nhịp)
+    const joyJump = petted ? Math.abs(Math.sin((nowMs - (petFx?.at ?? 0)) / 130)) * -16 : 0;
+    const X = p.x - cam.x, Y = p.y - cam.y + (p.sitting ? 0 : joyJump);
     if (X < -60 || Y < -60 || X > W + 60 || Y > H + 60) continue;
     const [coat, dark] = coats[pet.uid] ?? ['#e8b34a', '#8b5a2b'];
-    if (pet.kind === 'dog') drawDogDetailed(ctx, X, Y, p.flip, p.moving, p.sitting, t, pet.uid, coat, dark);
-    else drawCatDetailed(ctx, X, Y, p.flip, p.moving, p.sitting, t, pet.uid, coat, dark);
+    if (pet.kind === 'dog') drawDogDetailed(ctx, X, Y, p.flip, p.moving || !!petted, false, t, pet.uid, coat, dark);
+    else drawCatDetailed(ctx, X, Y, p.flip, p.moving || !!petted, false, t, pet.uid, coat, dark);
     // tên pill anime + tai mini viền
     axNamePill(ctx, X, Y - 40, pet.name);
     ctx.lineWidth = 1.6; ctx.strokeStyle = ANIME_OUT;
@@ -2536,9 +2631,107 @@ function drawPets(ctx: CanvasRenderingContext2D, cam: { x: number; y: number }, 
         ctx.beginPath(); ctx.moveTo(X + ox - 3, Y - 30); ctx.lineTo(X + ox, Y - 36); ctx.lineTo(X + ox + 3, Y - 30); ctx.closePath(); ctx.fill(); ctx.stroke();
       }
     }
-    if (p.sitting) {
+    if (p.sitting && !petted) {
       if (pet.kind === 'dog') drawSleepZ(ctx, X + 8, Y - 18, 13, t);
       else drawSparkle(ctx, X + 16, Y - 20 + Math.sin(t * 3) * 2, 6, 0.9);
+    }
+    if (petted && petFx) {
+      const age = (nowMs - petFx.at) / 2600; // 0..1
+      // chùm tim bay lên từ pet
+      for (let i = 0; i < 4; i++) {
+        const ph = age * 3 + i * 1.7;
+        const hx = X - 18 + i * 12 + Math.sin(ph * 4 + i) * 5;
+        const hy = Y - 56 - ((age * 60 + i * 9) % 46);
+        ctx.font = `${13 + (i % 2) * 4}px serif`; ctx.textAlign = 'center';
+        ctx.fillText(i % 2 ? '💖' : '💕', hx, hy);
+      }
+      // chữ kêu của pet
+      txt(ctx, pet.kind === 'dog' ? 'Gâu gâu!' : 'Meo~', X, Y - 66 + Math.sin(t * 8) * 3, 13, '#ff8fb0');
+      // TAY NGƯỜI vuốt ve: chỉ vẽ khi người còn đứng sát pet (đi xa thì thôi)
+      const pDist = player ? Math.hypot(player.x - p.x, player.y - p.y) : Infinity;
+      if (player && pDist < 170) {
+        const PX = player.x - cam.x, PY = player.y - cam.y - 6;
+        const mx = (PX + X) / 2, my = (PY + Y - 26) / 2;
+        // vệt vuốt (3 đường cong rung theo nhịp tay)
+        ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
+        for (let k = -1; k <= 1; k++) {
+          ctx.beginPath();
+          ctx.moveTo(PX + k * 5, PY - 8);
+          ctx.quadraticCurveTo(mx + k * 5 + Math.sin(t * 16) * 4, my, X + k * 4, Y - 24);
+          ctx.stroke();
+        }
+        // bàn tay xoa trên đầu pet (lắc qua lại như đang xoa)
+        const hx = X + Math.sin(t * 16) * 6, hy = Y - 26 + Math.cos(t * 16) * 2;
+        ctx.fillStyle = '#ffcf9e';
+        ctx.beginPath(); ctx.arc(hx, hy, 6.5, 0, 7); ctx.fill();
+        ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+        txt(ctx, pet.kind === 'dog' ? 'xoa đầu' : 'vuốt ve', mx, my - 12, 11, '#fff9c4');
+      }
+    }
+  }
+}
+
+// ============================================================
+//  KEM — mèo cam đi theo chủ (lệnh kemkem, đúng 1 con duy nhất)
+//  Dùng đúng model mèo farm (drawCatDetailed): chạy theo khi xa, ngồi khi gần,
+//  thỉnh thoảng kêu Meo~, vuốt ve được (tim + tay người như pet farm).
+// ============================================================
+export function drawKem(
+  ctx: CanvasRenderingContext2D, cam: { x: number; y: number }, W: number, H: number,
+  kem: { x: number; y: number; moving: boolean; flip: boolean; sitting: boolean },
+  t: number, petFx?: { uid: number; at: number } | null,
+  player?: { x: number; y: number } | null,
+) {
+  const nowMs = Date.now();
+  const petted = !!petFx && petFx.uid === KEM_UID && nowMs - petFx.at < 2600;
+  // được vuốt ve → nhảy cẫng sung sướng
+  const joyJump = petted ? Math.abs(Math.sin((nowMs - (petFx?.at ?? 0)) / 130)) * -16 : 0;
+  const X = kem.x - cam.x, Y = kem.y - cam.y + (kem.sitting && !petted ? 0 : joyJump);
+  if (X < -60 || Y < -60 || X > W + 60 || Y > H + 60) return;
+  // model mèo farm, lông cam Kem
+  drawCatDetailed(ctx, X, Y, kem.flip, kem.moving || !!petted, kem.sitting && !petted, t, KEM_UID, '#f6a723', '#c47a1a');
+  // tên pill + tai mini
+  axNamePill(ctx, X, Y - 40, 'Kem');
+  ctx.fillStyle = '#f6a723';
+  ctx.lineWidth = 1.6; ctx.strokeStyle = ANIME_OUT;
+  for (const ox of [-11, 11]) {
+    ctx.beginPath(); ctx.moveTo(X + ox - 3, Y - 30); ctx.lineTo(X + ox, Y - 36); ctx.lineTo(X + ox + 3, Y - 30); ctx.closePath(); ctx.fill(); ctx.stroke();
+  }
+  if (kem.sitting && !petted) {
+    // ngồi rảnh thì lấp lánh + thỉnh thoảng kêu Meo~
+    drawSparkle(ctx, X + 16, Y - 20 + Math.sin(t * 3) * 2, 6, 0.9);
+    if ((t + 3.7) % 13 < 1.8) {
+      txt(ctx, 'Meo~', X, Y - 56 + Math.sin(t * 6) * 2, 12, '#fff9c4');
+    }
+  }
+  if (petted && petFx) {
+    const age = (nowMs - petFx.at) / 2600; // 0..1
+    // chùm tim bay lên
+    for (let i = 0; i < 4; i++) {
+      const ph = age * 3 + i * 1.7;
+      const hx = X - 18 + i * 12 + Math.sin(ph * 4 + i) * 5;
+      const hy = Y - 56 - ((age * 60 + i * 9) % 46);
+      ctx.font = `${13 + (i % 2) * 4}px serif`; ctx.textAlign = 'center';
+      ctx.fillText(i % 2 ? '💖' : '💕', hx, hy);
+    }
+    txt(ctx, 'Meo~', X, Y - 66 + Math.sin(t * 8) * 3, 13, '#ff8fb0');
+    // TAY NGƯỜI vuốt ve: chỉ vẽ khi còn đứng sát Kem
+    const pDist = player ? Math.hypot(player.x - kem.x, player.y - kem.y) : Infinity;
+    if (player && pDist < 170) {
+      const PX = player.x - cam.x, PY = player.y - cam.y - 6;
+      const mx = (PX + X) / 2, my = (PY + Y - 26) / 2;
+      ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
+      for (let k = -1; k <= 1; k++) {
+        ctx.beginPath();
+        ctx.moveTo(PX + k * 5, PY - 8);
+        ctx.quadraticCurveTo(mx + k * 5 + Math.sin(t * 16) * 4, my, X + k * 4, Y - 24);
+        ctx.stroke();
+      }
+      const hx = X + Math.sin(t * 16) * 6, hy = Y - 26 + Math.cos(t * 16) * 2;
+      ctx.fillStyle = '#ffcf9e';
+      ctx.beginPath(); ctx.arc(hx, hy, 6.5, 0, 7); ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+      txt(ctx, 'vuốt ve', mx, my - 12, 11, '#fff9c4');
     }
   }
 }
@@ -2713,27 +2906,154 @@ export function drawActionFx(ctx: CanvasRenderingContext2D, X: number, Y: number
     ctx.strokeText('êu êu~', X - 26, Y - 56 + Math.sin(t * 6) * 2);
     ctx.fillStyle = '#a78bfa'; ctx.fillText('êu êu~', X - 26, Y - 56 + Math.sin(t * 6) * 2);
   }
-  if (emote.includes('🥚')) {
-    // mưa trứng thối bay vòng quanh kẻ ném
-    for (let i = 0; i < 4; i++) {
-      const a = t * 4 + (i * Math.PI) / 2;
-      const ex = X + Math.cos(a) * 34;
-      const ey = Y - 30 + Math.sin(a) * 20 - 8;
-      // vỏ trứng
-      ctx.fillStyle = '#fff7ed';
-      ctx.beginPath(); ctx.ellipse(ex, ey, 5, 6.4, Math.cos(a) * 0.4, 0, 7); ctx.fill();
-      ctx.lineWidth = 1.8; ctx.strokeStyle = '#78350f'; ctx.stroke();
-      // lòng đỏ chảy
-      ctx.fillStyle = '#fbbf24';
-      ctx.beginPath(); ctx.arc(ex, ey + 5, 2.6, 0, 7); ctx.fill();
-      // vệt bay
-      ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 1.6;
-      ctx.beginPath(); ctx.moveTo(X, Y - 34); ctx.lineTo(ex, ey); ctx.stroke();
+  // 🥚 pupu v2: trứng NÉM THẬT vào người khác — toàn bộ vẽ ở drawEggThrow trong vòng visitor (có nạn nhân cụ thể).
+}
+// ============================================================
+//  HÀNH ĐỘNG ĐÔI — 2 nhân vật cùng emote + đứng gần nhau (260px)
+//  thì THỰC SỰ lao vào nhau diễn hoạt ảnh (đánh/ôm/bắt tay/hun/chào)
+// ============================================================
+export type PairAction = 'fight' | 'hug' | 'handshake' | 'kiss' | 'greet';
+
+/** map emoji emote → hành động đôi (2 người cùng loại mới ghép cặp) */
+export function pairActionOf(emote: string | undefined): PairAction | null {
+  if (!emote) return null;
+  if (emote.includes('🥊') || emote.includes('👊')) return 'fight';
+  if (emote.includes('🤗')) return 'hug';
+  if (emote.includes('🤝')) return 'handshake';
+  if (emote.includes('💋')) return 'kiss';
+  if (emote.includes('👋')) return 'greet';
+  return null;
+}
+
+export interface PairActor {
+  x: number; y: number;
+  emote: string | undefined; at: number;
+}
+
+/** Ghép cặp + tính độ lao vào nhau của từng nhân vật.
+ *  Trả về offsets (cộng vào vị trí vẽ) và danh sách cặp để vẽ FX va chạm. */
+export function computePairOffsets(
+  actors: PairActor[], nowMs: number, t: number,
+): { offsets: { dx: number; dy: number; act: PairAction | null }[]; pairs: { a: number; b: number; act: PairAction }[] } {
+  const n = actors.length;
+  const offsets = actors.map(() => ({ dx: 0, dy: 0, act: null as PairAction | null }));
+  const pairs: { a: number; b: number; act: PairAction }[] = [];
+  const used = new Set<number>();
+  for (let i = 0; i < n; i++) {
+    if (used.has(i)) continue;
+    const a = pairActionOf(actors[i].emote);
+    if (!a || nowMs - actors[i].at > 4000) continue;
+    let best = -1, bd = 260;
+    for (let j = 0; j < n; j++) {
+      if (j === i || used.has(j)) continue;
+      if (pairActionOf(actors[j].emote) !== a) continue;
+      if (nowMs - actors[j].at > 4000) continue;
+      const d = Math.hypot(actors[i].x - actors[j].x, actors[i].y - actors[j].y);
+      if (d >= 8 && d < bd) { bd = d; best = j; }
     }
-    ctx.font = "bold 12px 'Be Vietnam Pro', sans-serif"; ctx.textAlign = 'center';
-    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.8)';
-    ctx.strokeText('PUPU! 🥚💨', X, Y - 70 + Math.sin(t * 8) * 2);
-    ctx.fillStyle = '#fde047'; ctx.fillText('PUPU! 🥚💨', X, Y - 70 + Math.sin(t * 8) * 2);
+    if (best < 0) continue;
+    // tầm ghép: đánh nhau từ xa cũng lao vào, ôm/bắt tay/hun/chào phải đứng sát
+    const need = a === 'fight' ? 260 : 200;
+    if (bd > need) continue;
+    used.add(i); used.add(best);
+    pairs.push({ a: i, b: best, act: a });
+    const dx = actors[best].x - actors[i].x, dy = actors[best].y - actors[i].y;
+    const d = Math.hypot(dx, dy) || 1, nx = dx / d, ny = dy / d;
+    if (a === 'fight') {
+      // lao vào đấm nhau liên tục: tiến/lùi theo nhịp ra đòn
+      const punch = 10 + Math.abs(Math.sin(t * 9 + i * 1.3)) * 18;
+      offsets[i] = { dx: nx * punch, dy: ny * punch, act: a };
+      offsets[best] = { dx: -nx * punch, dy: -ny * punch, act: a };
+    } else if (a === 'hug' || a === 'handshake' || a === 'kiss') {
+      // tiến lại sát nhau (cách ~40px thì dừng)
+      const come = Math.max(0, Math.min(bd / 2 - 20, 48));
+      offsets[i] = { dx: nx * come, dy: ny * come, act: a };
+      offsets[best] = { dx: -nx * come, dy: -ny * come, act: a };
+    } else {
+      // chào nhau: cúi đầu nhịp nhàng (nhún xuống theo nhịp vẫy)
+      const bow = 4 + Math.abs(Math.sin(t * 5 + i * 1.1)) * 5;
+      offsets[i] = { dx: 0, dy: bow, act: a };
+      offsets[best] = { dx: 0, dy: bow, act: a };
+    }
+  }
+  return { offsets, pairs };
+}
+
+/** FX va chạm vẽ tại vị trí 2 nhân vật (đã cộng lunge). X1/Y1/X2/Y2 là tọa độ màn hình. */
+export function drawPairFx(ctx: CanvasRenderingContext2D, X1: number, Y1: number, X2: number, Y2: number, act: PairAction, t: number) {
+  const mx = (X1 + X2) / 2, my = (Y1 + Y2) / 2 - 20;
+  const hit = Math.sin(t * 30);
+  if (act === 'fight') {
+    // bụi tung dưới chân + vệt lao
+    ctx.fillStyle = 'rgba(255,255,255,.75)';
+    ell(ctx, X1, Y1 + 20, 9, 3.5); ell(ctx, X2, Y2 + 20, 9, 3.5);
+    ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = 2;
+    for (let k = 0; k < 3; k++) {
+      ctx.beginPath(); ctx.moveTo(X1 + (k - 1) * 8, Y1 - 10 - k * 8); ctx.lineTo(mx, my + 6); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(X2 + (k - 1) * 8, Y2 - 10 - k * 8); ctx.lineTo(mx, my + 6); ctx.stroke();
+    }
+    // chưởng chạm nhau: sao nổ + vòng xung kích lan ra + chữ đấm luân phiên
+    drawSparkle(ctx, mx + hit * 3, my, 11, 1);
+    drawSparkle(ctx, mx - 12, my - 8 - hit * 2, 6, 0.9);
+    drawSparkle(ctx, mx + 12, my + 6 + hit * 2, 6, 0.9);
+    const ring = (t * 46) % 20;
+    ctx.strokeStyle = `rgba(255,240,150,${Math.max(0, 0.9 - ring / 20)})`;
+    ctx.lineWidth = 2.4;
+    ctx.beginPath(); ctx.arc(mx, my, 8 + ring, 0, 7); ctx.stroke();
+    txt(ctx, Math.floor(t * 4) % 2 ? 'BỐP!' : 'BỊCH!', mx, my - 22 + hit * 2, 17, '#fde047');
+  } else if (act === 'hug') {
+    // 2 cánh tay ôm nhau + tim bay
+    ctx.strokeStyle = '#ffcf9e'; ctx.lineWidth = 5; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(X1 + 12, Y1 - 6); ctx.quadraticCurveTo(mx, my + 14, X2 - 12, Y2 - 6); ctx.stroke();
+    ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(X1 + 12, Y1 - 6); ctx.quadraticCurveTo(mx, my + 14, X2 - 12, Y2 - 6); ctx.stroke();
+    for (let i = 0; i < 5; i++) {
+      const ph = t * 2.4 + i * 1.9;
+      ctx.font = `${12 + (i % 3) * 3}px serif`; ctx.textAlign = 'center';
+      ctx.fillText(i % 2 ? '💖' : '❤️', mx - 26 + i * 13 + Math.sin(ph) * 4, my - 26 - ((ph * 12) % 24));
+    }
+    txt(ctx, 'ÔM CÁI!', mx, my - 52, 14, '#ff8fb0');
+  } else if (act === 'handshake') {
+    // 2 bàn tay nắm nhau lắc lên xuống + tia vui
+    const shake = Math.sin(t * 12) * 3;
+    ctx.strokeStyle = '#ffcf9e'; ctx.lineWidth = 5; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(X1 + 12, Y1 - 4); ctx.lineTo(mx, my + 10 + shake); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(X2 - 12, Y2 - 4); ctx.lineTo(mx, my + 10 + shake); ctx.stroke();
+    ctx.fillStyle = '#ffcf9e';
+    ctx.beginPath(); ctx.arc(mx, my + 10 + shake, 7, 0, 7); ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    // sóng tay bắt (3 vạch rung)
+    ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 2;
+    for (let k = 0; k < 3; k++) {
+      const yy = my + 22 + k * 6 + shake * 0.4;
+      ctx.beginPath(); ctx.moveTo(mx - 8, yy); ctx.lineTo(mx + 8, yy); ctx.stroke();
+    }
+    drawSparkle(ctx, mx - 14, my - 2, 5, 0.9);
+    drawSparkle(ctx, mx + 14, my - 6, 5, 0.9);
+    txt(ctx, 'BẮT TAY!', mx, my - 34, 14, '#fff9c4');
+  } else if (act === 'kiss') {
+    // cầu tim nối 2 khuôn mặt + chữ chụt
+    ctx.fillStyle = 'rgba(255,150,200,.25)';
+    ctx.beginPath(); ctx.arc(mx, my, 26, 0, 7); ctx.fill();
+    for (let i = 0; i <= 4; i++) {
+      const k = i / 4;
+      const hx = X1 + (X2 - X1) * k, hy = (Y1 + Y2) / 2 - 34 - Math.sin(k * Math.PI) * 14;
+      ctx.font = `${11 + Math.sin(k * Math.PI) * 5}px serif`; ctx.textAlign = 'center';
+      ctx.fillText(i % 2 ? '💕' : '💋', hx, hy + Math.sin(t * 5 + i) * 2);
+    }
+    txt(ctx, 'chụt chụt!', mx, my - 44, 13, '#f48fb1');
+  } else {
+    // chào nhau: vòng tay vẫy trên đầu mỗi người + chữ CHÀO
+    for (const [X, Y] of [[X1, Y1], [X2, Y2]] as [number, number][]) {
+      ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
+      for (let k = 0; k < 2; k++) {
+        const a0 = -0.6 - k * 0.5 + Math.sin(t * 10 + X) * 0.25;
+        ctx.beginPath(); ctx.arc(X + 14, Y - 44, 10 + k * 5, a0 - 0.4, a0 + 0.4); ctx.stroke();
+      }
+      ctx.font = '20px serif'; ctx.textAlign = 'center';
+      ctx.fillText('👋', X + 16, Y - 52 + Math.sin(t * 10) * 3);
+    }
+    txt(ctx, 'CHÀO NHAU!', mx, my - 56, 14, '#fff9c4');
   }
 }
 /** Vết trứng dính trên nạn nhân đứng gần kẻ ném pupu */
@@ -2746,6 +3066,442 @@ export function drawEggSplat(ctx: CanvasRenderingContext2D, X: number, Y: number
   ctx.fillStyle = '#fff7ed';
   ctx.beginPath(); ctx.ellipse(X - 2, Y - 34, 3.4, 2.6, -0.5, 0, 7); ctx.fill();
   ctx.lineWidth = 1.5; ctx.strokeStyle = '#78350f'; ctx.stroke();
+}
+
+// ============================================================
+//  PUPU v2 — NÉM TRỨNG THẬT VÀO NGƯỜI KHÁC
+//  3 quả trứng bay vòng cung từ tay kẻ ném trúng nạn nhân gần nhất:
+//  trúng đầu → vỡ tung (lòng đỏ + vỏ văng) → dính bết + choáng + thối
+// ============================================================
+const EGG_WORDS = ['BỐP!', 'CHÁT!', 'BẸP!'];
+const EGG_LAUNCH = [0.15, 0.6, 1.05]; // thời điểm tung từng quả (giây)
+const EGG_FLIGHT = 0.6; // thời gian bay mỗi quả
+
+/** Vẽ 1 quả trứng gà đang bay (xoay vòng + vệt gió) */
+function drawFlyingEgg(ctx: CanvasRenderingContext2D, x: number, y: number, spin: number) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(spin);
+  ctx.fillStyle = '#fff7ed';
+  ctx.beginPath(); ctx.ellipse(0, 0, 5.5, 7, 0, 0, 7); ctx.fill();
+  ctx.lineWidth = 1.8; ctx.strokeStyle = '#78350f'; ctx.stroke();
+  ctx.fillStyle = '#fbbf24';
+  ctx.beginPath(); ctx.arc(0, 1.5, 2.2, 0, 7); ctx.fill();
+  ctx.restore();
+}
+
+/** Chùm vỡ khi trứng đập trúng: lòng đỏ + mảnh vỏ văng theo trọng lực */
+function drawEggBurst(ctx: CanvasRenderingContext2D, x: number, y: number, k: number, seed: number) {
+  // k: 0→1 độ bung (0.45s)
+  for (let i = 0; i < 9; i++) {
+    const a = (i / 9) * Math.PI * 2 + seed;
+    const sp = 26 + (i % 4) * 14;
+    const px = x + Math.cos(a) * sp * k;
+    const py = y - 6 - Math.sin(a) * sp * k * 0.7 + 34 * k * k;
+    const fade = Math.max(0, 1 - k);
+    if (i % 3 === 2) {
+      // mảnh vỏ trắng
+      ctx.fillStyle = `rgba(255,247,237,${0.95 * fade})`;
+      ctx.save(); ctx.translate(px, py); ctx.rotate(a + k * 6);
+      ctx.fillRect(-3, -1.6, 6, 3.2); ctx.restore();
+    } else {
+      // giọt lòng đỏ
+      ctx.fillStyle = `rgba(251,191,36,${0.95 * fade})`;
+      ctx.beginPath(); ctx.arc(px, py, i % 3 ? 3.4 : 4.6, 0, 7); ctx.fill();
+    }
+  }
+  // vòng xung kích
+  ctx.strokeStyle = `rgba(255,255,255,${Math.max(0, 0.8 - k)})`;
+  ctx.lineWidth = 2.4;
+  ctx.beginPath(); ctx.arc(x, y - 6, 6 + k * 30, 0, 7); ctx.stroke();
+}
+
+/**
+ * Hoạt ảnh ném trứng hoàn chỉnh.
+ * TX/TY: chân kẻ ném (tọa độ màn hình). V: chân nạn nhân (màn hình) hoặc null → ném xuống đất trước mặt.
+ * age: giây từ lúc bấm pupu. seed: chống đồng bộ máy móc. t: thời gian toàn cục cho idle.
+ */
+export function drawEggThrow(
+  ctx: CanvasRenderingContext2D,
+  TX: number, TY: number,
+  V: { x: number; y: number } | null,
+  age: number, seed: number, t: number,
+) {
+  const hasVictim = !!V;
+  const VX = V ? V.x : TX + 110, VY = V ? V.y : TY + 14;
+  const dirX = Math.sign(VX - TX) || 1;
+  // kẻ ném hô to lúc xuất chiêu
+  if (age < 1.2) {
+    txt(ctx, 'PUPU!! 🥚', TX, TY - 74 + Math.sin(t * 9) * 2, 14, '#fde047');
+  }
+  // --- cánh tay ném: giơ lên ngắm → quật mạnh theo từng quả ---
+  const shoulderX = TX + dirX * 6, shoulderY = TY - 34;
+  // tìm quả sắp tung gần nhất để đồng bộ tay
+  let swing = -0.5; // nghỉ: tay cầm trứng ngang vai
+  for (const L of EGG_LAUNCH) {
+    const dt = age - L;
+    if (dt >= -0.22 && dt < 0) swing = -1.1 + (dt + 0.22) * 2.2; // giơ cao lấy đà
+    else if (dt >= 0 && dt < 0.18) swing = 0.9 - dt * 3.2; // quật mạnh về trước
+  }
+  const handX = shoulderX + dirX * Math.cos(swing) * 16;
+  const handY = shoulderY + Math.sin(swing) * 16 - 4;
+  ctx.strokeStyle = '#ffcf9e'; ctx.lineWidth = 6; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(shoulderX, shoulderY); ctx.lineTo(handX, handY); ctx.stroke();
+  ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT;
+  ctx.beginPath(); ctx.moveTo(shoulderX, shoulderY); ctx.lineTo(handX, handY); ctx.stroke();
+  ctx.fillStyle = '#ffcf9e';
+  ctx.beginPath(); ctx.arc(handX, handY, 5, 0, 7); ctx.fill();
+  ctx.lineWidth = 1.8; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  // trứng cầm trên tay khi chưa tới giờ tung quả tiếp theo
+  const thrown = EGG_LAUNCH.filter((L) => age >= L).length;
+  if (thrown < 3 && age < EGG_LAUNCH[thrown] - 0.05) {
+    drawFlyingEgg(ctx, handX, handY - 6, Math.sin(t * 4) * 0.3);
+  }
+
+  // --- 3 quả bay vòng cung + vỡ ---
+  // gốc bay CỐ ĐỊNH ở thế tay vừa quật (không trượt theo tay nghỉ → trứng không giật)
+  const ox = shoulderX + dirX * 10, oy = shoulderY + 9;
+  let impacted = 0;
+  for (let i = 0; i < 3; i++) {
+    const L = EGG_LAUNCH[i];
+    const dt = age - L;
+    if (dt < 0) continue;
+    const p = dt / EGG_FLIGHT;
+    // điểm rơi: đầu nạn nhân (cao ~34px) hoặc mặt đất
+    const ex = VX + (hasVictim ? (i - 1) * 5 : 0), ey = hasVictim ? VY - 34 : VY;
+    if (p < 1) {
+      const dist = Math.hypot(ex - ox, ey - oy);
+      const arcH = 46 + dist * 0.22;
+      const exx = ox + (ex - ox) * p;
+      const eyy = oy + (ey - oy) * p - Math.sin(p * Math.PI) * arcH;
+      // vệt gió sau đuôi trứng
+      ctx.strokeStyle = 'rgba(255,255,255,.65)'; ctx.lineWidth = 2;
+      for (let k = 1; k <= 3; k++) {
+        const pp = Math.max(0, p - k * 0.07);
+        const qx = ox + (ex - ox) * pp;
+        const qy = oy + (ey - oy) * pp - Math.sin(pp * Math.PI) * arcH;
+        ctx.globalAlpha = 0.5 - k * 0.13;
+        ctx.beginPath(); ctx.arc(qx, qy, 2.6 - k * 0.5, 0, 7); ctx.fillStyle = '#fff'; ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      drawFlyingEgg(ctx, exx, eyy, age * 22 + i * 2.1 + seed);
+    } else {
+      impacted++;
+      const bk = Math.min(1, (dt - EGG_FLIGHT) / 0.45);
+      if (bk < 1) drawEggBurst(ctx, ex, ey, bk, seed + i * 1.7);
+      // chữ trúng đập (nảy lên rồi mờ dần trong 0.8s)
+      const wk = dt - EGG_FLIGHT;
+      if (wk < 0.8) {
+        const pop = wk < 0.15 ? 12 + wk * 60 : 21 - (wk - 0.15) * 8;
+        txt(ctx, EGG_WORDS[i], ex, ey - 26 - wk * 26, Math.max(12, pop), '#fde047');
+      }
+    }
+  }
+  // --- dính bết trên nạn nhân + choáng + mùi thối (sau khi trúng quả đầu) ---
+  if (hasVictim && impacted > 0) {
+    drawEggSplat(ctx, VX, VY, t, seed);
+    if (impacted >= 3) {
+      // 3 sao choáng xoay trên đầu
+      for (let i = 0; i < 3; i++) {
+        const a = t * 5 + (i * Math.PI * 2) / 3;
+        drawStar(ctx, VX + Math.cos(a) * 16, VY - 62 + Math.sin(a) * 5, 4.5);
+      }
+      // mùi thối bay lên + chữ than
+      ctx.strokeStyle = 'rgba(110,220,120,.9)'; ctx.lineWidth = 2;
+      for (let i = 0; i < 3; i++) {
+        const wx = VX - 12 + i * 12 + Math.sin(t * 4 + i * 2) * 3;
+        ctx.beginPath(); ctx.moveTo(wx, VY - 44); ctx.quadraticCurveTo(wx + 4, VY - 54, wx, VY - 62); ctx.stroke();
+      }
+      txt(ctx, 'thối quá!!', VX, VY - 78 + Math.sin(t * 7) * 2, 12, '#86efac');
+    }
+  } else if (!hasVictim && impacted > 0) {
+    // ném xuống đất: vũng trứng loang + ruồi bu
+    ctx.fillStyle = 'rgba(251,191,36,.85)';
+    ctx.beginPath(); ctx.ellipse(VX, VY, 16, 6, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#fff7ed';
+    ctx.beginPath(); ctx.ellipse(VX - 8, VY - 2, 6, 3, -0.4, 0, 7); ctx.fill();
+    ctx.fillStyle = 'rgba(60,60,60,.9)';
+    for (let i = 0; i < 2; i++) {
+      const a = t * 9 + i * Math.PI + seed;
+      ctx.beginPath(); ctx.arc(VX + Math.cos(a) * 12, VY - 10 + Math.sin(a * 1.3) * 5, 1.6, 0, 7); ctx.fill();
+    }
+  }
+}
+
+// ============================================================
+//  KIKI — CHÓ KHỔNG LỒ chạy vào → vòng quanh chủ 2 vòng → nhảy mừng → chạy đi
+//  SX/SY: chân người gọi (tọa độ màn hình). age: giây từ lúc gõ kiki.
+// ============================================================
+/** Vẽ 1 chú chó khổng lồ (mặt nhìn theo face = 1 phải / -1 trái) */
+function drawBigDog(ctx: CanvasRenderingContext2D, x: number, y: number, face: 1 | -1, gallop: number, happy: number, t: number) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(face, 1);
+  // bóng
+  ctx.fillStyle = 'rgba(0,0,0,.25)';
+  ctx.beginPath(); ctx.ellipse(0, 4, 58, 12, 0, 0, 7); ctx.fill();
+  const legSwing = Math.sin(gallop) * 16;
+  const legSwing2 = Math.sin(gallop + Math.PI) * 16;
+  // 4 chân phi nước đại (trước/sau so le)
+  ctx.strokeStyle = '#b97a3a'; ctx.lineWidth = 13; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-34, -18); ctx.lineTo(-40 + legSwing2 * 0.6, 0); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-22, -18); ctx.lineTo(-28 + legSwing * 0.6, 0); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(24, -18); ctx.lineTo(30 + legSwing2 * 0.6, 0); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(36, -18); ctx.lineTo(42 + legSwing * 0.6, 0); ctx.stroke();
+  // thân
+  ctx.fillStyle = '#d99a4e';
+  ctx.beginPath(); ctx.ellipse(0, -34, 56, 26, -0.06, 0, 7); ctx.fill();
+  ctx.lineWidth = 3; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  // yếm trắng
+  ctx.fillStyle = '#fff7ed';
+  ctx.beginPath(); ctx.ellipse(18, -26, 24, 14, 0.15, 0, 7); ctx.fill();
+  // đuôi vẫy tít (mừng càng vẫy nhanh)
+  const wag = Math.sin(t * (10 + happy * 14)) * (0.5 + happy * 0.5);
+  ctx.strokeStyle = '#d99a4e'; ctx.lineWidth = 9;
+  ctx.beginPath(); ctx.moveTo(-52, -44);
+  ctx.quadraticCurveTo(-70, -58 + wag * 14, -62, -72 + wag * 18); ctx.stroke();
+  // đầu to
+  const pant = Math.sin(t * 12) * 2;
+  ctx.fillStyle = '#d99a4e';
+  ctx.beginPath(); ctx.arc(52, -58 + pant * 0.4, 27, 0, 7); ctx.fill();
+  ctx.lineWidth = 3; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  // 2 tai dài phấp phới
+  ctx.fillStyle = '#8a5a22';
+  const flap = Math.sin(gallop * 0.9) * 6;
+  ctx.beginPath(); ctx.ellipse(40, -80 + flap, 9, 18, -0.4, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(62, -80 - flap, 9, 18, 0.4, 0, 7); ctx.fill();
+  // mõm + mũi ướt
+  ctx.fillStyle = '#f3d9a8';
+  ctx.beginPath(); ctx.ellipse(68, -50 + pant * 0.4, 14, 10, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = '#3b2a1a';
+  ctx.beginPath(); ctx.arc(78, -53 + pant * 0.4, 5, 0, 7); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.7)';
+  ctx.beginPath(); ctx.arc(76.5, -54.5 + pant * 0.4, 1.6, 0, 7); ctx.fill();
+  // lưỡi thè phè phỡi
+  ctx.fillStyle = '#f48fb1';
+  ctx.beginPath(); ctx.ellipse(66, -38 + pant, 6, 10 + Math.sin(t * 12) * 2, 0.15, 0, 7); ctx.fill();
+  // mắt long lanh
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(54, -64, 6, 0, 7); ctx.fill();
+  ctx.fillStyle = '#2b2117';
+  ctx.beginPath(); ctx.arc(55.5, -63.5, 3, 0, 7); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(56.5, -64.5, 1.2, 0, 7); ctx.fill();
+  ctx.restore();
+}
+
+/** Đám bụi tung dưới chân chó lúc phi */
+function drawDust(ctx: CanvasRenderingContext2D, x: number, y: number, t: number, seed: number, n = 5) {
+  for (let i = 0; i < n; i++) {
+    const k = ((t * 1.6 + seed + i * 0.23) % 1);
+    const px = x - 40 * k + Math.sin(seed * 9 + i * 2.4) * 12 * k;
+    const py = y - 4 - 26 * k;
+    ctx.fillStyle = `rgba(235,220,190,${0.75 * (1 - k)})`;
+    ctx.beginPath(); ctx.arc(px, py, 5 + k * 9, 0, 7); ctx.fill();
+  }
+}
+
+export function drawKiki(ctx: CanvasRenderingContext2D, SX: number, SY: number, W: number, age: number, seed: number, t: number) {
+  if (age < 0 || age > 4.6) return;
+  const fade = age > 4.1 ? Math.max(0, 1 - (age - 4.1) / 0.5) : 1;
+  ctx.save();
+  ctx.globalAlpha = fade;
+  let dx = 0, dy = 0, face: 1 | -1 = 1, gallop = 0, happy = 0;
+  if (age < 0.85) {
+    // PHI VÀO từ mép trái, bụi mù mịt (kết thúc ngay bên trái chủ để nối vào vòng tròn)
+    const p = age / 0.85;
+    const e = 1 - Math.pow(1 - p, 2.4);
+    dx = -105 - (W * 0.62 + 25) * (1 - e);
+    dy = 10;
+    face = 1; gallop = age * 26; happy = 0.2;
+    drawDust(ctx, SX + dx - 30, SY + dy, t, seed);
+    txt(ctx, 'GÂU!!', SX + dx + 40, SY - 110, 20, '#fde047');
+  } else if (age < 2.85) {
+    // VÒNG QUANH CHỦ 2 vòng (bắt đầu từ bên trái — nối liền pha chạy vào), vẫy đuôi tít
+    const p = (age - 0.85) / 2;
+    const a = Math.PI + p * Math.PI * 4;
+    dx = Math.cos(a) * 105;
+    dy = Math.sin(a) * 46 + 10;
+    face = Math.sin(a) <= 0 ? 1 : -1; // mặt theo hướng phi (tiếp tuyến vòng tròn)
+    gallop = age * 24; happy = 1;
+    drawDust(ctx, SX + dx - face * 40, SY + dy, t, seed + 3, 3);
+    txt(ctx, p < 0.5 ? 'GÂU GÂU!!' : 'GÂU GÂU GÂU!!', SX + dx, SY + dy - 118, 19, '#fde047');
+  } else if (age < 3.3) {
+    // NHẢY CẪNG mừng chủ (kết vòng tròn ở bên trái nên nhảy ngay bên trái chủ)
+    const p = (age - 2.85) / 0.45;
+    dx = -52; dy = 10 - Math.sin(p * Math.PI) * 66;
+    face = 1; gallop = 2.4; happy = 1;
+    for (let i = 0; i < 3; i++) {
+      ctx.font = '18px serif'; ctx.textAlign = 'center';
+      ctx.fillText('💖', SX + dx - 50 + i * 46 + Math.sin(t * 5 + i) * 5, SY + dy - 118 - (i % 2) * 10);
+    }
+    txt(ctx, 'GÂU!!', SX + dx, SY + dy - 132, 22, '#ff8fb0');
+  } else {
+    // CHẠY BIẾN ra mép phải
+    const p = Math.min(1, (age - 3.3) / 0.9);
+    const e = p * p * (3 - 2 * p);
+    dx = -52 + (W * 0.62 + 270) * e;
+    dy = 22;
+    face = 1; gallop = age * 30; happy = 0.5;
+    drawDust(ctx, SX + dx - 60, SY + dy, t, seed + 7);
+    if (p < 0.4) txt(ctx, 'Gâu~ (chạy đi chơi tiếp!)', SX + dx - 60, SY - 110, 13, '#fff9c4');
+  }
+  drawBigDog(ctx, SX + dx, SY + dy, face, gallop, happy, t);
+  ctx.restore();
+}
+
+// ============================================================
+//  MIMI — ĐÀN MÈO từ mọi phía chạy tới VÂY QUANH nhân vật
+//  7 con: chạy vào theo vòng tròn → ngồi quanh → kêu meo + vẫy đuôi → tản ra
+// ============================================================
+const MIMI_COATS: [string, string][] = [
+  ['#f5a742', '#fff3e0'], // cam
+  ['#90a4ae', '#eceff1'], // xám
+  ['#4e342e', '#8d6e63'], // nâu đen
+  ['#fafafa', '#cfd8dc'], // trắng
+  ['#d7a75d', '#fbe9c7'], // vàng cát
+  ['#78909c', '#cfd8dc'], // xanh xám
+  ['#a1887f', '#efebe9'], // nâu nhạt
+];
+
+/** Vẽ 1 con mèo ngồi (đuôi vẫy, mắt chớp theo phase) */
+function drawMiniCat(ctx: CanvasRenderingContext2D, x: number, y: number, face: 1 | -1, coat: number, t: number, phase: number, hop: number) {
+  const [fur, belly] = MIMI_COATS[coat % MIMI_COATS.length];
+  ctx.save();
+  ctx.translate(x, y - hop);
+  ctx.scale(face, 1);
+  // bóng
+  ctx.fillStyle = 'rgba(0,0,0,.22)';
+  ctx.beginPath(); ctx.ellipse(0, 2 + hop, 17, 5, 0, 0, 7); ctx.fill();
+  // đuôi cong vẫy
+  const wag = Math.sin(t * 3.4 + phase * 2.2) * 5;
+  ctx.strokeStyle = fur; ctx.lineWidth = 6; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-12, -6);
+  ctx.quadraticCurveTo(-24, -10 + wag, -20, -24 + wag); ctx.stroke();
+  // thân ngồi (bánh mì)
+  ctx.fillStyle = fur;
+  ctx.beginPath(); ctx.ellipse(0, -12, 14, 13, 0, 0, 7); ctx.fill();
+  ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  ctx.fillStyle = belly;
+  ctx.beginPath(); ctx.ellipse(3, -10, 7, 8, 0, 0, 7); ctx.fill();
+  // 2 chân trước
+  ctx.strokeStyle = fur; ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.moveTo(-3, -6); ctx.lineTo(-3, 0); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(7, -6); ctx.lineTo(7, 0); ctx.stroke();
+  // đầu
+  ctx.fillStyle = fur;
+  ctx.beginPath(); ctx.arc(4, -28, 11, 0, 7); ctx.fill();
+  ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  // 2 tai nhọn (1 bên khẽ cụp theo nhịp)
+  const twitch = Math.sin(t * 5 + phase * 3) > 0.86 ? 3 : 0;
+  ctx.fillStyle = fur;
+  ctx.beginPath(); ctx.moveTo(-4, -34); ctx.lineTo(-2, -44 + twitch); ctx.lineTo(4, -36); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(8, -36); ctx.lineTo(12, -44); ctx.lineTo(15, -34); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#f8bbd0';
+  ctx.beginPath(); ctx.moveTo(-2, -36.5); ctx.lineTo(-1, -41 + twitch); ctx.lineTo(3, -37); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(9.5, -37.5); ctx.lineTo(12, -41.5); ctx.lineTo(13.5, -36); ctx.closePath(); ctx.fill();
+  // mắt chớp + miệng meo (há ra khi tới lượt kêu)
+  const blink = Math.sin(t * 1.7 + phase * 4.1) > 0.94;
+  const meowing = Math.sin(t * 2.6 + phase * 5.3) > 0.72;
+  ctx.strokeStyle = '#2b2117'; ctx.lineWidth = 1.8;
+  if (blink) {
+    ctx.beginPath(); ctx.moveTo(0, -29); ctx.lineTo(5, -29); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(8, -29); ctx.lineTo(13, -29); ctx.stroke();
+  } else {
+    ctx.fillStyle = '#2b2117';
+    ctx.beginPath(); ctx.arc(2.5, -29, 1.9, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(10.5, -29, 1.9, 0, 7); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(3.1, -29.6, 0.7, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(11.1, -29.6, 0.7, 0, 7); ctx.fill();
+  }
+  ctx.fillStyle = '#ad1457';
+  if (meowing) {
+    ctx.beginPath(); ctx.ellipse(6.5, -23, 2.6, 3.4, 0, 0, 7); ctx.fill(); // há miệng kêu
+  } else {
+    ctx.beginPath(); ctx.moveTo(4.5, -24.5); ctx.lineTo(6.5, -23); ctx.lineTo(8.5, -24.5); ctx.stroke();
+  }
+  // ria mép
+  ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 1;
+  for (const s of [-1, 1]) {
+    ctx.beginPath(); ctx.moveTo(6.5 + s * 4, -25); ctx.lineTo(6.5 + s * 11, -27 + s); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(6.5 + s * 4, -23.5); ctx.lineTo(6.5 + s * 11, -23 + s); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+export function drawMimi(ctx: CanvasRenderingContext2D, SX: number, SY: number, W: number, H: number, age: number, seed: number, t: number) {
+  if (age < 0 || age > 4.4) return;
+  const N = 7;
+  const R = Math.max(W, H) * 0.55 + 60; // điểm xuất phát ngoài màn hình
+  const fade = age > 3.9 ? Math.max(0, 1 - (age - 3.9) / 0.5) : Math.min(1, age / 0.25);
+  ctx.save();
+  ctx.globalAlpha = fade;
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * Math.PI * 2 + seed; // hướng của mèo i
+    const ringR = 66 + (i % 3) * 13; // vòng ngồi quanh chủ
+    const delay = i * 0.09;
+    let px: number, py: number, hop = 0, running = false;
+    const tin = Math.min(1, Math.max(0, (age - delay) / 1.05));
+    if (tin < 1) {
+      // CHẠY VÀO từ mọi phía
+      const e = 1 - Math.pow(1 - tin, 2.6);
+      const d = R + (ringR - R) * e;
+      px = SX + Math.cos(a) * d;
+      py = SY + Math.sin(a) * d * 0.62 - 6;
+      running = true;
+    } else if (age < 3.45) {
+      // NGỒI VÂY QUANH: thở + ngọ nguậy + 1 con nhảy lên theo lượt
+      px = SX + Math.cos(a) * ringR;
+      py = SY + Math.sin(a) * ringR * 0.62 - 6;
+      const turn = Math.floor((age - 1.2) / 0.55) % N;
+      if (turn === i) hop = Math.abs(Math.sin((age - 1.2) * 11)) * 9;
+    } else {
+      // TẢN RA mọi phía
+      const p = Math.min(1, (age - 3.45) / 0.75);
+      const e = p * p;
+      const d = ringR + (R - ringR) * e;
+      px = SX + Math.cos(a) * d;
+      py = SY + Math.sin(a) * d * 0.62 - 6;
+      running = true;
+    }
+    const face = (px >= SX ? 1 : -1) as 1 | -1;
+    // vệt chạy + bụi khi đang phi
+    if (running) {
+      ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 2;
+      const bx = Math.cos(a), by = Math.sin(a) * 0.62;
+      for (let k = 1; k <= 2; k++) {
+        ctx.beginPath(); ctx.moveTo(px - bx * k * 16, py - by * k * 16 + 2); ctx.lineTo(px - bx * (k * 16 + 8), py - by * (k * 16 + 8) + 2); ctx.stroke();
+      }
+    }
+    drawMiniCat(ctx, px, py, face, i, t, seed + i * 1.3, hop);
+    // bóng thoại meo~ luân phiên 2 con
+    if (tin >= 1 && age < 3.45) {
+      const turn = Math.floor(age / 0.8) % N;
+      if (turn === i || (turn + 3) % N === i) {
+        ctx.font = "bold 11px 'Be Vietnam Pro', sans-serif"; ctx.textAlign = 'center';
+        const bobY = Math.sin(t * 6 + i) * 2;
+        ctx.fillStyle = 'rgba(255,255,255,.92)';
+        const label = i % 2 ? 'meo~' : 'meow!';
+        const ww = ctx.measureText(label).width + 12;
+        ctx.beginPath();
+        (ctx as CanvasRenderingContext2D & { roundRect?: (x: number, y: number, w: number, h: number, r: number) => void }).roundRect?.(px - ww / 2, py - 62 + bobY, ww, 17, 7);
+        ctx.fill();
+        ctx.fillStyle = '#ad1457';
+        ctx.fillText(label, px, py - 49 + bobY);
+      }
+    }
+  }
+  // tim bay + chữ khi đàn đã vây kín
+  if (age > 1.3 && age < 3.4) {
+    for (let i = 0; i < 3; i++) {
+      const ph = t * 2 + i * 2.1 + seed;
+      ctx.font = '15px serif'; ctx.textAlign = 'center';
+      ctx.fillText('💖', SX - 34 + i * 34 + Math.sin(ph) * 5, SY - 96 - ((ph * 10) % 20));
+    }
+    txt(ctx, 'MIMI VÀ ĐỒNG BỌN!', SX, SY - 118 + Math.sin(t * 4) * 2, 14, '#f8bbd0');
+  }
+  ctx.restore();
 }
 
 // ============================================================
@@ -2977,10 +3733,10 @@ export function renderWorld(ctx: CanvasRenderingContext2D, W: number, H: number,
   drawMailbox(ctx, PEN_MB.barn.x - cam.x, PEN_MB.barn.y - cam.y, t + 2, 'BÒ–HEO');
   // bảng tên khu (icon vẽ tay)
   drawWoodSign(ctx, FARM.x + FARM.w / 2 - cam.x, FARM.y - 34 - cam.y, 'RUỘNG', t, '#8b5a2b', 'sprout');
-  const coopN = s.animals.filter((a) => a.type === 'chicken' || a.type === 'duck').length;
-  const coopMax = s.coopCap.chicken + s.coopCap.duck;
+  const coopN = s.animals.filter((a) => COOP_TYPES.includes(a.type)).length;
+  const coopMax = COOP_TYPES.reduce((n, k) => n + (s.coopCap[k as keyof CoopCap] ?? 0), 0);
   const barnN = s.animals.length - coopN;
-  const barnMax = s.coopCap.cow + s.coopCap.pig + s.coopCap.sheep;
+  const barnMax = BARN_TYPES.reduce((n, k) => n + (s.coopCap[k as keyof CoopCap] ?? 0), 0);
   drawWoodSign(ctx, POND.x + POND.w / 2 - cam.x, POND.y - 34 - cam.y, `AO CÁ (${s.fishes.length}/${s.pondSlots})`, t + 1, '#0277bd', 'fish');
   drawWoodSign(ctx, COOP.x + COOP.w / 2 - cam.x, COOP.y - 34 - cam.y, `GÀ–VỊT (${coopN}/${coopMax})`, t + 2, '#8b5a2b', 'chicken');
   drawWoodSign(ctx, BARN.x + BARN.w / 2 - cam.x, BARN.y - 34 - cam.y, `BÒ–HEO–CỪU (${barnN}/${barnMax})`, t + 3, '#b71c1c', 'cow');
@@ -3137,7 +3893,7 @@ export function renderWorld(ctx: CanvasRenderingContext2D, W: number, H: number,
     ctx.lineWidth = 1; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
   }
 
-  // --- vật nuôi ---
+  // --- vật nuôi (đi lang thang random, xem systems.animalPos) ---
   s.animals.forEach((a) => {
     const p = animalPos(a, t);
     const X = p.x - cam.x, Y = p.y - cam.y;
@@ -3145,18 +3901,32 @@ export function renderWorld(ctx: CanvasRenderingContext2D, W: number, H: number,
     const A = ANIMALS[a.type];
     if (!A) return;
     const age01 = (nowMs - a.bornAt) / 1000 / A.grow;
-    const flip = Math.sin(t * 0.5 + a.uid) > 0;
-    drawAnimalDetailed(ctx, X, Y, a.type, age01, a.ready && age01 >= 1, a.hunger, t, a.uid, flip);
+    drawAnimalDetailed(ctx, X, Y, a.type, age01, a.ready && age01 >= 1, a.hunger, t, a.uid, p.flip, p.moving);
   });
 
   // --- thú cưng lang thang (2 chó + 3 mèo, không cần sở hữu) ---
-  drawPets(ctx, cam, W, H, t);
+  drawPets(ctx, cam, W, H, t, s.petFx ?? null, s.sit ? { x: s.sit.x, y: s.sit.y } : { x: s.player.x, y: s.player.y });
+  // --- Kem: mèo cam đi theo chủ (lệnh kemkem), farm nào cũng bám theo ---
+  if (s.kemPos) {
+    drawKem(ctx, cam, W, H, s.kemPos, t, s.petFx ?? null, s.sit ? { x: s.sit.x, y: s.sit.y } : { x: s.player.x, y: s.player.y });
+  }
+
+  // --- hành động đôi: 2 người cùng emote + đứng gần → lao vào nhau diễn ---
+  const pairActors: PairActor[] = [
+    { x: s.player.x, y: s.player.y, emote: s.selfEmote, at: s.selfEmoteAt ?? nowMs },
+    ...(s.visitors ?? []).map((v) => ({
+      x: v.x, y: v.y,
+      emote: v.self ? s.selfEmote : v.emote,
+      at: v.self ? (s.selfEmoteAt ?? nowMs) : (v.emoteAt ?? 0),
+    })),
+  ];
+  const pairRes = computePairOffsets(pairActors, nowMs, t);
 
   // --- người chơi ---
   if (s.sit) {
     drawSittingFisher(ctx, s.sit.x - cam.x, s.sit.y - cam.y, s.sit.bx - cam.x, s.sit.by - cam.y, s, t);
   } else {
-    const X = s.player.x - cam.x, Y = s.player.y - cam.y;
+    const X = s.player.x - cam.x + pairRes.offsets[0].dx, Y = s.player.y - cam.y + pairRes.offsets[0].dy;
     const shirt = SHIRTS[s.avatar % SHIRTS.length];
     drawPlayerDetailed(ctx, X, Y, s.player.dir, s.player.moving, shirt, s.player.name, t, s.outfit);
     if (s.player.tx != null && s.player.ty != null) {
@@ -3185,8 +3955,11 @@ export function renderWorld(ctx: CanvasRenderingContext2D, W: number, H: number,
 
   // người chơi khác
   if (s.visitors) {
+    let vi = 0;
     for (const v of s.visitors) {
-      const X = v.x - cam.x, Y = v.y - cam.y;
+      vi++;
+      const off = pairRes.offsets[vi] ?? { dx: 0, dy: 0 };
+      const X = v.x - cam.x + off.dx, Y = v.y - cam.y + off.dy;
       if (X < -60 || Y < -60 || X > W + 60 || Y > H + 60) continue;
       const shirt = SHIRTS[(v.avatar || 0) % SHIRTS.length];
       drawPlayerDetailed(ctx, X, Y, v.dir, v.moving, shirt, v.name, t + v.x * 0.01);
@@ -3207,7 +3980,7 @@ export function renderWorld(ctx: CanvasRenderingContext2D, W: number, H: number,
       }
       // emote realtime (công viên): emoji nảy trên đầu 4s + FX hành động
       const em = v.self ? s.selfEmote : v.emote;
-      const emAt = v.self ? nowMs : (v.emoteAt ?? 0);
+      const emAt = v.self ? (s.selfEmoteAt ?? nowMs) : (v.emoteAt ?? 0);
       if (em && nowMs - emAt < 4000) {
         const bounce = Math.abs(Math.sin(t * 6)) * -6;
         ctx.font = '28px serif';
@@ -3215,19 +3988,38 @@ export function renderWorld(ctx: CanvasRenderingContext2D, W: number, H: number,
         ctx.fillText(em.slice(0, 4), X + 22, Y - 58 + bounce);
         drawActionFx(ctx, X, Y, em, t);
       }
-      // dính trứng thối từ đứa ném pupu gần đó
-      if (s.visitors) {
-        for (const o of s.visitors) {
-          if (o === v) continue;
-          const oem = o.self ? s.selfEmote : o.emote;
-          const oat = o.self ? nowMs : (o.emoteAt ?? 0);
-          if (oem && oem.includes('🥚') && nowMs - oat < 4000) {
-            const d = Math.hypot((o.x - v.x), (o.y - v.y));
-            if (d < 220) { drawEggSplat(ctx, X, Y, t, v.x); break; }
+      // PUPU v2: ném trứng THẬT vào người đứng gần nhất (bay vòng cung → vỡ → dính bết)
+      // đứng một mình thì... tự ném tự dính cho vui
+      if (em && em.includes('🥚') && nowMs - emAt < 4000) {
+        let tv: { x: number; y: number } | null = null;
+        let bd = 420;
+        if (!v.self) {
+          const pd = Math.hypot(s.player.x - v.x, s.player.y - v.y);
+          if (pd >= 8 && pd < bd) { bd = pd; tv = { x: s.player.x, y: s.player.y }; }
+        }
+        if (s.visitors) {
+          for (const o of s.visitors) {
+            if (o === v) continue;
+            const d = Math.hypot(o.x - v.x, o.y - v.y);
+            if (d >= 8 && d < bd) { bd = d; tv = { x: o.x, y: o.y }; }
           }
         }
+        drawEggThrow(ctx, X, Y, tv ? { x: tv.x - cam.x, y: tv.y - cam.y } : { x: X, y: Y }, Math.max(0, (nowMs - emAt) / 1000), v.x * 0.37 + v.y * 0.73, t);
+      }
+      // KIKI: chó khổng lồ chạy quanh chủ rồi chạy đi / MIMI: đàn mèo vây quanh
+      if (em && em.includes('🐕') && nowMs - emAt < 4600) {
+        drawKiki(ctx, X, Y, W, Math.max(0, (nowMs - emAt) / 1000), v.x * 0.53 + v.y * 0.29, t);
+      }
+      if (em && em.includes('🐈') && nowMs - emAt < 4500) {
+        drawMimi(ctx, X, Y, W, H, Math.max(0, (nowMs - emAt) / 1000), (v.x + v.y) % 6.28, t);
       }
     }
+  }
+  // FX va chạm của các cặp hành động đôi (vẽ sau cùng để nổi lên trên)
+  for (const pr of pairRes.pairs) {
+    const A = pairActors[pr.a], B = pairActors[pr.b];
+    const oa = pairRes.offsets[pr.a], ob = pairRes.offsets[pr.b];
+    drawPairFx(ctx, A.x - cam.x + oa.dx, A.y - cam.y + oa.dy, B.x - cam.x + ob.dx, B.y - cam.y + ob.dy, pr.act, t);
   }
 
   // đom đóm + đèn bến ban đêm được vẽ trong lớp ngày/đêm

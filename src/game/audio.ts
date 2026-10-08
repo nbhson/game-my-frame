@@ -45,4 +45,12 @@ export const sfx = {
   cluck() { beep(800, 0.06); later(() => beep(1000, 0.06), 70); },
   /** chó sủa: 3 tiếng gâu gâu gâu trầm khàn */
   bark() { [220, 200, 240].forEach((f, i) => { later(() => beep(f, 0.12, 'square', 0.2, -60), i * 160); }); },
+  /** vuốt ve: tiếng ư ử dễ chịu */
+  pet() { beep(500, 0.15, 'sine', 0.16, 120); later(() => beep(650, 0.18, 'sine', 0.14, 150), 140); },
+  /** mèo kêu meo~ */
+  meow() { beep(700, 0.18, 'sine', 0.16, 300); later(() => beep(900, 0.22, 'sine', 0.12, -200), 180); },
+  /** vút tay ném (trứng bay) */
+  whoosh() { beep(280, 0.16, 'sine', 0.16, 480); },
+  /** trứng vỡ cái bẹp */
+  splat() { beep(260, 0.1, 'square', 0.2, -140); later(() => beep(170, 0.14, 'sawtooth', 0.12, -70), 60); },
 };

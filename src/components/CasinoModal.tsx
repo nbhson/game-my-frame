@@ -99,18 +99,24 @@ function Lobby() {
       </div>
 
       <div className="bg-white border-2 border-black rounded-xl px-3 py-2">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <span className="font-bold text-sm">Mức cược / ván (tối đa {maxOf} người)</span>
-          <span className="font-black text-amber-600">{bet} xu</span>
+          <span className="font-black text-amber-600 whitespace-nowrap">
+            <input
+              type="number" min={CASINO_MIN_BET} max={CASINO_MAX_BET} step={10} value={bet}
+              onChange={(e) => setBet(Math.max(CASINO_MIN_BET, Math.min(CASINO_MAX_BET, Math.round(Number(e.target.value) || CASINO_MIN_BET))))}
+              className="w-24 text-right border-2 border-amber-400 rounded-lg px-1 py-0.5 font-black text-amber-600"
+            /> xu
+          </span>
         </div>
         <input
-          type="range" min={CASINO_MIN_BET} max={CASINO_MAX_BET} step={5} value={bet}
+          type="range" min={CASINO_MIN_BET} max={CASINO_MAX_BET} step={10} value={bet}
           onChange={(e) => setBet(Number(e.target.value))}
           className="w-full accent-amber-500"
         />
         <div className="flex gap-2 mt-1">
-          {[10, 20, 50, 100].map((v) => (
-            <button key={v} onClick={() => setBet(v)} className={`flex-1 border-2 rounded-lg py-1 text-sm font-bold ${bet === v ? 'bg-amber-400 border-black' : 'bg-gray-100 border-gray-300'}`}>{v}</button>
+          {[10, 100, 500, 1000, 5000, 10000].map((v) => (
+            <button key={v} onClick={() => setBet(v)} className={`flex-1 border-2 rounded-lg py-1 text-sm font-bold ${bet === v ? 'bg-amber-400 border-black' : 'bg-gray-100 border-gray-300'}`}>{v >= 1000 ? `${v / 1000}k` : v}</button>
           ))}
         </div>
       </div>

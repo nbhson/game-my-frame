@@ -26,6 +26,8 @@ export interface AccountData {
   outfit?: Record<string, string>;
   ownedOutfits?: string[];
   quality?: GraphicsQuality;
+  viewH?: number;
+  kem?: boolean;
 }
 
 export interface AccountBackend {
@@ -134,7 +136,7 @@ export function exportAccount(): AccountData {
     stats: g.stats, questIdx: g.questIdx, uidSeq: g.uidSeq,
     redeemedCodes: g.redeemedCodes,
     outfit: g.outfit, ownedOutfits: g.ownedOutfits,
-    quality: g.quality,
+    quality: g.quality, viewH: g.viewH, kem: g.kem,
   };
 }
 

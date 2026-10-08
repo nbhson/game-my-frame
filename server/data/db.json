@@ -1,0 +1,3035 @@
+{
+ "accounts": {
+  "nbhson": {
+   "username": "nbhson",
+   "name": "nbhson",
+   "avatar": 0,
+   "code": "QRJA4H",
+   "data": {
+    "name": "nbhson",
+    "avatar": 0,
+    "xu": 6242236,
+    "gem": 10020,
+    "level": 15,
+    "xp": 105,
+    "day": 86,
+    "dayTime": 0.11083374999999852,
+    "inv": {
+     "babyfish:caro": 119,
+     "babyfish:cachep": 113,
+     "seed:lua": 67,
+     "seed:carot": 87,
+     "seed:caixanh": 98,
+     "bait": 191,
+     "pesticide": 262,
+     "seed:cachua": 52,
+     "seed:khoai": 95,
+     "seed:bap": 72,
+     "seed:dualeo": 100,
+     "seed:catim": 100,
+     "seed:dautay": 100,
+     "seed:duahau": 100,
+     "seed:nho": 100,
+     "seed:bingo": 100,
+     "seed:caphe": 100,
+     "seed:nam": 100,
+     "seed:sam": 100,
+     "babyfish:tom": 105,
+     "babyfish:cua": 100,
+     "babyfish:caloc": 100,
+     "babyfish:cakoi": 100,
+     "babyfish:bachtuoc": 100,
+     "babyfish:camap": 100,
+     "baitPro": 162,
+     "catre": 1,
+     "lua": 9,
+     "feed": 0,
+     "feedPro": 108,
+     "sua": 13,
+     "thit": 8,
+     "trungvit": 3,
+     "trung": 28,
+     "carot": 8,
+     "khoai": 1,
+     "caixanh": 5,
+     "bap": 3
+    },
+    "plots": [
+     {
+      "state": "growing",
+      "crop": "bap",
+      "progress": 0.2367552631578952,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "bap",
+      "progress": 0.2367552631578952,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "bap",
+      "progress": 0.2367552631578952,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "bap",
+      "progress": 0.2367552631578952,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "bap",
+      "progress": 0.2367552631578952,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "bap",
+      "progress": 0.2367552631578952,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "bap",
+      "progress": 0.2367552631578952,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "bap",
+      "progress": 0.2367552631578952,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "bap",
+      "progress": 0.2367552631578952,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "bap",
+      "progress": 0.2367552631578952,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "bap",
+      "progress": 0.2367552631578952,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "bap",
+      "progress": 0.2367552631578952,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "bap",
+      "progress": 0.1492110526315777,
+      "watered": true,
+      "waterLeft": 16.649900000000663,
+      "locked": false,
+      "pest": true
+     },
+     {
+      "state": "growing",
+      "crop": "bap",
+      "progress": 0.18149210526315773,
+      "watered": true,
+      "waterLeft": 10.51650000000058,
+      "locked": false,
+      "pest": true
+     },
+     {
+      "state": "growing",
+      "crop": "bap",
+      "progress": 0.2367552631578952,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "bap",
+      "progress": 0.2367552631578952,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "bap",
+      "progress": 0.2367552631578952,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "bap",
+      "progress": 0.11324578947368281,
+      "watered": true,
+      "waterLeft": 23.483300000000703,
+      "locked": false,
+      "pest": true
+     },
+     {
+      "state": "growing",
+      "crop": "bap",
+      "progress": 0.1963168421052631,
+      "watered": true,
+      "waterLeft": 7.6998000000006135,
+      "locked": false,
+      "pest": true
+     },
+     {
+      "state": "growing",
+      "crop": "bap",
+      "progress": 0.2367552631578952,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "bap",
+      "progress": 0.2367552631578952,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "bap",
+      "progress": 0.2367552631578952,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "bap",
+      "progress": 0.2367552631578952,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "bap",
+      "progress": 0.2367552631578952,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "bap",
+      "progress": 0.2367552631578952,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     }
+    ],
+    "fishes": [
+     {
+      "uid": 4,
+      "type": "caro",
+      "age": 90.00260000000185,
+      "grown": true,
+      "hunger": 55.4496999999999
+     },
+     {
+      "uid": 5,
+      "type": "caro",
+      "age": 90.00350000000186,
+      "grown": true,
+      "hunger": 55.4496999999999
+     },
+     {
+      "uid": 6,
+      "type": "cachep",
+      "age": 131.80280000000428,
+      "grown": false,
+      "hunger": 0
+     },
+     {
+      "uid": 11,
+      "type": "caro",
+      "age": 90.00850000000199,
+      "grown": true,
+      "hunger": 55.4496999999999
+     },
+     {
+      "uid": 12,
+      "type": "cachep",
+      "age": 131.8079000000045,
+      "grown": false,
+      "hunger": 0
+     },
+     {
+      "uid": 13,
+      "type": "tom",
+      "age": 156.8077000000058,
+      "grown": false,
+      "hunger": 0
+     },
+     {
+      "uid": 14,
+      "type": "caro",
+      "age": 90.000000000002,
+      "grown": true,
+      "hunger": 55.49980000000011
+     },
+     {
+      "uid": 15,
+      "type": "cachep",
+      "age": 131.79950000000434,
+      "grown": false,
+      "hunger": 0
+     }
+    ],
+    "animals": [
+     {
+      "uid": 1,
+      "type": "chicken",
+      "bornAt": 1791396287889,
+      "hunger": 0,
+      "productT": 34.066900000000096,
+      "ready": false
+     },
+     {
+      "uid": 2,
+      "type": "chicken",
+      "bornAt": 1791396288240,
+      "hunger": 0,
+      "productT": 34.066900000000096,
+      "ready": false
+     },
+     {
+      "uid": 3,
+      "type": "chicken",
+      "bornAt": 1791396288639,
+      "hunger": 0,
+      "productT": 34.066900000000096,
+      "ready": false
+     },
+     {
+      "uid": 7,
+      "type": "cow",
+      "bornAt": 1791402304791,
+      "hunger": 0,
+      "productT": 50.38449999999927,
+      "ready": false
+     },
+     {
+      "uid": 8,
+      "type": "cow",
+      "bornAt": 1791402305457,
+      "hunger": 0,
+      "productT": 50.38449999999927,
+      "ready": false
+     },
+     {
+      "uid": 9,
+      "type": "pig",
+      "bornAt": 1791402306701,
+      "hunger": 0,
+      "productT": 50.38449999999927,
+      "ready": false
+     },
+     {
+      "uid": 10,
+      "type": "pig",
+      "bornAt": 1791402307150,
+      "hunger": 0,
+      "productT": 34.066900000000096,
+      "ready": false
+     },
+     {
+      "uid": 16,
+      "type": "duck",
+      "bornAt": 1791471758373,
+      "hunger": 0,
+      "productT": 55.01640000000005,
+      "ready": true
+     },
+     {
+      "uid": 17,
+      "type": "duck",
+      "bornAt": 1791471758537,
+      "hunger": 0,
+      "productT": 55.00809999999984,
+      "ready": true
+     },
+     {
+      "uid": 18,
+      "type": "duck",
+      "bornAt": 1791471758703,
+      "hunger": 0,
+      "productT": 50.38449999999927,
+      "ready": false
+     },
+     {
+      "uid": 19,
+      "type": "duck",
+      "bornAt": 1791471758866,
+      "hunger": 0,
+      "productT": 55.01620000000002,
+      "ready": true
+     },
+     {
+      "uid": 20,
+      "type": "duck",
+      "bornAt": 1791471759032,
+      "hunger": 0,
+      "productT": 55.01620000000005,
+      "ready": true
+     },
+     {
+      "uid": 21,
+      "type": "pig",
+      "bornAt": 1791471762938,
+      "hunger": 0,
+      "productT": 61.20019999999884,
+      "ready": false
+     },
+     {
+      "uid": 22,
+      "type": "cow",
+      "bornAt": 1791471764434,
+      "hunger": 0,
+      "productT": 69.84189999999927,
+      "ready": false
+     },
+     {
+      "uid": 23,
+      "type": "cow",
+      "bornAt": 1791471769263,
+      "hunger": 0,
+      "productT": 34.066900000000096,
+      "ready": false
+     },
+     {
+      "uid": 24,
+      "type": "cow",
+      "bornAt": 1791471769572,
+      "hunger": 0,
+      "productT": 75.00760000000038,
+      "ready": true
+     },
+     {
+      "uid": 25,
+      "type": "cow",
+      "bornAt": 1791471769710,
+      "hunger": 0,
+      "productT": 34.066900000000096,
+      "ready": false
+     },
+     {
+      "uid": 26,
+      "type": "cow",
+      "bornAt": 1791471769883,
+      "hunger": 0,
+      "productT": 75.00860000000041,
+      "ready": true
+     },
+     {
+      "uid": 27,
+      "type": "cow",
+      "bornAt": 1791471770012,
+      "hunger": 0,
+      "productT": 50.38449999999927,
+      "ready": false
+     },
+     {
+      "uid": 28,
+      "type": "cow",
+      "bornAt": 1791471770146,
+      "hunger": 0,
+      "productT": 34.066900000000096,
+      "ready": false
+     },
+     {
+      "uid": 29,
+      "type": "cow",
+      "bornAt": 1791471770238,
+      "hunger": 0,
+      "productT": 51.916899999999224,
+      "ready": false
+     },
+     {
+      "uid": 30,
+      "type": "cow",
+      "bornAt": 1791471770406,
+      "hunger": 0,
+      "productT": 50.38449999999927,
+      "ready": false
+     },
+     {
+      "uid": 31,
+      "type": "pig",
+      "bornAt": 1791471771257,
+      "hunger": 0,
+      "productT": 83.72530000000162,
+      "ready": false
+     },
+     {
+      "uid": 32,
+      "type": "pig",
+      "bornAt": 1791471771411,
+      "hunger": 0,
+      "productT": 150.0001000000104,
+      "ready": true
+     },
+     {
+      "uid": 33,
+      "type": "pig",
+      "bornAt": 1791471771555,
+      "hunger": 0,
+      "productT": 34.066900000000096,
+      "ready": false
+     },
+     {
+      "uid": 34,
+      "type": "pig",
+      "bornAt": 1791471771704,
+      "hunger": 0,
+      "productT": 29.017700000000072,
+      "ready": false
+     },
+     {
+      "uid": 35,
+      "type": "pig",
+      "bornAt": 1791471771845,
+      "hunger": 0,
+      "productT": 34.066900000000096,
+      "ready": false
+     },
+     {
+      "uid": 36,
+      "type": "chicken",
+      "bornAt": 1791471776639,
+      "hunger": 0,
+      "productT": 34.066900000000096,
+      "ready": false
+     },
+     {
+      "uid": 37,
+      "type": "chicken",
+      "bornAt": 1791471776823,
+      "hunger": 0,
+      "productT": 29.017700000000072,
+      "ready": false
+     },
+     {
+      "uid": 38,
+      "type": "chicken",
+      "bornAt": 1791471776997,
+      "hunger": 0,
+      "productT": 34.066900000000096,
+      "ready": false
+     },
+     {
+      "uid": 39,
+      "type": "chicken",
+      "bornAt": 1791471777164,
+      "hunger": 0,
+      "productT": 34.066900000000096,
+      "ready": false
+     },
+     {
+      "uid": 40,
+      "type": "chicken",
+      "bornAt": 1791471777315,
+      "hunger": 0,
+      "productT": 34.066900000000096,
+      "ready": false
+     },
+     {
+      "uid": 41,
+      "type": "chicken",
+      "bornAt": 1791471777482,
+      "hunger": 0,
+      "productT": 34.066900000000096,
+      "ready": false
+     },
+     {
+      "uid": 42,
+      "type": "chicken",
+      "bornAt": 1791471777621,
+      "hunger": 0,
+      "productT": 34.066900000000096,
+      "ready": false
+     },
+     {
+      "uid": 43,
+      "type": "duck",
+      "bornAt": 1791471780570,
+      "hunger": 0,
+      "productT": 50.38449999999927,
+      "ready": false
+     },
+     {
+      "uid": 44,
+      "type": "duck",
+      "bornAt": 1791471780742,
+      "hunger": 0,
+      "productT": 55.01620000000031,
+      "ready": true
+     },
+     {
+      "uid": 45,
+      "type": "duck",
+      "bornAt": 1791471780948,
+      "hunger": 0,
+      "productT": 55.01620000000035,
+      "ready": true
+     },
+     {
+      "uid": 46,
+      "type": "duck",
+      "bornAt": 1791471781113,
+      "hunger": 0,
+      "productT": 55.01619999999962,
+      "ready": true
+     },
+     {
+      "uid": 47,
+      "type": "duck",
+      "bornAt": 1791471781262,
+      "hunger": 0,
+      "productT": 55.01629999999971,
+      "ready": true
+     },
+     {
+      "uid": 48,
+      "type": "duck",
+      "bornAt": 1791472110308,
+      "hunger": 0,
+      "productT": 55.016099999999966,
+      "ready": true
+     },
+     {
+      "uid": 49,
+      "type": "duck",
+      "bornAt": 1791472110440,
+      "hunger": 0,
+      "productT": 50.38449999999927,
+      "ready": false
+     },
+     {
+      "uid": 50,
+      "type": "duck",
+      "bornAt": 1791472110608,
+      "hunger": 0,
+      "productT": 55.00789999999975,
+      "ready": true
+     },
+     {
+      "uid": 51,
+      "type": "chicken",
+      "bornAt": 1791472112621,
+      "hunger": 0,
+      "productT": 45.00019999999928,
+      "ready": true
+     },
+     {
+      "uid": 52,
+      "type": "chicken",
+      "bornAt": 1791472112777,
+      "hunger": 0,
+      "productT": 34.066900000000096,
+      "ready": false
+     },
+     {
+      "uid": 53,
+      "type": "chicken",
+      "bornAt": 1791472112955,
+      "hunger": 0,
+      "productT": 34.066900000000096,
+      "ready": false
+     },
+     {
+      "uid": 54,
+      "type": "chicken",
+      "bornAt": 1791472113124,
+      "hunger": 0,
+      "productT": 34.066900000000096,
+      "ready": false
+     },
+     {
+      "uid": 55,
+      "type": "chicken",
+      "bornAt": 1791472113303,
+      "hunger": 0,
+      "productT": 34.066900000000096,
+      "ready": false
+     },
+     {
+      "uid": 56,
+      "type": "chicken",
+      "bornAt": 1791472113456,
+      "hunger": 0,
+      "productT": 45.00119999999948,
+      "ready": true
+     },
+     {
+      "uid": 57,
+      "type": "chicken",
+      "bornAt": 1791472113648,
+      "hunger": 0,
+      "productT": 45.00119999999948,
+      "ready": true
+     },
+     {
+      "uid": 58,
+      "type": "chicken",
+      "bornAt": 1791472113851,
+      "hunger": 0,
+      "productT": 34.066900000000096,
+      "ready": false
+     },
+     {
+      "uid": 59,
+      "type": "chicken",
+      "bornAt": 1791472114025,
+      "hunger": 0,
+      "productT": 45.00119999999948,
+      "ready": true
+     },
+     {
+      "uid": 60,
+      "type": "chicken",
+      "bornAt": 1791472114193,
+      "hunger": 0,
+      "productT": 45.00119999999948,
+      "ready": true
+     },
+     {
+      "uid": 61,
+      "type": "chicken",
+      "bornAt": 1791472114358,
+      "hunger": 0,
+      "productT": 34.066900000000096,
+      "ready": false
+     },
+     {
+      "uid": 62,
+      "type": "chicken",
+      "bornAt": 1791472114526,
+      "hunger": 0,
+      "productT": 45.01689999999941,
+      "ready": true
+     },
+     {
+      "uid": 63,
+      "type": "chicken",
+      "bornAt": 1791472114692,
+      "hunger": 0,
+      "productT": 45.01689999999941,
+      "ready": true
+     },
+     {
+      "uid": 65,
+      "type": "chicken",
+      "bornAt": 1791472115013,
+      "hunger": 0,
+      "productT": 45.01689999999941,
+      "ready": true
+     },
+     {
+      "uid": 66,
+      "type": "chicken",
+      "bornAt": 1791472115184,
+      "hunger": 0,
+      "productT": 45.001099999999816,
+      "ready": true
+     },
+     {
+      "uid": 67,
+      "type": "chicken",
+      "bornAt": 1791472115332,
+      "hunger": 0,
+      "productT": 45.01689999999941,
+      "ready": true
+     },
+     {
+      "uid": 68,
+      "type": "chicken",
+      "bornAt": 1791472115488,
+      "hunger": 0,
+      "productT": 45.01689999999941,
+      "ready": true
+     },
+     {
+      "uid": 69,
+      "type": "chicken",
+      "bornAt": 1791472115649,
+      "hunger": 0,
+      "productT": 45.01689999999941,
+      "ready": true
+     },
+     {
+      "uid": 70,
+      "type": "chicken",
+      "bornAt": 1791472115831,
+      "hunger": 0,
+      "productT": 45.001099999999816,
+      "ready": true
+     },
+     {
+      "uid": 71,
+      "type": "cow",
+      "bornAt": 1791472120088,
+      "hunger": 0,
+      "productT": 29.017700000000072,
+      "ready": false
+     },
+     {
+      "uid": 72,
+      "type": "cow",
+      "bornAt": 1791472120237,
+      "hunger": 0,
+      "productT": 29.017700000000072,
+      "ready": false
+     },
+     {
+      "uid": 73,
+      "type": "cow",
+      "bornAt": 1791472120395,
+      "hunger": 0,
+      "productT": 29.017700000000072,
+      "ready": false
+     },
+     {
+      "uid": 74,
+      "type": "cow",
+      "bornAt": 1791472120561,
+      "hunger": 0,
+      "productT": 29.017700000000072,
+      "ready": false
+     },
+     {
+      "uid": 75,
+      "type": "cow",
+      "bornAt": 1791472120688,
+      "hunger": 0,
+      "productT": 75.00120000000122,
+      "ready": true
+     },
+     {
+      "uid": 76,
+      "type": "cow",
+      "bornAt": 1791472120807,
+      "hunger": 0,
+      "productT": 71.5668999999999,
+      "ready": false
+     },
+     {
+      "uid": 77,
+      "type": "pig",
+      "bornAt": 1791472124911,
+      "hunger": 0,
+      "productT": 150.00760000000417,
+      "ready": true
+     },
+     {
+      "uid": 78,
+      "type": "pig",
+      "bornAt": 1791472125125,
+      "hunger": 0,
+      "productT": 150.0086000000041,
+      "ready": true
+     },
+     {
+      "uid": 79,
+      "type": "pig",
+      "bornAt": 1791472125298,
+      "hunger": 0,
+      "productT": 126.91690000000484,
+      "ready": false
+     },
+     {
+      "uid": 80,
+      "type": "pig",
+      "bornAt": 1791472125455,
+      "hunger": 0,
+      "productT": 150.00860000000412,
+      "ready": true
+     },
+     {
+      "uid": 81,
+      "type": "pig",
+      "bornAt": 1791472125632,
+      "hunger": 0,
+      "productT": 109.06690000000481,
+      "ready": false
+     },
+     {
+      "uid": 82,
+      "type": "pig",
+      "bornAt": 1791472125789,
+      "hunger": 0,
+      "productT": 109.06690000000481,
+      "ready": false
+     },
+     {
+      "uid": 83,
+      "type": "pig",
+      "bornAt": 1791472125942,
+      "hunger": 0,
+      "productT": 109.06690000000481,
+      "ready": false
+     }
+    ],
+    "pondSlots": 8,
+    "coopCap": {
+     "chicken": 30,
+     "duck": 15,
+     "cow": 17,
+     "pig": 15,
+     "sheep": 3,
+     "cut": 4,
+     "bocau": 3,
+     "rabbit": 3,
+     "goose": 3,
+     "ong": 3,
+     "goat": 3,
+     "buffalo": 3
+    },
+    "stats": {
+     "hoed": 25,
+     "planted": 198,
+     "watered": 248,
+     "harvested": 173,
+     "boughtAnimal": 75,
+     "fed": 490,
+     "collectedAnimal": 154,
+     "stockedFish": 8,
+     "earned": 6319481,
+     "fished": 11
+    },
+    "questIdx": 10,
+    "uidSeq": 84,
+    "quality": "high"
+   },
+   "updatedAt": 1791480928059
+  },
+  "admin": {
+   "username": "admin",
+   "name": "admin",
+   "avatar": 0,
+   "code": "R6D7UH",
+   "data": {
+    "name": "admin",
+    "avatar": 0,
+    "xu": 620,
+    "gem": 5,
+    "level": 1,
+    "xp": 22,
+    "day": 11,
+    "dayTime": 0.5914870833333623,
+    "weather": "sunny",
+    "weatherLeft": 25.22119999999549,
+    "inv": {
+     "seed:lua": 4,
+     "feed": 4,
+     "bait": 4
+    },
+    "plots": [
+     {
+      "state": "soil",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "soil",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "soil",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "soil",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     }
+    ],
+    "fishes": [],
+    "animals": [],
+    "pondSlots": 3,
+    "coopCap": {
+     "chicken": 3,
+     "duck": 3,
+     "cow": 3,
+     "pig": 3,
+     "sheep": 3
+    },
+    "stats": {
+     "hoed": 4,
+     "planted": 0,
+     "watered": 0,
+     "harvested": 0,
+     "boughtAnimal": 0,
+     "fed": 0,
+     "collectedAnimal": 0,
+     "stockedFish": 0,
+     "earned": 120,
+     "fished": 0
+    },
+    "questIdx": 1,
+    "uidSeq": 1
+   },
+   "updatedAt": 1791401935851
+  },
+  "testuser123": {
+   "username": "testuser123",
+   "name": "T",
+   "avatar": 0,
+   "code": "59RTYN",
+   "data": {
+    "xu": 1,
+    "plots": [
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "growing",
+      "crop": "lua",
+      "progress": 0.5,
+      "watered": true,
+      "waterLeft": 10,
+      "locked": false,
+      "pest": false
+     }
+    ]
+   },
+   "updatedAt": 1791402003003
+  },
+  "bí mè": {
+   "username": "bí mè",
+   "name": "Bí mè",
+   "avatar": 0,
+   "code": "KRGHZH",
+   "data": {
+    "name": "Bí mè",
+    "avatar": 0,
+    "xu": 100069,
+    "gem": 10009,
+    "level": 4,
+    "xp": 338,
+    "day": 9,
+    "dayTime": 0.9407416666667655,
+    "inv": {
+     "seed:lua": 93,
+     "feed": 86,
+     "bait": 104,
+     "lua": 111,
+     "seed:carot": 92,
+     "carot": 108,
+     "seed:caixanh": 100,
+     "caixanh": 100,
+     "seed:cachua": 100,
+     "cachua": 100,
+     "seed:khoai": 100,
+     "khoai": 100,
+     "seed:bap": 100,
+     "bap": 100,
+     "seed:dualeo": 100,
+     "dualeo": 100,
+     "seed:catim": 100,
+     "catim": 100,
+     "seed:dautay": 100,
+     "dautay": 100,
+     "seed:duahau": 100,
+     "duahau": 100,
+     "seed:nho": 100,
+     "nho": 100,
+     "seed:bingo": 100,
+     "bingo": 100,
+     "seed:caphe": 100,
+     "caphe": 100,
+     "seed:nam": 100,
+     "nam": 100,
+     "seed:sam": 100,
+     "sam": 100,
+     "babyfish:caro": 98,
+     "caro": 100,
+     "babyfish:cachep": 100,
+     "cachep": 100,
+     "babyfish:tom": 100,
+     "tom": 100,
+     "babyfish:cua": 100,
+     "cua": 100,
+     "babyfish:caloc": 100,
+     "caloc": 100,
+     "babyfish:cakoi": 100,
+     "cakoi": 100,
+     "babyfish:bachtuoc": 100,
+     "bachtuoc": 100,
+     "babyfish:camap": 100,
+     "camap": 100,
+     "feedPro": 100,
+     "baitPro": 100,
+     "pesticide": 97,
+     "trung": 103,
+     "trungvit": 100,
+     "sua": 100,
+     "thit": 100,
+     "len": 100,
+     "ung": 100,
+     "rong": 100
+    },
+    "plots": [
+     {
+      "state": "soil",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "soil",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "soil",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "soil",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "soil",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "soil",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     }
+    ],
+    "fishes": [
+     {
+      "uid": 1,
+      "type": "caro",
+      "age": 19.98599999999966,
+      "grown": false,
+      "hunger": 0
+     },
+     {
+      "uid": 2,
+      "type": "caro",
+      "age": 19.984999999999665,
+      "grown": false,
+      "hunger": 0
+     }
+    ],
+    "animals": [
+     {
+      "uid": 4,
+      "type": "chicken",
+      "bornAt": 1791471383313,
+      "hunger": 28.403199999995792,
+      "productT": 45.0060000000001,
+      "ready": true
+     },
+     {
+      "uid": 5,
+      "type": "chicken",
+      "bornAt": 1791471383646,
+      "hunger": 24.440999999995704,
+      "productT": 45.005000000000074,
+      "ready": true
+     },
+     {
+      "uid": 6,
+      "type": "chicken",
+      "bornAt": 1791471384180,
+      "hunger": 46.997599999995835,
+      "productT": 45.004000000000055,
+      "ready": true
+     },
+     {
+      "uid": 7,
+      "type": "chicken",
+      "bornAt": 1791471388998,
+      "hunger": 26.863199999995764,
+      "productT": 45.00500000000006,
+      "ready": true
+     }
+    ],
+    "pondSlots": 3,
+    "coopCap": {
+     "chicken": 6,
+     "duck": 3,
+     "cow": 3,
+     "pig": 3,
+     "sheep": 3
+    },
+    "stats": {
+     "hoed": 6,
+     "planted": 19,
+     "watered": 10,
+     "harvested": 19,
+     "boughtAnimal": 5,
+     "fed": 18,
+     "collectedAnimal": 3,
+     "stockedFish": 2,
+     "earned": 100549,
+     "fished": 0
+    },
+    "questIdx": 9,
+    "uidSeq": 8,
+    "quality": "low"
+   },
+   "updatedAt": 1791471806645
+  },
+  "haoleee": {
+   "username": "haoleee",
+   "name": "Haoleee",
+   "avatar": 0,
+   "code": "3Q9774",
+   "data": {
+    "name": "Haoleee",
+    "avatar": 0,
+    "xu": 500,
+    "gem": 5,
+    "level": 1,
+    "xp": 0,
+    "day": 1,
+    "dayTime": 0.39456666666667894,
+    "weather": "sunny",
+    "weatherLeft": 67.30400000000078,
+    "inv": {
+     "seed:lua": 4,
+     "feed": 4,
+     "bait": 4
+    },
+    "plots": [
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": false,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     },
+     {
+      "state": "grass",
+      "crop": null,
+      "progress": 0,
+      "watered": false,
+      "waterLeft": 0,
+      "locked": true,
+      "pest": false
+     }
+    ],
+    "fishes": [],
+    "animals": [],
+    "pondSlots": 3,
+    "coopCap": {
+     "chicken": 3,
+     "duck": 3,
+     "cow": 3,
+     "pig": 3,
+     "sheep": 3
+    },
+    "stats": {
+     "hoed": 0,
+     "planted": 0,
+     "watered": 0,
+     "harvested": 0,
+     "boughtAnimal": 0,
+     "fed": 0,
+     "collectedAnimal": 0,
+     "stockedFish": 0,
+     "earned": 0,
+     "fished": 0
+    },
+    "questIdx": 0,
+    "uidSeq": 1,
+    "redeemedCodes": []
+   },
+   "updatedAt": 1791466045783
+  }
+ }
+}

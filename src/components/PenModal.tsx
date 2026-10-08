@@ -7,8 +7,8 @@ export type PenId = 'pond' | 'coop' | 'barn';
 
 const PEN_META: Record<PenId, { title: string; icon: string; types: AnimalType[] }> = {
   pond: { title: 'AO CÁ', icon: 'pond', types: [] },
-  coop: { title: 'CHUỒNG GÀ–VỊT', icon: 'chicken', types: ['chicken', 'duck'] },
-  barn: { title: 'TRẠI BÒ–HEO–CỪU', icon: 'cow', types: ['cow', 'pig', 'sheep'] },
+  coop: { title: 'CHUỒNG GÀ–VỊT', icon: 'chicken', types: ['chicken', 'duck', 'cut', 'bocau', 'rabbit', 'goose', 'ong'] },
+  barn: { title: 'TRẠI BÒ–HEO–CỪU', icon: 'cow', types: ['cow', 'pig', 'sheep', 'goat', 'buffalo'] },
 };
 
 export default function PenModal({ pen }: { pen: PenId }) {

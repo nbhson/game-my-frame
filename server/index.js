@@ -163,7 +163,7 @@ function emitSoon() {
 }
 
 // ================= CASINO rooms (authoritative, LAN) =================
-// bet 10..100 xu/ván. Server giữ bài + lượt + thắng thua; client tự trừ/cộng xu theo kết quả.
+// bet 10..10000 xu/ván. Server giữ bài + lượt + thắng thua; client tự trừ/cộng xu theo kết quả.
 const casinoRooms = new Map(); // roomId -> room
 const socketToRoom = new Map(); // socket.id -> roomId
 const CASINO_IDCHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -807,10 +807,17 @@ function chOrder(bd, moves) {
     .sort((a, b) => b.s - a.s)
     .map((x) => x.m);
 }
-function chSearch(bd, castling, depth, alpha, beta, color) {
-  const moves = chOrder(bd, chLegal(bd, color, castling, null));
+function chSearch(bd, castling, depth, alpha, beta, color, budget) {
+  if (budget.stopped) return 0;
+  if (++budget.nodes > budget.limit || Date.now() > budget.deadline) {
+    budget.stopped = true;
+    return 0;
+  }
+  const all = chOrder(bd, chLegal(bd, color, castling, null));
+  const moves = all.length > 18 && depth > 0 ? all.slice(0, depth >= 2 ? 12 : 18) : all;
   if (!moves.length) {
     const k = chFindKing(bd, color);
+    if (!k) return 0;
     return chAttacked(bd, k[0], k[1], chOpp(color)) ? -100000 - depth : 0;
   }
   if (depth === 0) return (color === 'w' ? 1 : -1) * chEval(bd);
@@ -818,31 +825,43 @@ function chSearch(bd, castling, depth, alpha, beta, color) {
   for (const mv of moves) {
     const nb = bd.map((row) => row.slice());
     chDoMove(nb, mv);
-    const score = -chSearch(nb, castling, depth - 1, -beta, -alpha, chOpp(color));
+    const score = -chSearch(nb, castling, depth - 1, -beta, -alpha, chOpp(color), budget);
+    if (budget.stopped) return 0;
     if (score > best) best = score;
     if (best > alpha) alpha = best;
     if (alpha >= beta) break;
   }
   return best;
 }
+function chAnyMove(st, pid) {
+  const color = chColorOf(st, pid);
+  if (!color || st.turn !== pid || st.winner || st.draw) return null;
+  const moves = chLegal(st.board, color, st.castling, st.ep);
+  return moves[0] || null;
+}
 function chBot(st, pid) {
   const color = chColorOf(st, pid);
   if (!color || st.turn !== pid || st.winner || st.draw) return null;
   const moves = chOrder(st.board, chLegal(st.board, color, st.castling, st.ep));
   if (!moves.length) return null;
+  if (moves.length === 1) return moves[0];
   let pieces = 0;
   for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) if (st.board[r][c]) pieces++;
-  const depth = pieces <= 10 ? 3 : 2;
+  const depth = pieces <= 8 ? 3 : 2;
+  const cands = moves.length > 16 ? moves.slice(0, 16) : moves;
+  const budget = { nodes: 0, limit: 6000, deadline: Date.now() + 700, stopped: false };
   let best = [];
   let bestScore = -Infinity;
-  for (const mv of moves) {
+  for (const mv of cands) {
     const nb = st.board.map((row) => row.slice());
     chDoMove(nb, mv);
-    const score = -chSearch(nb, st.castling, depth - 1, -Infinity, Infinity, chOpp(color)) + Math.random() * 12;
+    const score = -chSearch(nb, st.castling, depth - 1, -Infinity, Infinity, chOpp(color), budget) + Math.random() * 12;
+    if (budget.stopped) break;
     if (score > bestScore + 0.001) { bestScore = score; best = [mv]; }
     else if (Math.abs(score - bestScore) < 25) best.push(mv);
   }
-  return best.length ? best[(Math.random() * best.length) | 0] : null;
+  if (best.length) return best[(Math.random() * best.length) | 0];
+  return cands[0] || moves[0] || null;
 }
 function casinoSkipTurn(room, pid) {
   const st = room.state;
@@ -1068,7 +1087,7 @@ function casinoAutoTimeout(room) {
   }
   if (room.game === 'chess') {
     if (st.winner || st.draw) return false;
-    const mv = chBot(st, st.turn);
+    const mv = chBot(st, st.turn) || chAnyMove(st, st.turn);
     if (!mv) return false;
     const next = chApply(st, st.turn, mv.f, mv.t, mv.pr);
     if (!next) return false;
@@ -1126,7 +1145,7 @@ function casinoMaybeBot(room) {
     setTimeout(() => {
       if (room.status !== 'playing' || st.phase !== 'play') return;
       if (st.turn !== cur.pid) return;
-      if (!xdBotAuto(st, cur.pid)) return;
+      if (!xdBotAuto(st, cur.pid)) xdStand(st, cur.pid); // phòng hờ: ép dằn để ván không kẹt
       if (st.phase === 'done') {
         room.status = 'finished'; room.winners = st.winners || [];
         room.updatedAt = Date.now();
@@ -1142,7 +1161,7 @@ function casinoMaybeBot(room) {
     setTimeout(() => {
       if (room.status !== 'playing' || st.winner || st.draw) return;
       if (st.turn !== cur.pid) return;
-      const mv = chBot(st, cur.pid);
+      const mv = chBot(st, cur.pid) || chAnyMove(st, cur.pid);
       if (mv) {
         const next = chApply(st, cur.pid, mv.f, mv.t, mv.pr);
         if (next) {
@@ -1157,6 +1176,21 @@ function casinoMaybeBot(room) {
       io.emit('casino:rooms', casinoPublic());
       casinoMaybeBot(room);
     }, 700);
+  } else if (room.game === 'baicao') {
+    // bot bài cào: tự lật từng đứa cho khỏi chờ hết giờ
+    const cur = room.players.find((x) => x.bot && !st.revealed.includes(x.pid));
+    if (!cur) return;
+    setTimeout(() => {
+      if (room.status !== 'playing') return;
+      if (!st.revealed.includes(cur.pid)) {
+        st.revealed.push(cur.pid);
+        if (st.revealed.length >= st.order.length) casinoFinishBaiCao(room);
+        else room.updatedAt = Date.now();
+      }
+      io.to('casino:' + room.id).emit('casino:state', room);
+      io.emit('casino:rooms', casinoPublic());
+      casinoMaybeBot(room);
+    }, 800);
   }
 }
 function tlBotPick(st, pid) {
@@ -1302,7 +1336,7 @@ io.on('connection', (socket) => {
   });
   socket.on('casino:create', (p = {}) => {
     const game = ['tienlen', 'baicao', 'caro', 'xidach', 'chess'].includes(p.game) ? p.game : 'tienlen';
-    const bet = Math.max(10, Math.min(100, Number(p.bet) || 10));
+    const bet = Math.max(10, Math.min(10000, Number(p.bet) || 10));
     const me = casinoPlayerFrom(socket, myId, { ...(p.player || {}), pid: p.pid });
     leaveCasinoRoom(socket, me.pid);
     const room = casinoNewRoom(game, bet, me);

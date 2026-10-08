@@ -1,6 +1,6 @@
 // ===== Interact system: tìm đối tượng gần player nhất =====
 import type { Animal, InteractTarget, PondFish } from './types';
-import { ANIMALS, CROPS, FISHES, plotCost, plotReq } from './data';
+import { ANIMALS, COOP_TYPES, CROPS, FISHES, plotCost, plotReq } from './data';
 import { BARN, COOP, PEN_MB, PIERS, SHOPD, POND, ROAD_H, ROAD_V, TOWN_GATE, isBlocked, pondInner, plotPos, RIVER_WATER_Y, roadHCenter, roadVCenter } from './world';
 import { FARM_GATE, TOWN_PROPS, farmGateCenter } from './town';
 
@@ -12,14 +12,55 @@ export interface InteractCtx {
   animals: Animal[];
   pesticide: number; // số thuốc trừ sâu trong kho (hiện trong nhãn)
   now: number; t: number;
+  /** Kem — mèo cam đi theo chủ (lệnh kemkem). null = chưa triệu hồi */
+  kem?: { x: number; y: number } | null;
 }
 
-export function animalPos(a: Animal, t: number) {
-  const home = a.type === 'chicken' || a.type === 'duck' ? COOP : BARN;
-  const cx = home.x + home.w / 2, cy = home.y + home.h / 2;
-  const wx = Math.sin(t * 0.5 + a.uid) * (home.w / 2 - 50);
-  const wy = Math.cos(t * 0.35 + a.uid * 2) * (home.h / 2 - 50);
-  return { x: cx + wx, y: cy + wy };
+/** uid riêng của Kem (kênh pet E + petFx dùng chung với thú farm) */
+export const KEM_UID = 301;
+
+/** hash giả ngẫu nhiên ổn định 0..1 — waypoint không nhảy khi re-render */
+function hash01(seed: number): number {
+  let h = (seed * 2654435761) | 0;
+  h ^= h >>> 15; h = Math.imul(h, 2246822519); h ^= h >>> 13;
+  return ((h >>> 0) % 10000) / 10000;
+}
+
+/** Chuồng của từng loài: nhỏ ở chuồng gà–vịt, lớn ở trại bò–heo–cừu */
+export function animalHome(type: string) {
+  return COOP_TYPES.includes(type) ? COOP : BARN;
+}
+
+function animalWaypoint(uid: number, seg: number, home: { x: number; y: number; w: number; h: number }) {
+  const rx = hash01(uid * 131 + seg * 2 + 7);
+  const ry = hash01(uid * 131 + seg * 2 + 8 + 1000);
+  const mx = 52, my = 46;
+  return {
+    x: home.x + mx + rx * Math.max(20, home.w - mx * 2),
+    y: home.y + my + ry * Math.max(20, home.h - my * 2),
+  };
+}
+
+/** Thú nuôi đi lang thang RANDOM trong chuồng (waypoint ngẫu nhiên theo uid, nghỉ chân mỗi chặng).
+ *  Thuần hàm theo (uid, t) nên mọi máy thấy cùng vị trí, không cần đồng bộ mạng. */
+export function animalPos(a: Animal, t: number): { x: number; y: number; flip: boolean; moving: boolean } {
+  const home = animalHome(a.type);
+  const SEG = 8 + hash01(a.uid * 7 + 3) * 5; // mỗi chặng 8–13s, khác nhau từng con
+  const tt = Math.max(0, t);
+  const seg = Math.floor(tt / SEG);
+  const k = (tt - seg * SEG) / SEG; // 0..1 trong chặng
+  const p0 = animalWaypoint(a.uid, seg, home);
+  const p1 = animalWaypoint(a.uid, seg + 1, home);
+  // nghỉ chân đầu chặng rồi mới đi (tỉ lệ nghỉ khác nhau từng con)
+  const rest = 0.15 + hash01(a.uid * 13 + 5) * 0.25;
+  const kk = k < rest ? 0 : (k - rest) / (1 - rest);
+  const e = kk <= 0 ? 0 : kk >= 1 ? 1 : kk * kk * (3 - 2 * kk); // smoothstep
+  // đi vòng nhẹ cho tự nhiên (cong đường đi)
+  const bend = Math.sin(e * Math.PI) * (hash01(a.uid * 29 + seg) - 0.5) * 46;
+  const x = p0.x + (p1.x - p0.x) * e;
+  const y = p0.y + (p1.y - p0.y) * e + bend * 0.4;
+  const moving = kk > 0 && kk < 1;
+  return { x, y, flip: p1.x >= p0.x, moving };
 }
 
 /** Vị trí bơi của 1 con cá trong ao vuông (tự do — không chia ngăn) */
@@ -172,6 +213,14 @@ export function nearestInteract(c: InteractCtx): InteractTarget | null {
       best = { kind: 'animal', uid: a.uid, label }; bd = d;
     }
   });
+  // --- thú cưng: đứng gần chó/mèo → xoa đầu / vuốt ve ---
+  const pet = nearestPet(c.px, c.py, c.t);
+  if (pet && pet.d < 95 && pet.d < bd) { best = pet.target; bd = pet.d; }
+  // --- Kem: mèo cam đi theo chủ (model mèo farm, vuốt ve được như pet) ---
+  if (c.kem) {
+    const d = Math.hypot(c.px - c.kem.x, c.py - c.kem.y);
+    if (d < 95 && d < bd) { best = { kind: 'pet', uid: KEM_UID, label: 'Vuốt ve Kem' }; bd = d; }
+  }
   // --- shop ---
   {
     const sx = SHOPD.x + SHOPD.w / 2, sy = SHOPD.y + SHOPD.h + 40;
@@ -186,6 +235,21 @@ export function nearestInteract(c: InteractCtx): InteractTarget | null {
   }
   void RIVER_WATER_Y;
   return best;
+}
+
+/** Thú cưng gần người nhất (để xoa đầu / vuốt ve) — dùng cả ở farm mình lẫn farm đang thăm */
+export function nearestPet(px: number, py: number, t: number): { target: InteractTarget; d: number } | null {
+  let best: InteractTarget | null = null;
+  let bd = Infinity;
+  for (const pet of PETS) {
+    const p = petPos(pet, t);
+    const d = Math.hypot(px - p.x, py - p.y);
+    if (d < bd) {
+      bd = d;
+      best = { kind: 'pet', uid: pet.uid, label: pet.kind === 'dog' ? `Xoa đầu ${pet.name}` : `Vuốt ve ${pet.name}` };
+    }
+  }
+  return best ? { target: best, d: bd } : null;
 }
 
 /** Ô chín có thể hái trộm trong farm đang thăm (chỉ ô ready, đứng gần mới hái được) */
@@ -210,7 +274,7 @@ export function nearestStealPlot(
 }
 
 /** Interact trong công viên: cổng về farm + các điểm check-in */
-export function nearestTownInteract(c: { px: number; py: number }): InteractTarget | null {
+export function nearestTownInteract(c: { px: number; py: number; kem?: { x: number; y: number } | null }): InteractTarget | null {
   let best: InteractTarget | null = null;
   let bd = 120;
   {
@@ -221,6 +285,11 @@ export function nearestTownInteract(c: { px: number; py: number }): InteractTarg
   for (const p of TOWN_PROPS) {
     const d = Math.hypot(c.px - p.x, c.py - p.y);
     if (d < 100 && d < bd) { best = { kind: 'townProp', propId: p.id, label: p.label }; bd = d; }
+  }
+  // Kem đi theo chủ ra cả công viên → vuốt ve được ở đây luôn
+  if (c.kem) {
+    const d = Math.hypot(c.px - c.kem.x, c.py - c.kem.y);
+    if (d < 95 && d < bd) { best = { kind: 'pet', uid: KEM_UID, label: 'Vuốt ve Kem' }; bd = d; }
   }
   void FARM_GATE;
   return best;

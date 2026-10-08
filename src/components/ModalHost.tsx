@@ -11,6 +11,8 @@ import SeedModal from './SeedModal';
 import StockModal from './StockModal';
 import BaitModal from './BaitModal';
 import PenModal from './PenModal';
+import BulkModal from './BulkModal';
+import WerewolfModal from './WerewolfModal';
 import GiftCodeModal from './GiftCodeModal';
 import OutfitModal from './OutfitModal';
 import SettingsModal from './SettingsModal';
@@ -50,6 +52,8 @@ export default function ModalHost() {
     title = modal.pen === 'pond' ? 'AO CÁ' : modal.pen === 'coop' ? 'CHUỒNG GÀ–VỊT' : 'TRẠI BÒ–HEO–CỪU';
     body = <PenModal pen={modal.pen} />;
   }
+  else if (typeof modal === 'object' && modal.name === 'bulk') { icon = 'basket'; title = '⚡ LÀM HÀNG LOẠT'; body = <BulkModal />; }
+  else if (typeof modal === 'object' && modal.name === 'wolf') { icon = 'quest'; title = '🐺 MA SÓI CÔNG VIÊN'; body = <WerewolfModal />; }
 
   return (
     <AnimatePresence>

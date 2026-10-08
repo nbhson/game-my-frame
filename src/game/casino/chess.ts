@@ -489,10 +489,20 @@ function orderMoves(bd: ChessBoard, moves: ChessMove[]): ChessMove[] {
 
 function negamax(
   ctx: SearchCtx, depth: number, alpha: number, beta: number, color: ChessColor,
+  budget: SearchBudget,
 ): number {
-  const moves = orderMoves(ctx.bd, allLegalBoard(ctx.bd, color, ctx.castling, ctx.ep));
+  // hết ngân sách (số node / thời gian) → dừng, trả về heuristic nông để không treo máy
+  if (budget.stopped) return 0;
+  if (++budget.nodes > budget.limit || Date.now() > budget.deadline) {
+    budget.stopped = true;
+    return 0;
+  }
+  // cắt tỉa bề rộng: tàn cuộc ít quân mới xét hết, còn lại chỉ top nước tốt
+  const all = orderMoves(ctx.bd, allLegalBoard(ctx.bd, color, ctx.castling, ctx.ep));
+  const moves = all.length > 18 && depth > 0 ? all.slice(0, depth >= 2 ? 12 : 18) : all;
   if (!moves.length) {
-    const k = findKing(ctx.bd, color)!;
+    const k = findKing(ctx.bd, color);
+    if (!k) return 0;
     return isAttacked(ctx.bd, k[0], k[1], opp(color)) ? -100000 - depth : 0;
   }
   if (depth === 0) return (color === 'w' ? 1 : -1) * evaluate(ctx.bd);
@@ -504,8 +514,9 @@ function negamax(
     doMove(bd, mv);
     const score = -negamax(
       { bd, castling: ctx.castling, ep: null, half: mover.t === 'p' || captured ? 0 : ctx.half + 1 },
-      depth - 1, -beta, -alpha, opp(color),
+      depth - 1, -beta, -alpha, opp(color), budget,
     );
+    if (budget.stopped) return 0; // bỏ kết quả dở dang
     if (score > best) best = score;
     if (best > alpha) alpha = best;
     if (alpha >= beta) break;
@@ -513,31 +524,48 @@ function negamax(
   return best;
 }
 
-/** AI chọn nước: tàn cuộc (< 10 quân) sâu 3, còn lại sâu 2 + chút ngẫu nhiên */
+interface SearchBudget { nodes: number; limit: number; deadline: number; stopped: boolean }
+
+/** AI chọn nước: tàn cuộc (≤ 8 quân) sâu 3, còn lại sâu 2 + chút ngẫu nhiên.
+ *  Có ngân sách node + thời gian (~700ms) và LUÔN trả về nước hợp lệ (không bao giờ treo ván). */
 export function chessBotMove(st: ChessState, pid: string): ChessMove | null {
   const color = colorOf(st, pid);
   if (!color || st.turn !== pid || st.winner || st.draw) return null;
   const moves = orderMoves(st.board, allLegalBoard(st.board, color, st.castling, st.ep));
   if (!moves.length) return null;
+  if (moves.length === 1) return moves[0]; // chỉ 1 nước → đi ngay, khỏi search
   let pieces = 0;
   for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) if (st.board[r][c]) pieces++;
-  const depth = pieces <= 10 ? 3 : 2;
+  const depth = pieces <= 8 ? 3 : 2;
+  // tàn cuộc đông nước đi (hậu/xe tung hoành) cũng chỉ xét top nước triển vọng
+  const cands = moves.length > 16 ? moves.slice(0, 16) : moves;
+  const budget: SearchBudget = { nodes: 0, limit: 6000, deadline: Date.now() + 700, stopped: false };
   let best: ChessMove[] = [];
   let bestScore = -Infinity;
-  for (const mv of moves) {
+  for (const mv of cands) {
     const bd = st.board.map((row) => row.slice());
     const mover = bd[mv.f[0]][mv.f[1]]!;
     const captured = bd[mv.t[0]][mv.t[1]];
     doMove(bd, mv);
     const score = -negamax(
       { bd, castling: st.castling, ep: null, half: 0 },
-      depth - 1, -Infinity, Infinity, opp(color),
+      depth - 1, -Infinity, Infinity, opp(color), budget,
     ) + Math.random() * 12;
     void mover; void captured;
+    if (budget.stopped) break; // hết giờ → dùng kết quả đã có
     if (score > bestScore + 0.001) { bestScore = score; best = [mv]; }
     else if (Math.abs(score - bestScore) < 25) best.push(mv);
   }
-  return best.length ? best[(Math.random() * best.length) | 0] : null;
+  if (best.length) return best[(Math.random() * best.length) | 0];
+  return cands[0] ?? moves[0] ?? null; // fallback: nước hợp lệ đầu tiên, ván không bao giờ kẹt
+}
+
+/** Nước hợp lệ bất kỳ của pid (cho trọng tài tự đi khi bot hết giờ / lỗi — chống kẹt ván) */
+export function chessAnyMove(st: ChessState, pid: string): ChessMove | null {
+  const color = colorOf(st, pid);
+  if (!color || st.turn !== pid || st.winner || st.draw) return null;
+  const moves = allLegalBoard(st.board, color, st.castling, st.ep);
+  return moves[0] ?? null;
 }
 
 /** quân bị ăn (cho UI hiển thị): lostW = quân Trắng mất, lostB = quân Đen mất */

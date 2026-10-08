@@ -374,12 +374,25 @@ export function drawFish(ctx: CanvasRenderingContext2D, x: number, y: number, le
       ctx.beginPath(); ctx.moveTo(len * 0.42, 3); ctx.lineTo(len * 0.52, 3); ctx.lineTo(len * 0.47, 5.5); ctx.closePath(); ctx.fill();
       break;
     }
-    default: { // caro xanh (mặc định)
-      fishTail(ctx, -len / 2, len, 13, '#1565c0');
-      fishBody(ctx, len, 14, '#42a5f5', '#e1f5fe');
-      ctx.fillStyle = '#1e88e5';
+    default: { // cá thường + loài mới: nhuộm màu theo id để phân biệt trong ao
+      let hh = 0;
+      for (let k = 0; k < id.length; k++) hh = (hh * 31 + id.charCodeAt(k)) | 0;
+      const PAL: [string, string, string][] = [
+        ['#1565c0', '#42a5f5', '#e1f5fe'], // caro xanh
+        ['#ad1457', '#f48fb1', '#fce4ec'], // diêu hồng
+        ['#37474f', '#90a4ae', '#eceff1'], // trê xám
+        ['#558b2f', '#9ccc65', '#f1f8e9'], // lươn rêu
+        ['#1b5e20', '#43a047', '#c8e6c9'], // ếch xanh
+        ['#bf360c', '#ff8a65', '#fbe9e7'], // hồi cam
+        ['#7f0000', '#e53935', '#ffcdd2'], // tôm hùm đỏ
+        ['#e65100', '#ffb74d', '#fff3e0'], // vàng cam
+      ];
+      const pal = id === 'caro' ? PAL[0] : PAL[1 + (Math.abs(hh) % (PAL.length - 1))];
+      fishTail(ctx, -len / 2, len, 13, pal[0]);
+      fishBody(ctx, len, 14, pal[1], pal[2]);
+      ctx.fillStyle = pal[0];
       ctx.beginPath(); ctx.moveTo(-3, -7); ctx.lineTo(3, -12); ctx.lineTo(6, -6); ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = 'rgba(13,71,161,.4)'; ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(-len * 0.3, 0); ctx.lineTo(len * 0.3, 0); ctx.stroke();
       eye(len * 0.32, -2, 2.8);
       break;

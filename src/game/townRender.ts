@@ -7,7 +7,7 @@ import {
   TOWN, TOWN_BOARD, TOWN_CAFE, TOWN_CASINO, TOWN_HALL, TOWN_HOUSE1, TOWN_HOUSE2,
   TOWN_SHOP, TOWN_STAGE, farmGateCenter,
 } from './town';
-import { drawActionFx, drawEggSplat, drawPlayerDetailed, type VisitorDraw } from './render';
+import { computePairOffsets, drawActionFx, drawEggThrow, drawKem, drawKiki, drawMimi, drawPairFx, drawPlayerDetailed, type PairActor, type VisitorDraw } from './render';
 import { drawMoon, drawSparkle, drawSun, setFxLow } from './icons';
 
 export interface TownRenderState {
@@ -18,6 +18,12 @@ export interface TownRenderState {
   visitors?: VisitorDraw[];
   selfBubble?: string;
   selfEmote?: string;
+  /** mốc giờ tự bấm emote (để animation theo thời gian chạy đúng cho chính mình) */
+  selfEmoteAt?: number;
+  /** Kem — mèo cam đi theo chủ (lệnh kemkem) */
+  kemPos?: { x: number; y: number; moving: boolean; flip: boolean; sitting: boolean } | null;
+  /** hiệu ứng vuốt ve pet (để Kem có tim + tay người ở công viên) */
+  petFx?: { uid: number; at: number } | null;
   outfit?: Record<string, string>;
   /** cấp đồ họa (đồng bộ với farm) */
   quality?: GraphicsQuality;
@@ -1621,7 +1627,7 @@ function drawCasino(ctx: CanvasRenderingContext2D, cam: { x: number; y: number }
   ctx.globalAlpha = 1;
   txt(ctx, label, cx, by + 25, 22, '#fff');
   txt(ctx, 'TIẾN LÊN • BÀI CÀO • CARO', cx, by + 50, 10, '#ffe9a8');
-  namePill(ctx, cx, Y + b.h + 14, 'Casino (cược 10-100 xu)');
+  namePill(ctx, cx, Y + b.h + 14, 'Casino (cược 10-10k xu)');
   if (night) {
     const g = ctx.createRadialGradient(cx, Y + 60, 4, cx, Y + 60, 150);
     g.addColorStop(0, 'rgba(255,120,200,.28)'); g.addColorStop(1, 'rgba(255,120,200,0)');
@@ -1696,8 +1702,18 @@ export function renderTown(ctx: CanvasRenderingContext2D, W: number, H: number, 
 
   // --- người chơi + làng ---
   const nowMs = Date.now();
+  // hành động đôi: 2 người cùng emote + đứng gần → lao vào nhau diễn hoạt ảnh
+  const pairActors: PairActor[] = [
+    { x: s.player.x, y: s.player.y, emote: s.selfEmote, at: s.selfEmoteAt ?? nowMs },
+    ...(s.visitors ?? []).map((v) => ({
+      x: v.x, y: v.y,
+      emote: v.self ? s.selfEmote : v.emote,
+      at: v.self ? (s.selfEmoteAt ?? nowMs) : (v.emoteAt ?? 0),
+    })),
+  ];
+  const pairRes = computePairOffsets(pairActors, nowMs, t);
   {
-    const X = s.player.x - cam.x, Y = s.player.y - cam.y;
+    const X = s.player.x - cam.x + pairRes.offsets[0].dx, Y = s.player.y - cam.y + pairRes.offsets[0].dy;
     const shirt = shirtColorOf(s.outfit, SHIRTS[s.avatar % SHIRTS.length]);
     drawPlayerDetailed(ctx, X, Y, s.player.dir, s.player.moving, shirt, s.player.name, t, s.outfit);
     if (s.player.tx != null && s.player.ty != null) {
@@ -1708,8 +1724,11 @@ export function renderTown(ctx: CanvasRenderingContext2D, W: number, H: number, 
     }
   }
   if (s.visitors) {
+    let vi = 0;
     for (const v of s.visitors) {
-      const X = v.x - cam.x, Y = v.y - cam.y;
+      vi++;
+      const off = pairRes.offsets[vi] ?? { dx: 0, dy: 0 };
+      const X = v.x - cam.x + off.dx, Y = v.y - cam.y + off.dy;
       if (X < -60 || Y < -60 || X > W + 60 || Y > H + 60) continue;
       const shirt = SHIRTS[(v.avatar || 0) % SHIRTS.length];
       drawPlayerDetailed(ctx, X, Y, v.dir, v.moving, shirt, v.name, t + v.x * 0.01);
@@ -1729,7 +1748,7 @@ export function renderTown(ctx: CanvasRenderingContext2D, W: number, H: number, 
         ctx.fillText(bub.slice(0, 26), bx, by - 1);
       }
       const em = v.self ? s.selfEmote : v.emote;
-      const emAt = v.self ? nowMs : (v.emoteAt ?? 0);
+      const emAt = v.self ? (s.selfEmoteAt ?? nowMs) : (v.emoteAt ?? 0);
       if (em && nowMs - emAt < 4000) {
         const bounce = Math.abs(Math.sin(t * 6)) * -6;
         ctx.font = '28px serif';
@@ -1737,18 +1756,41 @@ export function renderTown(ctx: CanvasRenderingContext2D, W: number, H: number, 
         ctx.fillText(em.slice(0, 4), X + 22, Y - 58 + bounce);
         drawActionFx(ctx, X, Y, em, t);
       }
-      // dính trứng thối từ đứa ném pupu gần đó
-      if (s.visitors) {
-        for (const o of s.visitors) {
-          if (o === v) continue;
-          const oem = o.self ? s.selfEmote : o.emote;
-          const oat = o.self ? nowMs : (o.emoteAt ?? 0);
-          if (oem && oem.includes('🥚') && nowMs - oat < 4000) {
-            if (Math.hypot(o.x - v.x, o.y - v.y) < 220) { drawEggSplat(ctx, X, Y, t, v.x); break; }
+      // PUPU v2: ném trứng THẬT vào người đứng gần nhất (bay vòng cung → vỡ → dính bết)
+      // đứng một mình thì... tự ném tự dính cho vui
+      if (em && em.includes('🥚') && nowMs - emAt < 4000) {
+        let tv: { x: number; y: number } | null = null;
+        let bd = 420;
+        if (!v.self) {
+          const pd = Math.hypot(s.player.x - v.x, s.player.y - v.y);
+          if (pd >= 8 && pd < bd) { bd = pd; tv = { x: s.player.x, y: s.player.y }; }
+        }
+        if (s.visitors) {
+          for (const o of s.visitors) {
+            if (o === v) continue;
+            const d = Math.hypot(o.x - v.x, o.y - v.y);
+            if (d >= 8 && d < bd) { bd = d; tv = { x: o.x, y: o.y }; }
           }
         }
+        drawEggThrow(ctx, X, Y, tv ? { x: tv.x - cam.x, y: tv.y - cam.y } : { x: X, y: Y }, Math.max(0, (nowMs - emAt) / 1000), v.x * 0.37 + v.y * 0.73, t);
+      }
+      // KIKI: chó khổng lồ chạy quanh chủ rồi chạy đi / MIMI: đàn mèo vây quanh
+      if (em && em.includes('🐕') && nowMs - emAt < 4600) {
+        drawKiki(ctx, X, Y, W, Math.max(0, (nowMs - emAt) / 1000), v.x * 0.53 + v.y * 0.29, t);
+      }
+      if (em && em.includes('🐈') && nowMs - emAt < 4500) {
+        drawMimi(ctx, X, Y, W, H, Math.max(0, (nowMs - emAt) / 1000), (v.x + v.y) % 6.28, t);
       }
     }
+  }
+  // Kem: mèo cam đi theo chủ ra cả công viên (vẽ sau người, trước FX va chạm)
+  if (s.kemPos) {
+    drawKem(ctx, cam, W, H, s.kemPos, t, s.petFx ?? null, { x: s.player.x, y: s.player.y });
+  }
+  // FX va chạm của các cặp hành động đôi
+  for (const pr of pairRes.pairs) {    const A = pairActors[pr.a], B = pairActors[pr.b];
+    const oa = pairRes.offsets[pr.a], ob = pairRes.offsets[pr.b];
+    drawPairFx(ctx, A.x - cam.x + oa.dx, A.y - cam.y + oa.dy, B.x - cam.x + ob.dx, B.y - cam.y + ob.dy, pr.act, t);
   }
 
   // --- ngày/đêm + thời tiết ---

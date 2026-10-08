@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Send, Tractor } from 'lucide-react';
 import { QUESTS } from '../game/data';
 import { useGame } from '../game/store';
 import { TOWN_EMOTES } from '../game/town';
 import type { InteractTarget } from '../game/types';
-import { doInteractWith, goToFarm } from './GameCanvas';
-import { useVillage } from '../net/village';
+import { doInteractWith, goToFarm, playerRef } from './GameCanvas';
+import { useVillage, visiblePlayers } from '../net/village';
 import { GameIcon } from './GameIcon';
 
 export default function BottomBar({ target }: { target: InteractTarget | null }) {
@@ -17,6 +17,7 @@ export default function BottomBar({ target }: { target: InteractTarget | null })
 function FarmBottomBar({ target }: { target: InteractTarget | null }) {
   const inv = useGame((s) => s.inv);
   const questIdx = useGame((s) => s.questIdx);
+  const setModal = useGame((s) => s.setModal);
   const cur = QUESTS[Math.min(questIdx, QUESTS.length - 1)];
 
   const seedTotal = Object.keys(inv).filter((k) => k.startsWith('seed:')).reduce((a, k) => a + inv[k], 0);
@@ -44,6 +45,13 @@ function FarmBottomBar({ target }: { target: InteractTarget | null }) {
           className="h-[52px] px-4 rounded-lg bg-yellow-300 border-[3px] border-black font-black text-lg hover:bg-yellow-200 active:scale-95 max-md:hidden"
         >
           E
+        </button>
+        <button
+          onClick={() => setModal({ name: 'bulk' })}
+          className="h-[52px] px-3 rounded-lg bg-orange-400 border-[3px] border-black font-black text-sm text-white hover:bg-orange-300 active:scale-95 whitespace-nowrap"
+          title="Làm hàng loạt: gieo/tưới/phun/thu cả farm, cho ăn cả đàn 1 chạm"
+        >
+          ⚡ Hàng loạt
         </button>
       </div>
       <div className="flex-1 bg-[#fff8dc] border-2 border-yellow-300 rounded-lg px-3 py-1.5 text-[13px] font-semibold truncate flex items-center gap-1.5">
@@ -100,7 +108,7 @@ function TownBottomBar({ target }: { target: InteractTarget | null }) {
         {TOWN_EMOTES.map((e) => (
           <button
             key={e.id}
-            title={e.label}
+            title={`${e.label} — đứng gần bạn + cùng bấm để diễn chung!`}
             onClick={() => sendEmote(e.emoji)}
             className="w-[44px] h-[44px] text-xl bg-white border-[3px] border-black rounded-lg hover:scale-110 active:scale-95 transition-transform"
           >
@@ -108,6 +116,27 @@ function TownBottomBar({ target }: { target: InteractTarget | null }) {
           </button>
         ))}
       </div>
+      <PairHint />
+    </div>
+  );
+}
+
+/** Gợi ý hành động đôi: đứng gần ai thì rủ cùng bấm emote để diễn hoạt ảnh chung */
+function PairHint() {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((x) => x + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const now = Date.now();
+  const near = visiblePlayers(now, 'town').filter(
+    (p) => Math.hypot(p.x - playerRef.x, p.y - playerRef.y) < 260,
+  );
+  if (!near.length) return null;
+  const names = near.slice(0, 2).map((p) => p.name).join(', ');
+  return (
+    <div className="basis-full text-[11px] font-bold text-yellow-200 animate-pulse">
+      Đứng gần {names} — rủ cùng bấm 🥊 🤗 🤝 💋 👋 để 2 người diễn chung!
     </div>
   );
 }

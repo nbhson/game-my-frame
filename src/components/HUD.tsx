@@ -1,6 +1,6 @@
-import { Backpack, CircleHelp, Gift, MessageCircle, ScrollText, Settings, Store, Tractor, Users, Volume2, VolumeX } from 'lucide-react';
+import { Backpack, CircleHelp, Gift, MessageCircle, ScrollText, Settings, Store, Tractor, Users, Volume2, VolumeX, ZoomIn, ZoomOut } from 'lucide-react';
 import { useState } from 'react';
-import { xpNeed, useGame, WEATHER_LABEL } from '../game/store';
+import { VIEW_H_DEFAULT, xpNeed, useGame, WEATHER_LABEL } from '../game/store';
 import { townCount, useVillage } from '../net/village';
 import { isSoundOn, setSoundOn } from '../game/audio';
 import { GameIcon } from './GameIcon';
@@ -62,6 +62,9 @@ export default function HUD() {
             <button className="pixel-btn !text-[11px] !bg-purple-600 !text-white flex items-center gap-1" title="Mở Casino (Tiến lên • Bài cào • Xì dách • Caro • Cờ vua)" onClick={() => s.setModal('casino')}>
               🎰 Casino
             </button>
+            <button className="pixel-btn !text-[11px] !bg-red-600 !text-white flex items-center gap-1" title="Ma sói 5–12 người (đêm hành động, ngày bỏ phiếu)" onClick={() => s.setModal({ name: 'wolf' })}>
+              🐺 Ma sói
+            </button>
             <button className="pixel-btn !text-[11px] !bg-pink-500 !text-white flex items-center gap-1" title="Shop thời trang (áo quần nón tóc giày)" onClick={() => s.setModal('outfit')}>
               👗 Thời trang
             </button>
@@ -102,6 +105,20 @@ export default function HUD() {
             <button className="icon-btn !text-black" title="Trợ giúp (H)" onClick={() => s.setModal('help')}><CircleHelp size={20} /></button>
           </>
         )}
+        <button className="icon-btn !text-black" title="Thu khung nhìn (nhìn rộng hơn) — phím −" onClick={() => s.setViewH(s.viewH + 70)}>
+          <ZoomOut size={20} />
+        </button>
+        <button className="icon-btn !text-black" title="Phóng khung nhìn (nhìn gần hơn) — phím +" onClick={() => s.setViewH(s.viewH - 70)}>
+          <ZoomIn size={20} />
+        </button>
+        <button
+          className="icon-btn !text-black !text-[10px] font-black hidden sm:flex"
+          style={{ width: 'auto', padding: '0 6px' }}
+          title={`Độ xa khung nhìn hiện tại (${s.viewH}). Bấm để về mặc định ${VIEW_H_DEFAULT}.`}
+          onClick={() => s.setViewH(VIEW_H_DEFAULT)}
+        >
+          {Math.round((s.viewH / VIEW_H_DEFAULT) * 100)}%
+        </button>
         <button className="icon-btn !text-black" title="Cài đặt (đồ họa, âm thanh)" onClick={() => s.setModal('settings')}>
           <Settings size={20} />
         </button>

@@ -2,7 +2,7 @@
 // 2 chế độ:
 // - socket (LAN server): server/index.js làm trọng tài (khuyên dùng, nhiều máy)
 // - local (2 tab cùng máy / chơi với máy): BroadcastChannel + chủ phòng làm trọng tài
-// Cược: 10-100 xu/ván. Trừ khi vào phòng chờ start? — thực tế trừ khi ván bắt đầu,
+// Cược: 10-10000 xu/ván. Trừ khi vào phòng chờ start? — thực tế trừ khi ván bắt đầu,
 // thắng nhận pot = bet * số người (chia đều nếu hòa), hòa caro hoàn cược.
 import { create } from 'zustand';
 import { io, type Socket } from 'socket.io-client';
@@ -13,13 +13,13 @@ import { applyPass, applyPlay, botPick, newTienLenGame, validatePlay, type TienL
 import { findBaiCaoWinners, newBaiCaoGame, type BaiCaoState } from '../game/casino/baicao';
 import { applyCaroMove, caroBotMove, newCaroGame, type CaroState } from '../game/casino/caro';
 import { applyXiDachHit, applyXiDachStand, botXiDachAuto, newXiDachGame, removeXiDachPlayer, type XiDachState } from '../game/casino/xidach';
-import { applyChessMove, chessBotMove, chessResign, newChessGame, type ChessState } from '../game/casino/chess';
+import { applyChessMove, chessAnyMove, chessBotMove, chessResign, newChessGame, type ChessState } from '../game/casino/chess';
 // dùng chung detect LAN đã memoize (socket.ts) — không fetch riêng lẻ
 import { lanServerAvailable as lanAvailable } from './socket';
 
 export type CasinoGame = 'tienlen' | 'baicao' | 'caro' | 'xidach' | 'chess';
 export const CASINO_MIN_BET = 10;
-export const CASINO_MAX_BET = 100;
+export const CASINO_MAX_BET = 10000;
 /** Mỗi lượt 30s, vòng lật bài cào 45s — hết giờ tự đánh (đồng bộ với server) */
 export const CASINO_TURN_MS = 30000;
 export const CASINO_BAICAO_MS = 45000;
@@ -817,8 +817,22 @@ function startBotLoop() {
       const mv = botPick(s, cur.pid);
       if (mv) host.state = applyPlay(s, cur.pid, mv);
       else if (s.lastPlay) host.state = applyPass(s, cur.pid);
-      else return;
+      else {
+        // đầu vòng mà bot không có nước (phòng hờ) → ra lá nhỏ nhất, ván không kẹt
+        const h = (s.hands[cur.pid] || []).slice().sort((a, b) => a.r - b.r || a.s - b.s);
+        if (!h.length) return;
+        host.state = applyPlay(s, cur.pid, [h[0]]);
+      }
       afterLocalAction(host);
+    } else if (host.game === 'baicao') {
+      // bot bài cào: tự lật từng đứa mỗi tick cho hồi hộp (khỏi chờ hết giờ mới lật)
+      const s = host.state as BaiCaoState;
+      let changed = false;
+      for (const id of s.order) {
+        const pl = host.players.find((x) => x.pid === id);
+        if (pl?.bot && !s.revealed.includes(id)) { s.revealed.push(id); changed = true; break; }
+      }
+      if (changed) afterLocalAction(host);
     } else if (host.game === 'caro') {
       const s = host.state as CaroState;
       if (s.winner || s.draw) return;
@@ -834,17 +848,26 @@ function startBotLoop() {
       if (s.phase !== 'play') return;
       const cur = host.players.find((x) => x.pid === s.turn);
       if (!cur?.bot) return;
-      const next = botXiDachAuto(s, cur.pid);
+      // botXiDachAuto null (vd đủ 5 lá mà chưa tự dằn) → ép dằn để ván không kẹt
+      const next = botXiDachAuto(s, cur.pid) ?? applyXiDachStand(s, cur.pid);
       if (next) { host.state = next; afterLocalAction(host); }
     } else if (host.game === 'chess') {
       const s = host.state as ChessState;
       if (s.winner || s.draw) return;
       const cur = host.players.find((x) => x.pid === s.turn);
       if (!cur?.bot) return;
-      const mv = chessBotMove(s, cur.pid);
+      // bot hết giờ search / lỗi → đi nước hợp lệ bất kỳ, ván không bao giờ kẹt
+      const mv = chessBotMove(s, cur.pid) ?? chessAnyMove(s, cur.pid);
       if (mv) {
         const next = applyChessMove(s, cur.pid, mv.f, mv.t, mv.pr);
         if (next) { host.state = next; afterLocalAction(host); }
+        else {
+          const fb = chessAnyMove(s, cur.pid);
+          if (fb) {
+            const nx = applyChessMove(s, cur.pid, fb.f, fb.t, fb.pr);
+            if (nx) { host.state = nx; afterLocalAction(host); }
+          }
+        }
       }
     }
   }, 900);
@@ -907,7 +930,7 @@ function localAutoTimeout(host: CasinoRoom): boolean {
   if (host.game === 'chess') {
     const s = host.state as ChessState;
     if (s.winner || s.draw) return false;
-    const mv = chessBotMove(s, s.turn);
+    const mv = chessBotMove(s, s.turn) ?? chessAnyMove(s, s.turn);
     if (!mv) return false;
     const next = applyChessMove(s, s.turn, mv.f, mv.t, mv.pr);
     if (!next) return false;

@@ -9,6 +9,7 @@ import BottomBar from './components/BottomBar';
 import ModalHost from './components/ModalHost';
 import Toasts from './components/Toasts';
 import VisitBanner from './components/VisitBanner';
+import ContestBoard from './components/ContestBoard';
 
 export default function App() {
   const started = useGame((s) => s.started);
@@ -47,6 +48,7 @@ export default function App() {
       <div className="relative flex-1 min-h-0 flex items-center justify-center bg-[#101d10] overflow-hidden">
         <GameCanvas onTarget={onTarget} target={target} />
         <VisitBanner />
+        <ContestBoard />
       </div>
       <BottomBar target={target} />
       <ModalHost />
