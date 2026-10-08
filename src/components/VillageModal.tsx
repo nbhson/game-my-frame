@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { LogOut, MessageCircle, RefreshCw, Users } from 'lucide-react';
-import { useVillage } from '../net/village';
+import { STEAL_MAX_PER_DAY, useVillage } from '../net/village';
 import { useGame } from '../game/store';
 import { sfx } from '../game/audio';
 import { GameIcon } from './GameIcon';
@@ -60,7 +60,7 @@ export default function VillageModal() {
 
       {tab === 'friends' && (
         <div>
-          <p className="text-sm mb-2">Tất cả người đang chơi đều là bạn — bấm <b>Thăm farm</b> để qua xem ruộng/ao/chuồng, đi dạo + chat cùng nhau.</p>
+          <p className="text-sm mb-2">Tất cả người đang chơi đều là bạn — bấm <b>Thăm farm</b> để qua xem ruộng/ao/chuồng, đi dạo + chat cùng nhau. Thấy ô nào chín có thể <b>hái trộm</b> (tối đa {STEAL_MAX_PER_DAY} cây/ngày/farm) — nhưng coi chừng <b>chó Vàng/Mực</b> cắn đuổi!</p>
           {v.players.length === 0 && !v.demoBots && (
             <p className="text-sm text-stone-500 bg-white border-2 border-dashed border-stone-300 rounded-lg p-3 text-center">
               {v.mode === 'local'

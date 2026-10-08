@@ -1,11 +1,11 @@
 // ===== Làng local: multi-tab demo qua BroadcastChannel (không cần mạng) =====
 // Mở 2 tab cùng trình duyệt → thấy nhau đi lại, chat, thăm farm nhau.
-import type { ChatMsg, FarmPayload, FarmSnapshot, NetTransport, RemotePlayer, SelfInfo } from './transport';
+import type { ChatMsg, FarmPayload, FarmSnapshot, NetTransport, RemotePlayer, SelfInfo, StealWire } from './transport';
 import { PRESENCE_PROTO, codeFromId } from './session';
 import { safeUid } from './uid';
 
 interface Wire {
-  kind: 'hello' | 'pos' | 'chat' | 'farm' | 'bye' | 'farm-req';
+  kind: 'hello' | 'pos' | 'chat' | 'farm' | 'bye' | 'farm-req' | 'steal';
   from: string;
   /** version giao thức presence của tab gửi */
   v?: number;
@@ -17,6 +17,8 @@ interface Wire {
   visit?: string | null;
   text?: string;
   snap?: FarmSnapshot;
+  /** gói báo trộm (kind='steal') */
+  steal?: StealWire;
 }
 
 const LS_FARM = 'nongtrai-local-farm';
@@ -30,6 +32,7 @@ export class LocalTransport implements NetTransport {
   private playerCbs = new Set<(l: RemotePlayer[]) => void>();
   private chatCbs = new Set<(m: ChatMsg) => void>();
   private statusCbs = new Set<(ok: boolean) => void>();
+  private stealCbs = new Set<(ev: StealWire) => void>();
   private timer: number | null = null;
   private helloTimer: number | null = null;
   private lastFarmPush = 0;
@@ -159,6 +162,16 @@ export class LocalTransport implements NetTransport {
     this.send({ kind: 'chat', from: this.self.id, name: this.self.name, text });
   }
 
+  /** báo trộm qua BroadcastChannel — tab chủ farm đang mở sẽ trừ cây ngay */
+  stealNotify(p: StealWire) {
+    this.send({ kind: 'steal', from: this.self.id, steal: { ...p } });
+  }
+
+  onFarmEvent(cb: (ev: StealWire) => void) {
+    this.stealCbs.add(cb);
+    return () => { this.stealCbs.delete(cb); };
+  }
+
   onPlayers(cb: (l: RemotePlayer[]) => void) {
     this.playerCbs.add(cb);
     cb([...this.players.values()]);
@@ -216,6 +229,8 @@ export class LocalTransport implements NetTransport {
       this.chatCbs.forEach((cb) => cb({ id: safeUid(), fromId: w.from, fromName: w.name ?? 'Bạn', text: w.text!, at: Date.now() }));
     } else if (w.kind === 'farm' && w.snap) {
       try { localStorage.setItem(LS_FARM + ':' + w.snap.code, JSON.stringify(w.snap)); } catch { /* ignore */ }
+    } else if (w.kind === 'steal' && w.steal?.code) {
+      this.stealCbs.forEach((cb) => cb(w.steal!));
     } else if (w.kind === 'bye') {
       this.players.delete(w.from);
       this.emitPlayers();

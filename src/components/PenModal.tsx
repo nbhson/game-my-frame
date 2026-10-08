@@ -1,4 +1,4 @@
-import { ANIMALS, FISHES, MAX_CAP, MAX_POND, capCost, capReq, pondCost, pondReq } from '../game/data';
+import { ANIMALS, FISHES, MAX_CAP, MAX_POND, animalSellPrice, capCost, capReq, pondCost, pondReq } from '../game/data';
 import { useGame } from '../game/store';
 import type { AnimalType } from '../game/types';
 import { GameIcon } from './GameIcon';
@@ -68,12 +68,23 @@ function PondBody() {
                   </div>
                 </div>
               </div>
-              <button
-                className="pixel-btn !text-[10px] !px-2 !py-1.5 shrink-0"
-                onClick={() => s.interactPond(f.uid)}
-              >
-                {f.grown ? 'Thu hoạch' : 'Cho ăn'}
-              </button>
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  className="pixel-btn !text-[10px] !px-2 !py-1.5"
+                  onClick={() => s.interactPond(f.uid)}
+                >
+                  {f.grown ? 'Thu hoạch' : 'Cho ăn'}
+                </button>
+                {f.grown && (
+                  <button
+                    className="pixel-btn !text-[10px] !px-2 !py-1.5 !bg-amber-300 inline-flex items-center gap-1"
+                    title={`Bán ${F.name} lấy ${F.sell} xu`}
+                    onClick={() => s.sellFish(f.uid)}
+                  >
+                    Bán +{F.sell}<GameIcon name="coin" size={11} />
+                  </button>
+                )}
+              </div>
             </div>
           );
         })}
@@ -119,12 +130,23 @@ function SpeciesBlock({ type }: { type: AnimalType }) {
                 </div>
               </div>
             </div>
-            <button
-              className="pixel-btn !text-[10px] !px-2 !py-1 shrink-0"
-              onClick={() => s.interactAnimal(a.uid)}
-            >
-              {a.ready ? 'Thu' : a.hunger < 60 ? 'Cho ăn' : 'Xem'}
-            </button>
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                className="pixel-btn !text-[10px] !px-2 !py-1"
+                onClick={() => s.interactAnimal(a.uid)}
+              >
+                {a.ready ? 'Thu' : a.hunger < 60 ? 'Cho ăn' : 'Xem'}
+              </button>
+              {(Date.now() - a.bornAt) / 1000 >= A.grow && (
+                <button
+                  className="pixel-btn !text-[10px] !px-2 !py-1 !bg-amber-300 inline-flex items-center gap-1"
+                  title={`Bán ${A.name} đã lớn lấy ${animalSellPrice(type)} xu`}
+                  onClick={() => s.sellAnimal(a.uid)}
+                >
+                  Bán +{animalSellPrice(type)}<GameIcon name="coin" size={11} />
+                </button>
+              )}
+            </div>
           </div>
         ))}
       </div>

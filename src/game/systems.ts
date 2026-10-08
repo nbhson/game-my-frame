@@ -188,6 +188,27 @@ export function nearestInteract(c: InteractCtx): InteractTarget | null {
   return best;
 }
 
+/** Ô chín có thể hái trộm trong farm đang thăm (chỉ ô ready, đứng gần mới hái được) */
+export function nearestStealPlot(
+  plots: { state: string; crop: string | null; locked: boolean }[],
+  px: number, py: number,
+): InteractTarget | null {
+  let best: InteractTarget | null = null;
+  let bd = 150;
+  for (let i = 0; i < plots.length; i++) {
+    const pl = plots[i];
+    if (!pl || pl.locked || pl.state !== 'ready' || !pl.crop) continue;
+    const p = plotPos(i);
+    const d = Math.hypot(px - p.x, py - p.y);
+    if (d < bd) {
+      const c = CROPS[pl.crop];
+      bd = d;
+      best = { kind: 'steal', index: i, label: `Hái trộm ${c ? c.name : ''} ${c ? c.emoji : ''} (coi chừng chó!)` };
+    }
+  }
+  return best;
+}
+
 /** Interact trong công viên: cổng về farm + các điểm check-in */
 export function nearestTownInteract(c: { px: number; py: number }): InteractTarget | null {
   let best: InteractTarget | null = null;

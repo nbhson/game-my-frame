@@ -1,7 +1,7 @@
 // ===== Account theo username: TOÀN BỘ farm nằm trong DB =====
 // Nhập đúng username → lấy lại farm, bất kể reload/tab khác/máy khác.
 // Backend tự chọn: LAN server (DB `server/data/db.json`) → localStorage theo user.
-import type { Animal, CoopCap, PondFish, Plot, Stats, WeatherKind } from '../game/types';
+import type { Animal, CoopCap, GraphicsQuality, PondFish, Plot, Stats, WeatherKind } from '../game/types';
 import { useGame } from '../game/store';
 import { useVillage } from './village';
 import { lanServerAvailable } from './socket';
@@ -23,6 +23,9 @@ export interface AccountData {
   questIdx: number;
   uidSeq: number;
   redeemedCodes?: string[];
+  outfit?: Record<string, string>;
+  ownedOutfits?: string[];
+  quality?: GraphicsQuality;
 }
 
 export interface AccountBackend {
@@ -130,6 +133,8 @@ export function exportAccount(): AccountData {
     pondSlots: g.pondSlots, coopCap: g.coopCap,
     stats: g.stats, questIdx: g.questIdx, uidSeq: g.uidSeq,
     redeemedCodes: g.redeemedCodes,
+    outfit: g.outfit, ownedOutfits: g.ownedOutfits,
+    quality: g.quality,
   };
 }
 

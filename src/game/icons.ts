@@ -7,7 +7,11 @@ function ell(ctx: CanvasRenderingContext2D, x: number, y: number, rx: number, ry
 }
 
 /** Lấp lánh 4 cánh (thay ✨) */
+// Cờ giảm tải toàn cục: đồ họa Thấp → bỏ hết tia lửa (renderWorld/renderTown đặt mỗi frame)
+let FX_LOW = false;
+export function setFxLow(v: boolean) { FX_LOW = v; }
 export function drawSparkle(ctx: CanvasRenderingContext2D, x: number, y: number, r = 7, alpha = 1) {
+  if (FX_LOW) return;
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.fillStyle = '#fffde7';

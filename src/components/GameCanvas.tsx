@@ -5,7 +5,7 @@ import type { InteractTarget } from '../game/types';
 import { FARM_GATE_SPAWN, PIERS, WORLD, isBlocked, plotPos } from '../game/world';
 import { FARM_GATE, TOWN, TOWN_PROPS, TOWN_SPAWN, isTownBlocked } from '../game/town';
 import { MAX_PLOTS } from '../game/data';
-import { nearestInteract, nearestTownInteract } from '../game/systems';
+import { nearestInteract, nearestStealPlot, nearestTownInteract } from '../game/systems';
 import { renderWorld, type VisitorDraw } from '../game/render';
 import { renderTown } from '../game/townRender';
 import { startAutoSync, stopAutoSync } from '../net/account';
@@ -41,6 +41,14 @@ export function doInteractWith(t: InteractTarget | null | undefined) {
       s.setModal('casino');
       return;
     }
+    if (p?.id === 'shop') {
+      s.setModal('outfit');
+      return;
+    }
+    if (p?.id === 'hall' || p?.id === 'cafe' || p?.id === 'stage' || p?.id === 'house1' || p?.id === 'house2') {
+      s.setModal({ name: 'house', house: p.id });
+      return;
+    }
     if (p?.id === 'fountain') {
       if (s.xu >= 10) {
         s.addXu(-10);
@@ -52,6 +60,8 @@ export function doInteractWith(t: InteractTarget | null | undefined) {
     else s.toast(t.label);
     return;
   }
+  // hái trộm trong farm bạn (E khi đang visit) — cho qua trước chặn visit
+  if (t.kind === 'steal' && t.index != null) { void v.stealFromVisit(t.index); return; }
   if (v.visiting) {
     // đang thăm farm bạn: chỉ được đi dạo + chat (kiểu Avatar)
     s.toast('Đang thăm farm bạn — về farm mình để làm việc nhé!');
@@ -244,12 +254,12 @@ export default function GameCanvas({ target, onTarget }: Props) {
       village.pushPosition(playerRef.x, playerRef.y, playerRef.dir, playerRef.moving);
 
       // --- interact scan ---
-      // farm: visit = chỉ xem, không tương tác; town: luôn tương tác props/cổng
+      // farm mình: tương tác đủ thứ; farm bạn: chỉ tìm ô chín để hái trộm (coi chừng chó!); town: luôn tương tác props/cổng
       const visitSnap = village.visiting?.snap;
       const near = st.scene === 'town'
         ? nearestTownInteract({ px: playerRef.x, py: playerRef.y })
-        : village.visiting
-          ? null
+        : village.visiting && visitSnap
+          ? nearestStealPlot(visitSnap.plots, playerRef.x, playerRef.y)
           : nearestInteract({
             px: playerRef.x, py: playerRef.y,
             plots: (visitSnap?.plots ?? st.plots), fishes: (visitSnap?.fishes ?? st.fishes), pondSlots: st.pondSlots, animals: (visitSnap?.animals ?? st.animals),
@@ -264,15 +274,22 @@ export default function GameCanvas({ target, onTarget }: Props) {
 
       // --- render (farm / town) ---
       // town: ai cũng thấy nhau; farm: riêng tư (chỉ chủ + khách cùng thăm)
+      // trộm mới bị chó sủa → gắn bóng "Bị chó sủa!" trên đầu nó 5s để cả farm thấy
+      const lt = village.lastThief;
       const visitors: VisitorDraw[] = (st.scene === 'town'
         ? visiblePlayers(nowMs, 'town')
         : farmVisible(nowMs, village.visiting?.code ?? null)
-      ).map((p) => ({
-        x: p.x, y: p.y, dir: p.dir, moving: p.moving,
-        name: p.name, avatar: p.avatar, bubble: p.bubble, bubbleAt: p.bubbleAt,
-        emote: p.emote, emoteAt: p.emoteAt,
-        self: false,
-      }));
+      ).map((p) => {
+        const barked = !!lt && p.name === lt.name && nowMs - lt.at < 5000;
+        return {
+          x: p.x, y: p.y, dir: p.dir, moving: p.moving,
+          name: p.name, avatar: p.avatar,
+          bubble: barked ? 'Bị chó sủa! Gâu gâu!' : p.bubble,
+          bubbleAt: barked ? lt.at : p.bubbleAt,
+          emote: p.emote, emoteAt: p.emoteAt,
+          self: false,
+        };
+      });
       // bóng chat + emote của chính mình (vẽ qua visitor self để tái dùng)
       if (village.selfBubble || village.selfEmote) {
         visitors.push({
@@ -291,6 +308,8 @@ export default function GameCanvas({ target, onTarget }: Props) {
           visitors,
           selfBubble: village.selfBubble || undefined,
           selfEmote: village.selfEmote || undefined,
+          outfit: st.outfit,
+          quality: st.quality,
         }, t);
       } else {
         const snap = village.visiting?.snap;
@@ -305,7 +324,12 @@ export default function GameCanvas({ target, onTarget }: Props) {
           visitors,
           selfBubble: village.selfBubble || undefined,
           selfEmote: village.selfEmote || undefined,
-          sit: fs ? { x: fs.x, y: fs.y, bx: fs.bx, by: fs.by, bite: biting } : null,
+          sit: fs ? { x: fs.x, y: fs.y, bx: fs.bx, by: fs.by, bite: biting, combo: st.biteCombo, progress: st.biteProgress, fishId: st.biteCatchId } : null,
+          catchPop: st.catchPop,
+          outfit: st.outfit,
+          plotFx: st.plotFx,
+          quality: st.quality,
+          thiefBite: st.thiefBiteUntil,
         }, t);
       }
 
@@ -318,8 +342,9 @@ export default function GameCanvas({ target, onTarget }: Props) {
       if (!wrap) return;
       const cssW = Math.max(320, wrap.clientWidth);
       const cssH = Math.max(320, wrap.clientHeight);
-      // DPR tối đa 1.5 cho nhẹ
-      const dpr = Math.min(1.5, window.devicePixelRatio || 1);
+      // DPR theo cấp đồ họa: Thấp khóa 1x, TB tối đa 1.25x, Cao tối đa 1.5x
+      const q = useGame.getState().quality;
+      const dpr = q === 'low' ? 1 : q === 'medium' ? Math.min(1.25, window.devicePixelRatio || 1) : Math.min(1.5, window.devicePixelRatio || 1);
       cv.width = Math.round(cssW * dpr);
       cv.height = Math.round(cssH * dpr);
       cv.style.width = '100%'; cv.style.height = '100%';
@@ -332,6 +357,19 @@ export default function GameCanvas({ target, onTarget }: Props) {
     return () => { cancelAnimationFrame(raf); stopAutoSync(); ro.disconnect(); window.removeEventListener('keydown', keydown); window.removeEventListener('keyup', keyup); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // đổi cấp đồ họa → dựng lại canvas (DPR) ngay, không cần reload
+  const quality = useGame((s) => s.quality);
+  useEffect(() => {
+    const cv = canvasRef.current, wrap = wrapRef.current;
+    if (!cv || !wrap) return;
+    const cssW = Math.max(320, wrap.clientWidth);
+    const cssH = Math.max(320, wrap.clientHeight);
+    const dpr = quality === 'low' ? 1 : quality === 'medium' ? Math.min(1.25, window.devicePixelRatio || 1) : Math.min(1.5, window.devicePixelRatio || 1);
+    cv.width = Math.round(cssW * dpr);
+    cv.height = Math.round(cssH * dpr);
+    screen.current = { cssW, cssH, dpr };
+  }, [quality]);
 
   const onPointer = (e: React.PointerEvent) => {
     const cv = canvasRef.current!;
@@ -347,9 +385,22 @@ export default function GameCanvas({ target, onTarget }: Props) {
     if (st.fishingSpot) { st.reelRiver(); return; }
     const blocked = inTown ? isTownBlocked(wx, wy) : isBlocked(wx, wy);
     if (!blocked) { playerRef.tx = wx; playerRef.ty = wy; }
-    if (inTown) return;
-    // đang thăm farm bạn: chỉ đi dạo, không chạm vào đồ của bạn
-    if (useVillage.getState().visiting) return;
+  if (inTown) return;
+  // đang thăm farm bạn: click trúng ô chín + đứng gần → hái trộm (coi chừng chó!)
+  const visiting = useVillage.getState().visiting;
+  if (visiting) {
+    const splots = visiting.snap.plots;
+    for (let i = 0; i < splots.length; i++) {
+      const pl = splots[i];
+      if (!pl || pl.locked || pl.state !== 'ready' || !pl.crop) continue;
+      const p = plotPos(i);
+      if (Math.hypot(wx - p.x, wy - p.y) < 70 && Math.hypot(playerRef.x - p.x, playerRef.y - p.y) < 170) {
+        void useVillage.getState().stealFromVisit(i);
+        return;
+      }
+    }
+    return;
+  }
     // click trúng ô ruộng thì tương tác ngay nếu đủ gần
     for (let i = 0; i < MAX_PLOTS; i++) {
       const p = plotPos(i);
@@ -403,7 +454,7 @@ function RiverHint() {
   const biting = biteAt != null && biteUntil != null && now >= biteAt && now <= biteUntil;
   if (!biting) {
     return (
-      <div className="absolute bottom-20 left-1/2 -translate-x-1/2 border-[3px] border-[#2b2117] rounded-full px-5 py-2 font-extrabold shadow-pixel whitespace-nowrap z-[5] bg-[#fff8dc] animate-pulse">
+      <div className="absolute bottom-20 left-1/2 -translate-x-1/2 border-[3px] border-[#2b2117] rounded-full px-5 py-2 font-extrabold shadow-pixel whitespace-nowrap z-30 bg-[#fff8dc] animate-pulse pointer-events-none max-w-[94vw] overflow-hidden text-ellipsis">
         Đang đợi cá… (E: thu cần)
       </div>
     );
@@ -420,34 +471,34 @@ function RiverHint() {
     { dir: 'right', label: '→' },
   ];
   return (
-    <div className={`absolute bottom-24 left-1/2 -translate-x-1/2 border-[3px] border-[#2b2117] rounded-2xl px-4 py-3 font-extrabold shadow-pixel z-[5] text-center ${urgent ? 'bg-red-400 text-white' : 'bg-[#fff8dc]'}`}>
-      <div className="text-base animate-bounce">🎣 CÁ CẮN CÂU! Bấm theo thứ tự ({remainS}s)</div>
-      <div className="flex gap-1.5 justify-center mt-2">
+    <div className={`absolute left-1/2 top-[34%] -translate-x-1/2 -translate-y-1/2 border-4 border-[#2b2117] rounded-2xl px-4 py-3 md:px-6 md:py-4 font-extrabold shadow-pixel z-30 text-center pointer-events-none max-w-[94vw] ${urgent ? 'bg-red-400 text-white' : 'bg-[#fff8dc]'}`}>
+      <div className="text-base md:text-xl animate-bounce whitespace-nowrap">🎣 CÁ CẮN CÂU! Bấm theo thứ tự ({remainS}s)</div>
+      <div className="flex gap-1.5 md:gap-2 justify-center mt-2 flex-wrap">
         {(combo ?? []).map((d, i) => (
           <span
             key={i}
-            className={`w-9 h-9 flex items-center justify-center text-xl rounded-lg border-[3px] border-[#2b2117] ${i < progress ? 'bg-green-400' : i === progress ? 'bg-yellow-300 animate-pulse scale-110' : 'bg-white'}`}
+            className={`w-10 h-10 md:w-12 md:h-12 flex items-center justify-center text-2xl md:text-3xl rounded-lg border-[3px] border-[#2b2117] ${i < progress ? 'bg-green-400' : i === progress ? 'bg-yellow-300 animate-pulse scale-110' : 'bg-white'}`}
           >
             {d === 'up' ? '↑' : d === 'down' ? '↓' : d === 'left' ? '←' : '→'}
           </span>
         ))}
       </div>
-      <div className="h-2 mt-2 rounded-full bg-black/20 overflow-hidden">
+      <div className="h-2 md:h-2.5 mt-2 rounded-full bg-black/20 overflow-hidden">
         <div className={`h-full ${urgent ? 'bg-red-600' : 'bg-green-500'}`} style={{ width: `${pct}%` }} />
       </div>
       {/* D-pad cho mobile / click chuột — desktop bấm phím mũi tên */}
-      <div className="flex gap-2 justify-center mt-2">
+      <div className="flex gap-2 justify-center mt-2 pointer-events-auto">
         {pads.map((p) => (
           <button
             key={p.dir}
             onPointerDown={(e) => { e.stopPropagation(); pressBiteKey(p.dir); }}
-            className="w-11 h-11 text-xl rounded-xl bg-sky-300 border-[3px] border-[#2b2117] active:scale-90 font-black"
+            className="w-12 h-12 md:w-14 md:h-14 text-2xl md:text-3xl rounded-xl bg-sky-300 border-[3px] border-[#2b2117] active:scale-90 font-black"
           >
             {p.label}
           </button>
         ))}
       </div>
-      <div className="text-[11px] mt-1 opacity-80">Bấm sai 1 phím hoặc hết giờ là cá chạy!</div>
+      <div className="text-[11px] md:text-xs mt-1 opacity-80">Bấm sai 1 phím hoặc hết giờ là cá chạy!</div>
     </div>
   );
 }

@@ -1,6 +1,9 @@
 // ===== Core domain types — dễ mở rộng thêm cây/cá/vật nuôi mới =====
 export type PlotState = 'grass' | 'soil' | 'growing' | 'ready';
 
+/** Cấp đồ họa: cao (đủ hiệu ứng) / trung bình / thấp (máy yếu) */
+export type GraphicsQuality = 'high' | 'medium' | 'low';
+
 /** Thời tiết farm: nắng / mưa / tuyết (đổi tự động theo thời gian trong game) */
 export type WeatherKind = 'sunny' | 'rain' | 'snow';
 
@@ -46,10 +49,11 @@ export interface Stats {
 
 export type ModalKind =
   | null
-  | 'shop' | 'bag' | 'quest' | 'help' | 'village' | 'townChat' | 'townEmote' | 'casino' | 'gift'
+  | 'shop' | 'bag' | 'quest' | 'help' | 'village' | 'townChat' | 'townEmote' | 'casino' | 'gift' | 'outfit' | 'settings'
   | { name: 'seed'; plot: number }
   | { name: 'stock' }
   | { name: 'bait'; pier: number }
+  | { name: 'house'; house: string }
   | { name: 'pen'; pen: 'pond' | 'coop' | 'barn' };
 
 export type ShopTab = 'seed' | 'fish' | 'animal' | 'food' | 'sell';
@@ -61,7 +65,7 @@ export type SceneKind = 'farm' | 'town';
 export type TownEmote = 'wave' | 'dance' | 'sit' | 'laugh' | 'heart' | 'sleep' | 'angry' | 'clap';
 
 export interface InteractTarget {
-  kind: 'plot' | 'pond' | 'river' | 'pen' | 'animal' | 'shop' | 'townGate' | 'farmGate' | 'townProp';
+  kind: 'plot' | 'pond' | 'river' | 'pen' | 'animal' | 'shop' | 'townGate' | 'farmGate' | 'townProp' | 'steal';
   index?: number; // plot index / pier index
   uid?: number; // animal uid / fish uid
   pen?: 'pond' | 'coop' | 'barn';

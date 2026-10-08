@@ -51,6 +51,20 @@ export interface FarmSnapshot {
 export interface SelfInfo { id: string; name: string; avatar: number }
 
 /**
+ * Gói báo trộm farm: tên trộm + ô + loại cây + kết quả chó giữ nhà.
+ * - caught=false: trộm thành công, chủ mất cây ở ô plot (nếu còn chín đúng loại)
+ * - caught=true: chó cắn đuổi được, chủ KHÔNG mất cây
+ */
+export interface StealWire {
+  /** mã farm nạn nhân */
+  code: string;
+  plot: number;
+  crop: string;
+  thief: string;
+  caught: boolean;
+}
+
+/**
  * Payload đẩy farm lên backend: đủ cho cả 2 mục đích —
  * `data` (toàn bộ, để login khôi phục) + các trường xem nhanh (để visit).
  */
@@ -80,4 +94,8 @@ export interface NetTransport {
   onPlayers(cb: (list: RemotePlayer[]) => void): () => void;
   onChat(cb: (msg: ChatMsg) => void): () => void;
   onStatus(cb: (ok: boolean) => void): () => void;
+  /** báo cho chủ farm biết vừa bị hái trộm / bị chó đuổi (backend không hỗ trợ thì không có) */
+  stealNotify?(p: StealWire): void;
+  /** nhận báo trộm (chủ farm) */
+  onFarmEvent?(cb: (ev: StealWire) => void): () => void;
 }

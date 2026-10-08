@@ -1,12 +1,13 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Animal, AnimalType, CoopCap, ModalKind, Plot, PondFish, SceneKind, ShopTab, Stats, WeatherKind } from './types';
+import type { Animal, AnimalType, CoopCap, GraphicsQuality, ModalKind, Plot, PondFish, SceneKind, ShopTab, Stats, WeatherKind } from './types';
 import {
   ANIMALS, BITE_MAX, BITE_MIN, BITE_WINDOW, CROPS, DAY_LENGTH, FEED_PRO_PRICE, FEED_PRICE,
-  BAIT_PRO_PRICE, BAIT_PRICE, FISHES, MAX_CAP, MAX_PLOTS, MAX_POND, QUESTS,
+  BAIT_PRO_PRICE, BAIT_PRICE, DEFAULT_OUTFIT, FISHES, MAX_CAP, MAX_PLOTS, MAX_POND, OUTFITS, QUESTS,
   PEST_PRICE, PEST_RATE, genBiteCombo,
   type BiteDir,
-  START_CAP, START_PLOTS, START_POND, capCost, capReq, plotCost, plotReq, pondCost, pondReq,
+  type OutfitSlot,
+  START_CAP, START_PLOTS, START_POND, animalSellPrice, capCost, capReq, plotCost, plotReq, pondCost, pondReq,
   rollRiverCatch, sellPrice,
 } from './data';
 import { PIERS } from './world';
@@ -59,6 +60,17 @@ interface GameState {
   biteCatchId: string | null;
   biteCombo: BiteDir[] | null;
   biteProgress: number;
+  // hiệu ứng cá mắc trên dây khi vừa giật dính (vẽ ở world 2.5s)
+  catchPop: { x: number; y: number; fishId: string; label: string; until: number } | null;
+  // hiệu ứng động tác trên từng ô ruộng (cuốc/gieo/tưới/phun/thu hoạch), transient ~1.3s
+  plotFx: { plot: number; kind: 'hoe' | 'plant' | 'water' | 'spray' | 'harvest'; at: number; crop?: string }[];
+  // thời trang: slot -> itemId + kho đồ đã sở hữu
+  outfit: Record<string, string>;
+  ownedOutfits: string[];
+  // cấp đồ họa: high (đủ hiệu ứng) / medium / low (máy yếu) — persist + sync
+  quality: GraphicsQuality;
+  // bị chó cắn khi hái trộm (epoch ms hết hạn, transient — vẽ GÂU! trên đầu)
+  thiefBiteUntil: number | null;
   toasts: Toast[];
 
   // actions
@@ -72,6 +84,8 @@ interface GameState {
     pondSlots?: number; coopCap?: CoopCap;
     stats: Stats; questIdx: number; uidSeq: number;
     redeemedCodes?: string[];
+    outfit?: Record<string, string>; ownedOutfits?: string[];
+    quality?: GraphicsQuality;
   } | null) => void;
   toast: (msg: string) => void;
   dismissToast: (id: number) => void;
@@ -100,7 +114,19 @@ interface GameState {
   buyBait: (baitId: string, n: number) => void;
   buyPesticide: (n: number) => void;
   exchangeGem: () => void;
+  buyOutfit: (id: string) => void;
+  wearOutfit: (id: string) => void;
+  /** Đổi cấp đồ họa (áp dụng ngay, lưu máy + tài khoản) */
+  setQuality: (q: GraphicsQuality) => void;
+  /** Bị chó nhà người ta cắn khi hái trộm → hiện GÂU! 2.5s */
+  setThiefBite: () => void;
+  /** Chủ farm bị hái trộm: mất cây ở ô plot nếu còn chín đúng loại, trả về true nếu mất */
+  applyVictimSteal: (plot: number, crop: string) => boolean;
   sell: (pid: string, all: boolean) => void;
+  /** Bán 1 con vật nuôi đã lớn (còn non không bán được) */
+  sellAnimal: (uid: number) => void;
+  /** Bán 1 con cá đã lớn trong ao */
+  sellFish: (uid: number) => void;
   startRiverFishing: (pier: number, baitId: string) => void;
   reelRiver: () => void;
   pressBiteKey: (dir: BiteDir) => void;
@@ -193,6 +219,9 @@ export const useGame = create<GameState>()(
       modal: null, shopTab: 'seed', scene: 'farm',
       fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null,
       biteCatchId: null, biteCombo: null, biteProgress: 0,
+      catchPop: null, outfit: { ...DEFAULT_OUTFIT }, ownedOutfits: Object.keys(DEFAULT_OUTFIT).map((k) => DEFAULT_OUTFIT[k as OutfitSlot]),
+      quality: 'high', thiefBiteUntil: null,
+      plotFx: [],
       toasts: [],
 
       loadAccount: (name, avatar, data) => {
@@ -215,7 +244,12 @@ export const useGame = create<GameState>()(
             animals: data.animals, coopCap: cap,
             stats: data.stats, questIdx: data.questIdx, uidSeq: uidRef.v,
             redeemedCodes: Array.isArray(data.redeemedCodes) ? data.redeemedCodes.map((c) => String(c).toLowerCase()) : [],
-            modal: null, fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null, biteCatchId: null, biteCombo: null, biteProgress: 0, scene: 'farm',
+            outfit: { ...DEFAULT_OUTFIT, ...(data.outfit ?? {}) },
+            ownedOutfits: Array.isArray(data.ownedOutfits) && data.ownedOutfits.length > 0
+              ? [...new Set([...Object.values(DEFAULT_OUTFIT), ...data.ownedOutfits])]
+              : Object.values(DEFAULT_OUTFIT),
+            quality: data.quality === 'low' || data.quality === 'medium' ? data.quality : 'high',
+            modal: null, fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null, biteCatchId: null, biteCombo: null, biteProgress: 0, catchPop: null, plotFx: [], scene: 'farm',
           });
         } else {
           set({
@@ -227,7 +261,9 @@ export const useGame = create<GameState>()(
             coopCap: freshCap(),
             stats: freshStats(), questIdx: 0, uidSeq: 1,
             redeemedCodes: [],
-            modal: null, fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null, biteCatchId: null, biteCombo: null, biteProgress: 0, scene: 'farm',
+            outfit: { ...DEFAULT_OUTFIT }, ownedOutfits: Object.values(DEFAULT_OUTFIT),
+            quality: 'high',
+            modal: null, fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null, biteCatchId: null, biteCombo: null, biteProgress: 0, catchPop: null, plotFx: [], scene: 'farm',
           });
         }
       },
@@ -287,6 +323,15 @@ export const useGame = create<GameState>()(
       tick: (dt) => {
         const s = get();
         if (!s.started) return;
+        // cá vừa giật dính: hết 2.5s thì dọn hiệu ứng
+        if (s.catchPop && Date.now() > s.catchPop.until) set({ catchPop: null });
+        // bị chó cắn: hết 2.5s thì dọn hiệu ứng GÂU!
+        if (s.thiefBiteUntil && Date.now() > s.thiefBiteUntil) set({ thiefBiteUntil: null });
+        // dọn hiệu ứng động tác ruộng đã quá 1.5s
+        if (s.plotFx.length > 0) {
+          const now = Date.now();
+          if (now - s.plotFx[0].at > 1500) set({ plotFx: s.plotFx.filter((f) => now - f.at < 1500) });
+        }
         let dayTime = s.dayTime + dt / DAY_LENGTH;
         let day = s.day;
         if (dayTime >= 1) { dayTime = 0; day++; s.toast(`Ngày mới: ngày ${day}`); }
@@ -377,7 +422,11 @@ export const useGame = create<GameState>()(
         if (pl.locked) { get().unlockPlot(i); return; }
         if (pl.state === 'grass') {
           const plots = s.plots.slice(); plots[i] = { ...pl, state: 'soil' };
-          set((st) => ({ plots, stats: { ...st.stats, hoed: st.stats.hoed + 1 } }));
+          set((st) => ({
+            plots,
+            stats: { ...st.stats, hoed: st.stats.hoed + 1 },
+            plotFx: [...st.plotFx.slice(-7), { plot: i, kind: 'hoe' as const, at: Date.now() }],
+          }));
           sfx.plant(); get().toast('Đã cuốc đất!'); get().addXP(3); get().checkQuest();
         } else if (pl.state === 'soil') {
           set({ modal: { name: 'seed', plot: i } });
@@ -387,12 +436,16 @@ export const useGame = create<GameState>()(
             if ((s.inv.pesticide || 0) <= 0) { sfx.error(); get().toast('Hết thuốc trừ sâu! Mua ở cửa hàng'); set({ modal: 'shop', shopTab: 'food' }); return; }
             get().addInv('pesticide', -1);
             const plots = s.plots.slice(); plots[i] = { ...pl, pest: false };
-            set({ plots });
+            set((st) => ({ plots, plotFx: [...st.plotFx.slice(-7), { plot: i, kind: 'spray' as const, at: Date.now(), crop: pl.crop ?? undefined }] }));
             sfx.spray(); get().toast('Đã phun thuốc, cây hết sâu!');
             get().addXP(2); get().checkQuest();
           } else if (!pl.watered) {
             const plots = s.plots.slice(); plots[i] = { ...pl, watered: true, waterLeft: 45 };
-            set((st) => ({ plots, stats: { ...st.stats, watered: st.stats.watered + 1 } }));
+            set((st) => ({
+              plots,
+              stats: { ...st.stats, watered: st.stats.watered + 1 },
+              plotFx: [...st.plotFx.slice(-7), { plot: i, kind: 'water' as const, at: Date.now(), crop: pl.crop ?? undefined }],
+            }));
             sfx.water(); get().toast('Đã tưới nước!'); get().addXP(2); get().checkQuest();
           } else get().toast('Cây đang lớn... ráng đợi nhé!');
         } else if (pl.state === 'ready' && pl.crop) {
@@ -400,7 +453,11 @@ export const useGame = create<GameState>()(
           if (!c) return;
           get().addInv(pl.crop, 1);
           const plots = s.plots.slice(); plots[i] = { ...pl, state: 'soil', crop: null, progress: 0, watered: false, waterLeft: 0, pest: false };
-          set((st) => ({ plots, stats: { ...st.stats, harvested: st.stats.harvested + 1 } }));
+          set((st) => ({
+            plots,
+            stats: { ...st.stats, harvested: st.stats.harvested + 1 },
+            plotFx: [...st.plotFx.slice(-7), { plot: i, kind: 'harvest' as const, at: Date.now(), crop: pl.crop ?? undefined }],
+          }));
           sfx.harvest(); get().toast(`Thu hoạch +1 ${c.name}!`); get().addXP(c.xp); get().checkQuest();
         }
       },
@@ -424,7 +481,11 @@ export const useGame = create<GameState>()(
         if ((s.inv['seed:' + cropId] || 0) <= 0) { sfx.error(); get().toast('Hết hạt! Mua thêm ở cửa hàng'); set({ modal: 'shop', shopTab: 'seed' }); return; }
         get().addInv('seed:' + cropId, -1);
         const plots = s.plots.slice(); plots[i] = { ...pl, state: 'growing', crop: cropId, progress: 0, watered: false, waterLeft: 0 };
-        set((st) => ({ plots, modal: null, stats: { ...st.stats, planted: st.stats.planted + 1 } }));
+        set((st) => ({
+          plots, modal: null,
+          stats: { ...st.stats, planted: st.stats.planted + 1 },
+          plotFx: [...st.plotFx.slice(-7), { plot: i, kind: 'plant' as const, at: Date.now(), crop: cropId }],
+        }));
         sfx.plant(); get().toast(`Đã gieo ${CROPS[cropId].name}! Tưới nước ngay`);
         get().addXP(4); get().checkQuest();
       },
@@ -605,6 +666,42 @@ export const useGame = create<GameState>()(
         if (s.gem < 5) { sfx.error(); get().toast('Cần 5 gem!'); return; }
         set({ gem: s.gem - 5, xu: s.xu + 500 }); sfx.coin();
       },
+      buyOutfit: (id) => {
+        const s = get();
+        const it = OUTFITS[id];
+        if (!it) return;
+        if (s.ownedOutfits.includes(id)) { get().wearOutfit(id); return; }
+        const px = it.priceXu ?? 0, pg = it.priceGem ?? 0;
+        if (s.xu < px) { sfx.error(); get().toast('Không đủ xu!'); return; }
+        if (s.gem < pg) { sfx.error(); get().toast('Không đủ gem!'); return; }
+        set({ xu: s.xu - px, gem: s.gem - pg, ownedOutfits: [...s.ownedOutfits, id] });
+        get().wearOutfit(id);
+        sfx.coin(); get().toast(`Đã mua ${it.emoji} ${it.name}! Mặc ngay cho nóng`);
+        get().addXP(5);
+      },
+      wearOutfit: (id) => {
+        const s = get();
+        const it = OUTFITS[id];
+        if (!it) return;
+        if (!s.ownedOutfits.includes(id)) { sfx.error(); get().toast('Chưa sở hữu món này!'); return; }
+        set({ outfit: { ...s.outfit, [it.slot]: id } });
+        sfx.click();
+      },
+      setQuality: (q) => {
+        set({ quality: q });
+        sfx.click();
+        get().toast(q === 'high' ? 'Đồ họa: Cao (lung linh nhất)' : q === 'medium' ? 'Đồ họa: Trung bình' : 'Đồ họa: Thấp (mượt nhất)');
+      },
+      setThiefBite: () => set({ thiefBiteUntil: Date.now() + 2500 }),
+      applyVictimSteal: (plot, crop) => {
+        const s = get();
+        const pl = s.plots[plot];
+        if (!pl || pl.locked || pl.state !== 'ready' || pl.crop !== crop) return false;
+        const plots = s.plots.slice();
+        plots[plot] = { ...pl, state: 'soil', crop: null, progress: 0, watered: false, waterLeft: 0, pest: false };
+        set({ plots });
+        return true;
+      },
       sell: (pid, all) => {
         const s = get();
         const n = s.inv[pid] || 0;
@@ -614,6 +711,31 @@ export const useGame = create<GameState>()(
         get().addXu(sellPrice(pid) * k);
         get().addXP(Math.min(40, k * 2));
         sfx.coin(); get().toast(`+${sellPrice(pid) * k} xu!`); get().checkQuest();
+      },
+      sellAnimal: (uid) => {
+        const s = get();
+        const a = s.animals.find((x) => x.uid === uid);
+        if (!a) return;
+        const A = ANIMALS[a.type];
+        const adult = (Date.now() - a.bornAt) / 1000 >= A.grow;
+        if (!adult) { sfx.error(); get().toast(`${A.name} còn non, nuôi lớn rồi hẵng bán!`); return; }
+        const price = animalSellPrice(a.type);
+        set((st) => ({ animals: st.animals.filter((x) => x.uid !== uid) }));
+        get().addXu(price);
+        sfx.coin(); get().toast(`Bán ${A.name} +${price} xu!`);
+        get().addXP(10); get().checkQuest();
+      },
+      sellFish: (uid) => {
+        const s = get();
+        const f = s.fishes.find((x) => x.uid === uid);
+        if (!f) return;
+        if (!f.grown) { sfx.error(); get().toast('Cá còn nhỏ, nuôi lớn rồi hẵng bán!'); return; }
+        const F = FISHES[f.type];
+        const fishes = s.fishes.slice().filter((x) => x.uid !== uid);
+        set({ fishes });
+        get().addXu(F.sell);
+        sfx.coin(); get().toast(`Bán ${F.name} +${F.sell} xu!`);
+        get().addXP(8); get().checkQuest();
       },
 
       startRiverFishing: (pier, baitId) => {
@@ -633,6 +755,7 @@ export const useGame = create<GameState>()(
           biteAt, biteUntil: biteAt + BITE_WINDOW * 1000,
           fishingBait: baitId, modal: null,
           biteCatchId: pending, biteCombo: combo, biteProgress: 0,
+          catchPop: null,
         });
         sfx.splash(); get().toast('Đã thả cần… đợi cá cắn câu! (E: thu cần)');
       },
@@ -678,9 +801,13 @@ export const useGame = create<GameState>()(
           const nm = id === 'ung' ? 'Ủng cũ' : id === 'rong' ? 'Rong biển' : `${FISHES[id].name}`;
           get().addInv(id, 1);
           const xp = FISHES[id] ? FISHES[id].xp : 2;
+          const bx = s.fishingSpot?.bx ?? 0;
+          const by = s.fishingSpot?.by ?? 0;
           set((st) => ({
             fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null,
             biteCatchId: null, biteCombo: null, biteProgress: 0,
+            // cá giãy trên dây 2.5s ở ngay chỗ phao vừa giật
+            catchPop: { x: bx, y: by, fishId: id, label: nm, until: Date.now() + 2500 },
             stats: { ...st.stats, fished: st.stats.fished + 1 },
           }));
           sfx.catch_(); sfx.coin();
@@ -727,7 +854,9 @@ export const useGame = create<GameState>()(
           coopCap: freshCap(),
           stats: freshStats(), questIdx: 0, uidSeq: 1,
           redeemedCodes: [],
-          modal: null, fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null, biteCatchId: null, biteCombo: null, biteProgress: 0, toasts: [], scene: 'farm',
+          outfit: { ...DEFAULT_OUTFIT }, ownedOutfits: Object.values(DEFAULT_OUTFIT),
+          quality: 'high',
+          modal: null, fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null, biteCatchId: null, biteCombo: null, biteProgress: 0, catchPop: null, plotFx: [], toasts: [], scene: 'farm',
         });
       },
     }),
@@ -744,6 +873,8 @@ export const useGame = create<GameState>()(
         coopCap: s.coopCap,
         stats: s.stats, questIdx: s.questIdx, uidSeq: s.uidSeq,
         redeemedCodes: s.redeemedCodes,
+        outfit: s.outfit, ownedOutfits: s.ownedOutfits,
+        quality: s.quality,
       }),
     }
   )

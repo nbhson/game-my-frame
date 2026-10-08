@@ -1,14 +1,14 @@
 // ===== Công viên anime 9/10 — cùng ngôn ngữ nông trại (viền #4a3226, pastel, má hồng,
 // highlight chéo, bóng mềm, lấp lánh, khói puff, ngày/đêm, mưa/tuyết) =====
-import { SHIRTS } from './data';
-import type { WeatherKind } from './types';
+import { SHIRTS, shirtColorOf } from './data';
+import type { GraphicsQuality, WeatherKind } from './types';
 import {
   BENCH_SPOTS, FARM_GATE, FOUNTAIN, LAMP_SPOTS, PLAZA, SAKURA_SPOTS,
   TOWN, TOWN_BOARD, TOWN_CAFE, TOWN_CASINO, TOWN_HALL, TOWN_HOUSE1, TOWN_HOUSE2,
   TOWN_SHOP, TOWN_STAGE, farmGateCenter,
 } from './town';
-import { drawPlayerDetailed, type VisitorDraw } from './render';
-import { drawMoon, drawSparkle, drawSun } from './icons';
+import { drawActionFx, drawEggSplat, drawPlayerDetailed, type VisitorDraw } from './render';
+import { drawMoon, drawSparkle, drawSun, setFxLow } from './icons';
 
 export interface TownRenderState {
   player: { x: number; y: number; dir: number; moving: boolean; tx: number | null; ty: number | null; name: string };
@@ -18,7 +18,14 @@ export interface TownRenderState {
   visitors?: VisitorDraw[];
   selfBubble?: string;
   selfEmote?: string;
+  outfit?: Record<string, string>;
+  /** cấp đồ họa (đồng bộ với farm) */
+  quality?: GraphicsQuality;
 }
+
+// ===== Cấp đồ họa: renderTown đặt mỗi frame =====
+let TQ_LOW = false;
+let TQ_MED = false;
 
 const OUT = '#4a3226';
 function ell(ctx: CanvasRenderingContext2D, x: number, y: number, rx: number, ry: number) {
@@ -48,6 +55,7 @@ function frame(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h
   ctx.lineWidth = ow; ctx.strokeStyle = OUT; ctx.lineJoin = 'round'; ctx.stroke();
 }
 function shadow(ctx: CanvasRenderingContext2D, x: number, y: number, rx: number, ry: number, a = 0.22) {
+  if (TQ_LOW) return; // đồ họa Thấp: tắt bóng cho nhẹ
   ctx.fillStyle = `rgba(30,40,20,${a})`;
   ell(ctx, x, y, rx, ry);
 }
@@ -1475,7 +1483,8 @@ function drawVendor(
 
 // ---------- bướm + chim trời ----------
 function drawCritters(ctx: CanvasRenderingContext2D, cam: { x: number; y: number }, W: number, t: number) {
-  for (let i = 0; i < 4; i++) {
+  // bướm công viên (Thấp: tắt, TB: 2 con)
+  for (let i = 0; i < (TQ_LOW ? 0 : TQ_MED ? 2 : 4); i++) {
     const bx = 480 + ((t * (24 + i * 8) + i * 160) % 640) - cam.x;
     const by = 480 + ((i * 127) % 300) + Math.sin(t * 3 + i * 2) * 14 - cam.y;
     if (bx < -10 || bx > W + 10) continue;
@@ -1622,6 +1631,10 @@ function drawCasino(ctx: CanvasRenderingContext2D, cam: { x: number; y: number }
 
 // ---------- render chính ----------
 export function renderTown(ctx: CanvasRenderingContext2D, W: number, H: number, cam: { x: number; y: number }, s: TownRenderState, t: number) {
+  // cấp đồ họa áp dụng ngay cho cả frame công viên
+  TQ_LOW = s.quality === 'low';
+  TQ_MED = s.quality === 'medium';
+  setFxLow(TQ_LOW);
   const dt = s.dayTime;
   const night = dt < 0.2 || dt > 0.8;
   const isDay = dt > 0.2 && dt < 0.78;
@@ -1685,8 +1698,8 @@ export function renderTown(ctx: CanvasRenderingContext2D, W: number, H: number, 
   const nowMs = Date.now();
   {
     const X = s.player.x - cam.x, Y = s.player.y - cam.y;
-    const shirt = SHIRTS[s.avatar % SHIRTS.length];
-    drawPlayerDetailed(ctx, X, Y, s.player.dir, s.player.moving, shirt, s.player.name, t);
+    const shirt = shirtColorOf(s.outfit, SHIRTS[s.avatar % SHIRTS.length]);
+    drawPlayerDetailed(ctx, X, Y, s.player.dir, s.player.moving, shirt, s.player.name, t, s.outfit);
     if (s.player.tx != null && s.player.ty != null) {
       ctx.fillStyle = '#ffeb3b';
       ctx.beginPath(); ctx.arc(s.player.tx - cam.x, s.player.ty - cam.y, 6 + Math.sin(t * 8) * 2, 0, 7); ctx.fill();
@@ -1722,6 +1735,18 @@ export function renderTown(ctx: CanvasRenderingContext2D, W: number, H: number, 
         ctx.font = '28px serif';
         ctx.textAlign = 'center';
         ctx.fillText(em.slice(0, 4), X + 22, Y - 58 + bounce);
+        drawActionFx(ctx, X, Y, em, t);
+      }
+      // dính trứng thối từ đứa ném pupu gần đó
+      if (s.visitors) {
+        for (const o of s.visitors) {
+          if (o === v) continue;
+          const oem = o.self ? s.selfEmote : o.emote;
+          const oat = o.self ? nowMs : (o.emoteAt ?? 0);
+          if (oem && oem.includes('🥚') && nowMs - oat < 4000) {
+            if (Math.hypot(o.x - v.x, o.y - v.y) < 220) { drawEggSplat(ctx, X, Y, t, v.x); break; }
+          }
+        }
       }
     }
   }
@@ -1746,8 +1771,8 @@ export function renderTown(ctx: CanvasRenderingContext2D, W: number, H: number, 
     for (const l of LAMP_SPOTS) glow(l.x, l.y - 67, 60);
     glow(FOUNTAIN.x, FOUNTAIN.y - 20, 90, '140,220,255');
     glow(TOWN_STAGE.x + TOWN_STAGE.w / 2, TOWN_STAGE.y, 120);
-    // đom đóm + sao
-    for (let i = 0; i < 24; i++) {
+    // đom đóm + sao (Thấp: tắt đom đóm + thưa sao, TB: một nửa)
+    for (let i = 0; i < (TQ_LOW ? 0 : TQ_MED ? 12 : 24); i++) {
       const fx = (i * 257 + t * (10 + (i % 5) * 4)) % TOWN.w - cam.x;
       const fy = (i * 173 + Math.sin(t * 1.5 + i) * 30) % TOWN.h - cam.y;
       if (fx < 0 || fy < 0 || fx > W || fy > H) continue;
@@ -1756,7 +1781,7 @@ export function renderTown(ctx: CanvasRenderingContext2D, W: number, H: number, 
       ctx.beginPath(); ctx.arc(fx, fy, 2.2, 0, 7); ctx.fill();
     }
     ctx.fillStyle = 'rgba(255,255,255,.8)';
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < (TQ_LOW ? 15 : 30); i++) {
       const sx = (i * 311) % W, sy = (i * 167) % Math.max(80, H * 0.4);
       if (Math.sin(t * 2 + i) > 0.2) ctx.fillRect(sx, sy, 2, 2);
     }
@@ -1772,11 +1797,17 @@ export function renderTown(ctx: CanvasRenderingContext2D, W: number, H: number, 
       cloud(ctx, cxm, 54 + i * 24, 15, 0.92);
     }
   } else drawMoon(ctx, W - 60, 44, 14);
-  const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.45, W / 2, H / 2, Math.max(W, H) * 0.75);
-  vg.addColorStop(0, 'rgba(0,0,0,0)');
-  vg.addColorStop(1, night ? 'rgba(5,5,25,.32)' : 'rgba(90,60,20,.14)');
-  ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+  if (TQ_LOW) {
+    // đồ họa Thấp: bỏ vignette + bớt mưa/tuyết
+  } else {
+    const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.45, W / 2, H / 2, Math.max(W, H) * 0.75);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, night ? 'rgba(5,5,25,.32)' : 'rgba(90,60,20,.14)');
+    ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+  }
   const w = s.weather ?? 'sunny';
+  const rainN = TQ_LOW ? 24 : TQ_MED ? 40 : 70;
+  const snowN = TQ_LOW ? 20 : TQ_MED ? 36 : 60;
   if (w === 'rain') {
     for (let i = 0; i < 5; i++) {
       // mây mưa: layer trời xa
@@ -1784,7 +1815,7 @@ export function renderTown(ctx: CanvasRenderingContext2D, W: number, H: number, 
       cloud(ctx, cxm, 26 + (i % 3) * 26, 22, 0.95);
     }
     ctx.strokeStyle = 'rgba(170,210,255,.6)'; ctx.lineWidth = 1.6;
-    for (let i = 0; i < 70; i++) {
+    for (let i = 0; i < rainN; i++) {
       // hạt mưa: layer hạt rơi (parallax 0.3)
       const rx = pmod(i * 97 + t * 300 - cam.x * 0.3, W + 40) - 20;
       const ry = pmod(i * 211 + t * 700 - cam.y * 0.3, H + 40) - 20;
@@ -1792,7 +1823,7 @@ export function renderTown(ctx: CanvasRenderingContext2D, W: number, H: number, 
     }
   } else if (w === 'snow') {
     ctx.fillStyle = 'rgba(255,255,255,.85)';
-    for (let i = 0; i < 60; i++) {
+    for (let i = 0; i < snowN; i++) {
       // tuyết: layer hạt rơi (parallax 0.3 + lượn)
       const sx = pmod(i * 131 + Math.sin(t * 0.8 + i) * 30 - cam.x * 0.3, W + 8) - 4;
       const sy = pmod(i * 197 + t * 40 - cam.y * 0.3, H + 8) - 4;

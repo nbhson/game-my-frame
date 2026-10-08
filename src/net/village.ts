@@ -1,12 +1,14 @@
 // ===== Village store: presence + chat + visit + cloud sync =====
 // GameCanvas và UI chỉ gọi store này, không đụng trực tiếp transport.
 import { create } from 'zustand';
-import type { ChatMsg, FarmPayload, FarmSnapshot, NetTransport, RemotePlayer } from './transport';
+import type { ChatMsg, FarmPayload, FarmSnapshot, NetTransport, RemotePlayer, StealWire } from './transport';
 import { LocalTransport } from './local';
 import { SupabaseTransport, supabaseConfigured } from './supabase';
 import { SocketTransport, lanServerAvailable } from './socket';
 import { PRESENCE_PROTO, codeFromName, getPresenceId } from './session';
 import { useGame } from '../game/store';
+import { CROPS } from '../game/data';
+import { sfx } from '../game/audio';
 
 export type CloudState = 'offline' | 'local' | 'syncing' | 'synced' | 'error';
 export type NetMode = 'local' | 'supabase' | 'socket';
@@ -28,6 +30,10 @@ interface VillageState {
   demoBots: boolean;
   /** true khi thấy người chơi chạy bản game khác mình → nhắc reload cả 2 tab */
   mismatch: boolean;
+  /** đang xử lý 1 vụ hái trộm (chống bấm đúp) */
+  stealing: boolean;
+  /** tên trộm mới nhất mò vào farm mình (để vẽ bóng "Gâu gâu!" trên đầu nó 5s) */
+  lastThief: { name: string; at: number } | null;
 
   connect(): void;
   disconnect(): void;
@@ -39,6 +45,8 @@ interface VillageState {
   visit(code: string): Promise<boolean>;
   leaveVisit(): void;
   toggleBots(): void;
+  /** Hái trộm 1 ô chín trong farm đang thăm: chó có thể cắn → mất trắng + bị đuổi */
+  stealFromVisit(plot: number): Promise<void>;
 }
 
 let transport: NetTransport | null = null;
@@ -71,10 +79,48 @@ function snapshotOfGame(): FarmPayload {
       inv: g.inv, plots: g.plots, fishes: g.fishes, animals: g.animals,
       pondSlots: g.pondSlots, coopCap: g.coopCap,
       stats: g.stats, questIdx: g.questIdx, uidSeq: g.uidSeq,
+      quality: g.quality,
     },
   };
 }
 
+// ---------- trộm farm: giới hạn + chó giữ nhà ----------
+// Mỗi farm chỉ bị hái tối đa 3 cây/ngày (chống phá). Chó Vàng/Mực luôn trực:
+// tỉ lệ cắn = 45% + 10% mỗi cây đã mất hôm nay (tối đa 80%).
+export const STEAL_MAX_PER_DAY = 3;
+function stealDay(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+function stealKey(victim: string): string { return `nt-steal:${stealDay()}:${victim}`; }
+/** số cây đã hái trộm ở farm này hôm nay */
+export function stealCountToday(victim: string): number {
+  try { return Number(localStorage.getItem(stealKey(victim)) || 0); } catch { return 0; }
+}
+function bumpSteal(victim: string) {
+  try { localStorage.setItem(stealKey(victim), String(stealCountToday(victim) + 1)); } catch { /* ignore */ }
+}
+/** tỉ lệ bị chó cắn khi hái trộm ở farm này */
+export function dogCatchChance(victim: string): number {
+  return Math.min(0.8, 0.45 + 0.1 * stealCountToday(victim));
+}
+
+/** Chủ farm nhận báo trộm: trừ cây (nếu còn) + cho chó sủa */
+function handleFarmSteal(ev: StealWire) {
+  if (!transport || !ev?.code) return;
+  if (ev.code.toUpperCase() !== transport.code.toUpperCase()) return; // không phải farm mình
+  const g = useGame.getState();
+  useVillage.setState({ lastThief: { name: ev.thief, at: Date.now() } });
+  if (ev.caught) {
+    g.toast(`Chó Vàng cắn ${ev.thief}, đuổi khỏi farm rồi!`);
+    sfx.bark();
+    return;
+  }
+  const applied = g.applyVictimSteal(ev.plot, ev.crop);
+  const cname = CROPS[ev.crop]?.name ?? ev.crop;
+  g.toast(applied ? `Bị ${ev.thief} hái trộm ${cname}! Chó sủa ầm ĩ!` : `${ev.thief} mò vào farm nhưng hụt rồi!`);
+  sfx.bark();
+}
 // --- demo bots: 2 nông dân đi loanh quanh để test 1 tab vẫn thấy làng đông ---
 const BOTS: RemotePlayer[] = [
   { id: 'bot-lan', name: 'Lan', avatar: 1, x: 400, y: 500, dir: 1, moving: true, map: 'farm', updatedAt: Date.now() },
@@ -106,6 +152,8 @@ export const useVillage = create<VillageState>()((set, get) => ({
   selfEmoteAt: 0,
   demoBots: false,
   mismatch: false,
+  stealing: false,
+  lastThief: null,
 
   async connect() {
     if (transport || get().connected) return;
@@ -132,6 +180,8 @@ export const useVillage = create<VillageState>()((set, get) => ({
         }
       }),
       transport.onStatus((ok) => set({ cloud: transport!.mode === 'local' ? 'local' : ok ? 'synced' : 'error' })),
+      // báo trộm farm mình (chủ farm): trừ cây + chó sủa (backend không hỗ trợ thì thôi)
+      ...(transport.onFarmEvent ? [transport.onFarmEvent((ev) => handleFarmSteal(ev))] : []),
     ];
     // đẩy farm định kỳ (cloud save)
     farmTimer = window.setInterval(() => {
@@ -150,7 +200,7 @@ export const useVillage = create<VillageState>()((set, get) => ({
     transport?.disconnect();
     transport = null;
     lastPos = 0;
-    set({ connected: false, players: [], chat: [], visiting: null, cloud: 'offline', mismatch: false });
+    set({ connected: false, players: [], chat: [], visiting: null, cloud: 'offline', mismatch: false, stealing: false, lastThief: null });
   },
 
   reconnect() {
@@ -179,6 +229,15 @@ export const useVillage = create<VillageState>()((set, get) => ({
   sendChat(text) {
     const t = text.trim().slice(0, 80);
     if (!t || !transport) return;
+    // --- lệnh ẩn "pupu": ném trứng vào xung quanh, KHÔNG hiện chữ lên màn hình ---
+    if (t.toLowerCase() === 'pupu') {
+      // phát qua kênh emote (presence) để cả làng thấy trứng bay,
+      // không gửi chat nên không ai thấy chữ "pupu"
+      get().sendEmote('🥚');
+      sfx.splash();
+      useGame.getState().toast('PUPU! Ném trứng thối vào cả làng 🥚💨');
+      return;
+    }
     transport.sendChat(t);
     set({ selfBubble: t, selfBubbleAt: Date.now() });
     setTimeout(() => {
@@ -235,6 +294,78 @@ export const useVillage = create<VillageState>()((set, get) => ({
 
   leaveVisit() {
     set({ visiting: null });
+  },
+
+  async stealFromVisit(plot) {
+    const v = get();
+    if (v.stealing || !v.visiting || !transport) return;
+    const g = useGame.getState();
+    if (g.scene !== 'farm') return;
+    const code = v.visiting.code;
+    set({ stealing: true });
+    try {
+      // lấy farm mới nhất để chắc cây còn chín (tránh hái trùng ô đã mất)
+      let snap: FarmSnapshot | null = null;
+      try { snap = await transport.fetchFarm(code); } catch { snap = null; }
+      const target = (snap ?? v.visiting.snap).plots?.[plot];
+      if (!target || target.locked || target.state !== 'ready' || !target.crop) {
+        g.toast('Ô này chưa chín (hoặc bị hái mất rồi)!');
+        return;
+      }
+      if (stealCountToday(code) >= STEAL_MAX_PER_DAY) {
+        g.toast(`Hôm nay hái đủ ${STEAL_MAX_PER_DAY} cây ở farm này rồi, mai quay lại!`);
+        return;
+      }
+      const crop = target.crop;
+      const cname = CROPS[crop]?.name ?? crop;
+      const thiefName = g.name || 'Ai đó';
+      // --- chó giữ nhà: Vàng + Mực luôn trực ---
+      if (Math.random() < dogCatchChance(code)) {
+        g.setThiefBite();
+        sfx.bark();
+        setTimeout(() => sfx.error(), 550);
+        g.toast(`GÂU GÂU! Chó nhà ${v.visiting.snap.name} cắn! Bị đuổi khỏi farm!`);
+        try { transport.stealNotify?.({ code, plot, crop, thief: thiefName, caught: true }); } catch { /* ignore */ }
+        // cho xem hiệu ứng bị cắn 1.5s rồi đuổi về
+        setTimeout(() => get().leaveVisit(), 1500);
+        return;
+      }
+      // --- trộm thành công ---
+      g.addInv(crop, 1);
+      g.addXP(8);
+      sfx.harvest();
+      bumpSteal(code);
+      g.toast(`Hái trộm +1 ${cname}! Coi chừng chó… (${stealCountToday(code)}/${STEAL_MAX_PER_DAY} hôm nay)`);
+      // cập nhật bản đang xem để không hái lại ô này
+      set((s) => (s.visiting
+        ? {
+          visiting: {
+            code,
+            snap: {
+              ...s.visiting.snap,
+              plots: s.visiting.snap.plots.map((p, i) => (i === plot
+                ? { ...p, state: 'soil' as const, crop: null, progress: 0, watered: false, waterLeft: 0, pest: false }
+                : p)),
+            },
+          },
+        }
+        : {}));
+      // trừ cây bên chủ farm: online → báo realtime, offline → ghi vào DB server
+      const victimOnline = get().players.some((p) => (p.code || '').toUpperCase() === code);
+      if (transport.mode === 'socket' && !victimOnline) {
+        try {
+          await fetch(`/api/farms/${encodeURIComponent(code)}/steal`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ plot, crop }),
+          });
+        } catch { /* ignore */ }
+      } else {
+        try { transport.stealNotify?.({ code, plot, crop, thief: thiefName, caught: false }); } catch { /* ignore */ }
+      }
+    } finally {
+      set({ stealing: false });
+    }
   },
 
   toggleBots() {

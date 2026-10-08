@@ -117,6 +117,24 @@ app.get('/api/farms/:code', (req, res) => {
   res.json({ ...acc.data, code, name: acc.name, avatar: acc.avatar, updatedAt: acc.updatedAt });
 });
 
+// hái trộm khi chủ offline: trừ cây chín ở ô plot trong farm đã lưu
+// body { plot, crop } → { ok:true } nếu trừ được, { ok:false, reason } nếu ô đã trống/khác
+app.post('/api/farms/:code/steal', (req, res) => {
+  const code = String(req.params.code || '').toUpperCase();
+  const acc = Object.values(db.accounts).find((a) => a.code === code);
+  if (!acc || !acc.data || !Array.isArray(acc.data.plots)) return res.status(404).json({ ok: false, reason: 'not found' });
+  const plot = Number(req.body?.plot);
+  const crop = String(req.body?.crop || '');
+  const pl = acc.data.plots[plot];
+  if (!pl || pl.locked || pl.state !== 'ready' || pl.crop !== crop) {
+    return res.json({ ok: false, reason: 'plot not ready' });
+  }
+  acc.data.plots[plot] = { ...pl, state: 'soil', crop: null, progress: 0, watered: false, waterLeft: 0, pest: false };
+  acc.updatedAt = Date.now();
+  saveDbSoon();
+  res.json({ ok: true });
+});
+
 // serve game đã build
 app.use(express.static(DIST));
 app.use((_req, res) => res.sendFile(path.join(DIST, 'index.html')));
@@ -127,6 +145,8 @@ const io = new Server(httpServer, { cors: { origin: '*' } });
 
 /** id -> { id, v, name, avatar, code, x, y, dir, moving, bubble, bubbleAt, map, emote, emoteAt, visit, updatedAt } */
 const players = new Map();
+/** socket.id -> presence id (để chuyển tiếp sự kiện trộm tới đúng chủ farm) */
+const socketUser = new Map();
 let broadcastTimer = null;
 
 function publicList() {
@@ -1203,6 +1223,7 @@ io.on('connection', (socket) => {
 
   socket.on('hello', (p = {}) => {
     myId = p.id || socket.id;
+    socketUser.set(socket.id, myId);
     const prev = players.get(myId);
     players.set(myId, {
       id: myId,
@@ -1257,12 +1278,30 @@ io.on('connection', (socket) => {
     }
   });
 
+  // hái trộm: chuyển tiếp cho (các) tab đang giữ farm nạn nhân
+  // { code, plot, crop, thief, caught } — chủ farm tự trừ cây + cho chó sủa
+  socket.on('farm:steal', (p = {}) => {
+    const code = String(p.code || '').toUpperCase().slice(0, 6);
+    if (!code) return;
+    const ev = {
+      code,
+      plot: Number(p.plot),
+      crop: String(p.crop || ''),
+      thief: String(p.thief || 'Ai đó').slice(0, 12),
+      caught: !!p.caught,
+    };
+    for (const [sid, pid] of socketUser) {
+      const pl = players.get(pid);
+      if (pl && (pl.code || '').toUpperCase() === code) io.to(sid).emit('farm:stolen', ev);
+    }
+  });
+
   // ================= CASINO (phòng chơi realtime) =================
   socket.on('casino:list', () => {
     socket.emit('casino:rooms', casinoPublic());
   });
   socket.on('casino:create', (p = {}) => {
-    const game = ['tienlen', 'baicao', 'caro'].includes(p.game) ? p.game : 'tienlen';
+    const game = ['tienlen', 'baicao', 'caro', 'xidach', 'chess'].includes(p.game) ? p.game : 'tienlen';
     const bet = Math.max(10, Math.min(100, Number(p.bet) || 10));
     const me = casinoPlayerFrom(socket, myId, { ...(p.player || {}), pid: p.pid });
     leaveCasinoRoom(socket, me.pid);
@@ -1349,6 +1388,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
+    socketUser.delete(socket.id);
     const cpid = casinoPidBySocket.get(socket.id);
     if (cpid) { leaveCasinoRoom(socket, cpid, true); casinoPidBySocket.delete(socket.id); }
     else leaveCasinoRoom(socket, pidOf(myId), true);

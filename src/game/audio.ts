@@ -43,4 +43,6 @@ export const sfx = {
   lvup() { [523, 659, 784, 1046, 1318].forEach((f, i) => later(() => beep(f, 0.15), i * 100)); },
   moo() { beep(140, 0.4, 'sawtooth', 0.2, -40); },
   cluck() { beep(800, 0.06); later(() => beep(1000, 0.06), 70); },
+  /** chó sủa: 3 tiếng gâu gâu gâu trầm khàn */
+  bark() { [220, 200, 240].forEach((f, i) => { later(() => beep(f, 0.12, 'square', 0.2, -60), i * 160); }); },
 };

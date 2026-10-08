@@ -56,6 +56,12 @@ export const ANIMALS: Record<string, AnimalDef> = {
   sheep:   { id: 'sheep',   name: 'Cừu',  emoji: '', babyPrice: 600, product: 'Len',        productId: 'len',      sell: 300, grow: 260, cycle: 120, xp: 70, lv: 12, desc: 'Len mềm ấm', max: 12 },
 };
 
+/** Giá bán 1 con vật nuôi đã lớn = 180% giá mua con non (nuôi lớn rồi bán mới có lãi) */
+export function animalSellPrice(type: string): number {
+  const A = ANIMALS[type];
+  if (!A) return 1;
+  return Math.round(A.babyPrice * 1.8);
+}
 /** Sức chứa mặc định mỗi chuồng (mở rộng dần bằng tiền + cấp) */
 export const START_CAP = 3;
 export const MAX_CAP: Record<string, number> = { chicken: 30, duck: 15, cow: 20, pig: 20, sheep: 12 };
@@ -222,5 +228,67 @@ export const QUESTS: QuestDef[] = [
 
 export const AVATARS = ['Nón lá', 'Khăn đỏ', 'Mũ lưỡi trai', 'Mũ cao bồi'];
 export const SHIRTS = ['#3f9e4d', '#e75480', '#3b82f6', '#b45309'];
+
+// ---------- Thời trang: mua bằng xu/gem ở Shop Lưu niệm (công viên) ----------
+// Mỗi món thuộc 1 slot; mỗi slot chỉ mặc 1 món. Đồ mặc thấy ngay trên nhân vật.
+export type OutfitSlot = 'shirt' | 'pants' | 'hat' | 'hair' | 'shoes' | 'acc';
+export interface OutfitItem {
+  id: string; slot: OutfitSlot; name: string; desc: string;
+  priceXu?: number; priceGem?: number;
+  /** màu vẽ lên nhân vật (tùy slot) */
+  color?: string;
+  /** icon minh họa trong shop */
+  emoji: string;
+}
+export const OUTFIT_SLOTS: { id: OutfitSlot; name: string; emoji: string }[] = [
+  { id: 'shirt', name: 'Áo', emoji: '👕' },
+  { id: 'pants', name: 'Quần', emoji: '👖' },
+  { id: 'hat', name: 'Nón', emoji: '🎩' },
+  { id: 'hair', name: 'Tóc', emoji: '💇' },
+  { id: 'shoes', name: 'Giày', emoji: '👟' },
+  { id: 'acc', name: 'Phụ kiện', emoji: '🕶️' },
+];
+export const OUTFITS: Record<string, OutfitItem> = {
+  // Áo
+  shirt_basic:  { id: 'shirt_basic',  slot: 'shirt', name: 'Áo vải nông dân', desc: 'Mặc định, thơm mùi rơm', emoji: '👕' },
+  shirt_lua:    { id: 'shirt_lua',    slot: 'shirt', name: 'Áo Lúa vàng', desc: 'Mặc vào gặt hên hơn (đồn thế)', priceXu: 120, color: '#eab308', emoji: '🌾' },
+  shirt_hong:   { id: 'shirt_hong',   slot: 'shirt', name: 'Áo Hồng cánh sen', desc: 'Nổi nhất công viên', priceXu: 250, color: '#ec4899', emoji: '🌸' },
+  shirt_dragon: { id: 'shirt_dragon', slot: 'shirt', name: 'Áo Rồng lửa', desc: 'Hàng hiếm đổi bằng gem', priceGem: 3, color: '#dc2626', emoji: '🐉' },
+  // Quần
+  pants_basic: { id: 'pants_basic', slot: 'pants', name: 'Quần yếm xanh', desc: 'Mặc định', emoji: '👖' },
+  pants_dui:   { id: 'pants_dui',   slot: 'pants', name: 'Quần đùi tắm sông', desc: 'Mát mẻ ngày hè', priceXu: 100, color: '#f59e0b', emoji: '🩳' },
+  pants_vest:  { id: 'pants_vest',  slot: 'pants', name: 'Quần tây lịch lãm', desc: 'Đi casino không ai dám khinh', priceXu: 300, color: '#1f2937', emoji: '🤵' },
+  // Nón / mũ
+  hat_none:   { id: 'hat_none',   slot: 'hat', name: 'Không đội mũ', desc: 'Khoe tóc mới', emoji: '🧑' },
+  hat_la:     { id: 'hat_la',     slot: 'hat', name: 'Nón lá quê hương', desc: 'Mặc định, che nắng tốt', emoji: '⛑️' },
+  hat_luoi:   { id: 'hat_luoi',   slot: 'hat', name: 'Mũ lưỡi trai đỏ', desc: 'Trẻ trung năng động', priceXu: 150, color: '#ef4444', emoji: '🧢' },
+  hat_cao:    { id: 'hat_cao',    slot: 'hat', name: 'Mũ cao bồi', desc: 'Cao bồi nông trại', priceXu: 350, color: '#92400e', emoji: '🤠' },
+  hat_vuong:  { id: 'hat_vuong',  slot: 'hat', name: 'Vương miện Củ cải', desc: 'Vua của ruộng vườn, bằng gem', priceGem: 5, color: '#fbbf24', emoji: '👑' },
+  // Tóc
+  hair_black: { id: 'hair_black', slot: 'hair', name: 'Tóc đen mượt', desc: 'Mặc định', color: '#1f2937', emoji: '💇' },
+  hair_vang:  { id: 'hair_vang',  slot: 'hair', name: 'Tóc vàng hoe', desc: 'Nhuộm nắng đồng quê', priceXu: 120, color: '#f59e0b', emoji: '👱' },
+  hair_hong:  { id: 'hair_hong',  slot: 'hair', name: 'Tóc hồng kẹo bông', desc: 'Ngọt ngào đáng yêu', priceXu: 200, color: '#f9a8d4', emoji: '🌷' },
+  hair_xanh:  { id: 'hair_xanh',  slot: 'hair', name: 'Tóc xanh đại dương', desc: 'Câu cá auto dính (đồn thế)', priceGem: 2, color: '#22d3ee', emoji: '🌊' },
+  // Giày
+  shoes_basic: { id: 'shoes_basic', slot: 'shoes', name: 'Ủng nâu lội ruộng', desc: 'Mặc định', emoji: '🥾' },
+  shoes_dep:   { id: 'shoes_dep',   slot: 'shoes', name: 'Dép tổ ong', desc: 'Huyền thoại công viên', priceXu: 80, color: '#fbbf24', emoji: '🩴' },
+  shoes_giay:  { id: 'shoes_giay',   slot: 'shoes', name: 'Giày thể thao', desc: 'Chạy nhanh hơn (cảm giác thế)', priceXu: 220, color: '#ef4444', emoji: '👟' },
+  shoes_vang:  { id: 'shoes_vang',   slot: 'shoes', name: 'Giày vàng óng', desc: 'Đeo vào ai cũng ngoái nhìn', priceGem: 2, color: '#facc15', emoji: '✨' },
+  // Phụ kiện
+  acc_none:   { id: 'acc_none',   slot: 'acc', name: 'Không đeo gì', desc: 'Giản dị', emoji: '🚫' },
+  acc_kinh:   { id: 'acc_kinh',   slot: 'acc', name: 'Kính râm ngầu', desc: 'Đeo vào auto ngầu', priceXu: 180, emoji: '🕶️' },
+  acc_hoa:    { id: 'acc_hoa',    slot: 'acc', name: 'Hoa tai cúc họa mi', desc: 'Dịu dàng thướt tha', priceXu: 260, emoji: '🌼' },
+  acc_sao:    { id: 'acc_sao',    slot: 'acc', name: 'Huy hiệu Ngôi sao', desc: 'Dành cho đại gia gem', priceGem: 4, emoji: '⭐' },
+};
+export const DEFAULT_OUTFIT: Record<OutfitSlot, string> = {
+  shirt: 'shirt_basic', pants: 'pants_basic', hat: 'hat_la',
+  hair: 'hair_black', shoes: 'shoes_basic', acc: 'acc_none',
+};
+/** Màu áo đang mặc (áo đặc biệt đè màu avatar) */
+export function shirtColorOf(outfit?: Record<string, string>, fallback = '#3f9e4d'): string {
+  const id = outfit?.shirt;
+  const c = id ? OUTFITS[id]?.color : undefined;
+  return c ?? fallback;
+}
 
 export const DAY_LENGTH = 240; // giây = 1 ngày

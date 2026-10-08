@@ -2,7 +2,7 @@
 // Client tự phát hiện server qua GET /api/health — cùng origin nên
 // không cần cấu hình IP gì cả, mở link LAN là vào làng được.
 import { io, type Socket } from 'socket.io-client';
-import type { ChatMsg, FarmPayload, FarmSnapshot, NetTransport, RemotePlayer, SelfInfo } from './transport';
+import type { ChatMsg, FarmPayload, FarmSnapshot, NetTransport, RemotePlayer, SelfInfo, StealWire } from './transport';
 import { PRESENCE_PROTO } from './session';
 
 export class SocketTransport implements NetTransport {
@@ -14,6 +14,7 @@ export class SocketTransport implements NetTransport {
   private playerCbs = new Set<(l: RemotePlayer[]) => void>();
   private chatCbs = new Set<(m: ChatMsg) => void>();
   private statusCbs = new Set<(ok: boolean) => void>();
+  private stealCbs = new Set<(ev: StealWire) => void>();
   private lastFarmPush = 0;
 
   constructor(private playerId: string, code: string) {
@@ -34,6 +35,10 @@ export class SocketTransport implements NetTransport {
     });
     this.socket.on('chat', (m: ChatMsg) => {
       this.chatCbs.forEach((cb) => cb(m));
+    });
+    this.socket.on('farm:stolen', (ev: StealWire) => {
+      if (!ev || !ev.code) return;
+      this.stealCbs.forEach((cb) => cb(ev));
     });
   }
 
@@ -76,6 +81,15 @@ export class SocketTransport implements NetTransport {
   sendChat(text: string) {
     this.socket?.emit('chat', { text });
     // server broadcast lại cho cả người gửi → chat + bubble tự về
+  }
+
+  stealNotify(p: StealWire) {
+    this.socket?.emit('farm:steal', { code: p.code, plot: p.plot, crop: p.crop, thief: p.thief, caught: !!p.caught });
+  }
+
+  onFarmEvent(cb: (ev: StealWire) => void) {
+    this.stealCbs.add(cb);
+    return () => { this.stealCbs.delete(cb); };
   }
 
   onPlayers(cb: (l: RemotePlayer[]) => void) {

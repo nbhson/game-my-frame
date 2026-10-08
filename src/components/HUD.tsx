@@ -1,4 +1,4 @@
-import { Backpack, CircleHelp, Gift, MessageCircle, ScrollText, Store, Tractor, Users, Volume2, VolumeX } from 'lucide-react';
+import { Backpack, CircleHelp, Gift, MessageCircle, ScrollText, Settings, Store, Tractor, Users, Volume2, VolumeX } from 'lucide-react';
 import { useState } from 'react';
 import { xpNeed, useGame, WEATHER_LABEL } from '../game/store';
 import { townCount, useVillage } from '../net/village';
@@ -62,6 +62,9 @@ export default function HUD() {
             <button className="pixel-btn !text-[11px] !bg-purple-600 !text-white flex items-center gap-1" title="Mở Casino (Tiến lên • Bài cào • Xì dách • Caro • Cờ vua)" onClick={() => s.setModal('casino')}>
               🎰 Casino
             </button>
+            <button className="pixel-btn !text-[11px] !bg-pink-500 !text-white flex items-center gap-1" title="Shop thời trang (áo quần nón tóc giày)" onClick={() => s.setModal('outfit')}>
+              👗 Thời trang
+            </button>
             <button className="pixel-btn !text-[11px] !bg-green-500 !text-white flex items-center gap-1" title="Về nông trại (cổng phía đông)" onClick={() => goToFarm()}>
               <Tractor size={16} /> Về farm
             </button>
@@ -99,6 +102,9 @@ export default function HUD() {
             <button className="icon-btn !text-black" title="Trợ giúp (H)" onClick={() => s.setModal('help')}><CircleHelp size={20} /></button>
           </>
         )}
+        <button className="icon-btn !text-black" title="Cài đặt (đồ họa, âm thanh)" onClick={() => s.setModal('settings')}>
+          <Settings size={20} />
+        </button>
         <button
           className="icon-btn !text-black"
           onClick={() => { const v = !isSoundOn(); setSoundOn(v); setMute(!v); }}

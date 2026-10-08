@@ -95,8 +95,8 @@ function TownBottomBar({ target }: { target: InteractTarget | null }) {
           <Send size={16} />
         </button>
       </div>
-      {/* cảm xúc realtime */}
-      <div className="flex gap-1">
+      {/* cảm xúc + hành động realtime */}
+      <div className="flex gap-1 flex-wrap">
         {TOWN_EMOTES.map((e) => (
           <button
             key={e.id}
