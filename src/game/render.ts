@@ -8,7 +8,7 @@ import type { BiteDir } from './data';
 import type { FishIconId } from './icons';
 import { BARN, COOP, FARM, PEN_MB, PIERS, POND, RIVER, RIVER_WATER_Y, ROAD_H, ROAD_V, SHOPD, TILE, TOWN_GATE, WORLD, plotPos, roadHCenter, roadVCenter, townGateCenter } from './world';
 import { animalPos, fishPos, KEM_UID, PETS, petPos } from './systems';
-import { drawBasket, drawChickenHead, drawCowHead, drawCropGeneric, drawDrop, drawEnvelope, drawExclaimBadge, drawFeedBowl, drawFish, drawHoeMini, drawLock, drawMoon, drawPumpkin, drawSeedDot, drawSleepZ, drawSparkle, drawSprout, drawStar, drawSun, drawTreeFruit, setFxLow } from './icons';
+import { drawBasket, drawChickenHead, drawCowHead, drawCropGeneric, drawDrop, drawEnvelope, drawExclaimBadge, drawFeedBowl, drawFish, drawHoeMini, drawLock, drawMoon, drawPumpkin, drawSeedDot, drawSleepZ, drawSparkle, drawSprout, drawStar, drawSun, drawTreeFruit, setFxLevel } from './icons';
 
 export interface VisitorDraw {
   x: number; y: number; dir: number; moving: boolean;
@@ -207,9 +207,10 @@ function drawGrassBase(ctx: CanvasRenderingContext2D, cam: { x: number; y: numbe
     ctx.fillStyle = g2;
     ctx.beginPath(); ctx.arc(sx, sy, 220, 0, 7); ctx.fill();
   }
-  // chi tiết mặt đất anime (né khu chức năng + đường; Thấp: vẽ một nửa)
+  // chi tiết mặt đất anime (né khu chức năng + đường; Thấp: một nửa, TB: bớt 1/3)
   for (let i = 0; i < 170; i++) {
     if (Q_LOW && i % 2 === 1) continue;
+    if (Q_MED && i % 3 === 0) continue;
     const fx = (i * 211.7) % WORLD.w, fy = (i * 349.3) % WORLD.h;
     if (fx > 20 && fx < 1000 && fy > 210 && fy < 710) continue; // tránh ruộng
     if (fx > 1050 && fx < 1560 && fy > 200 && fy < 660) continue; // tránh ao
@@ -3524,8 +3525,8 @@ function pmod(a: number, n: number): number {
 function drawWeather(ctx: CanvasRenderingContext2D, W: number, H: number, cam: { x: number; y: number }, w: WeatherKind, t: number) {
   if (w === 'sunny') return;
   if (w === 'rain') {
-    // mây mưa xám trôi trên đỉnh màn hình (layer trời xa)
-    for (let i = 0; i < 5; i++) {
+    // mây mưa xám trôi trên đỉnh màn hình (layer trời xa; Thấp: 2, TB: 3)
+    for (let i = 0; i < (Q_LOW ? 2 : Q_MED ? 3 : 5); i++) {
       const cxm = pmod(i * 340 + t * 22 - cam.x * 0.2, W + 300) - 150;
       axCloud(ctx, cxm, 26 + (i % 3) * 26, 22, 0.95);
       ctx.fillStyle = 'rgba(120,140,170,.35)';
@@ -3709,7 +3710,8 @@ export function renderWorld(ctx: CanvasRenderingContext2D, W: number, H: number,
   // cấp đồ họa áp dụng ngay: đặt cờ cho cả frame này
   Q_LOW = s.quality === 'low';
   Q_MED = s.quality === 'medium';
-  setFxLow(Q_LOW);
+  // Thấp = 0 (bỏ hết tia lửa), TB = 1 (tia lửa thưa 1/2), Cao = 2 (đủ)
+  setFxLevel(Q_LOW ? 0 : Q_MED ? 1 : 2);
   ctx.clearRect(0, 0, W, H);
   drawGrassBase(ctx, cam, W, H, t);
   drawRoad(ctx, cam, t);
@@ -4034,8 +4036,9 @@ export function renderWorld(ctx: CanvasRenderingContext2D, W: number, H: number,
     const night = dark > 0.25;
     if (dark > 0.02) { ctx.fillStyle = `rgba(8,8,50,${dark})`; ctx.fillRect(0, 0, W, H); }
     if (night) {
-      // quầng đèn bến + shop + hòm thư
+      // quầng đèn bến + shop + hòm thư (Thấp: tắt quầng gradient cho nhẹ)
       const glow = (wx: number, wy: number, r: number, c = '255,200,80') => {
+        if (Q_LOW) return;
         const X = wx - cam.x, Y = wy - cam.y;
         if (X < -r || Y < -r || X > W + r || Y > H + r) return;
         const g2 = ctx.createRadialGradient(X, Y, 2, X, Y, r);
@@ -4054,9 +4057,9 @@ export function renderWorld(ctx: CanvasRenderingContext2D, W: number, H: number,
         ctx.fillStyle = `rgba(255,255,150,${tw2})`;
         ctx.beginPath(); ctx.arc(fx, fy, 2.2, 0, 7); ctx.fill();
       }
-      // sao (Thấp: thưa một nửa)
+      // sao (Thấp: 12, TB: 20)
       ctx.fillStyle = 'rgba(255,255,255,.8)';
-      for (let i = 0; i < (Q_LOW ? 15 : 30); i++) {
+      for (let i = 0; i < (Q_LOW ? 12 : Q_MED ? 20 : 30); i++) {
         const sx = (i * 311) % W, sy = (i * 167) % Math.max(80, H * 0.4);
         if (Math.sin(t * 2 + i) > 0.2) ctx.fillRect(sx, sy, 2, 2);
       }
@@ -4070,7 +4073,8 @@ export function renderWorld(ctx: CanvasRenderingContext2D, W: number, H: number,
       if (Math.sin(t * 2) > 0.4) drawSparkle(ctx, W - 92, 30 + Math.sin(t) * 3, 5, 0.9);
     } else drawMoon(ctx, W - 60, 44, 14);
     if (isDay) {
-      for (let i = 0; i < 4; i++) {
+      // mây ngày: Thấp tắt, TB 2 đám
+      for (let i = 0; i < (Q_LOW ? 0 : Q_MED ? 2 : 4); i++) {
         // mây ngày: layer trời xa (parallax 0.2 + tự trôi)
         const cxm = pmod(t * 9 + i * 420 - cam.x * 0.2, W + 260) - 130;
         axCloud(ctx, cxm, 54 + i * 24, 15, 0.92);

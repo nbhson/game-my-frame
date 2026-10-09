@@ -7,11 +7,15 @@ function ell(ctx: CanvasRenderingContext2D, x: number, y: number, rx: number, ry
 }
 
 /** Lấp lánh 4 cánh (thay ✨) */
-// Cờ giảm tải toàn cục: đồ họa Thấp → bỏ hết tia lửa (renderWorld/renderTown đặt mỗi frame)
-let FX_LOW = false;
-export function setFxLow(v: boolean) { FX_LOW = v; }
+// Cấp FX toàn cục: 0 = Thấp (bỏ hết tia lửa), 1 = Trung bình (vẽ thưa 1/2), 2 = Cao (đủ)
+// renderWorld/renderTown đặt mỗi frame theo quality.
+let FX_LEVEL = 2;
+let fxTick = 0;
+export function setFxLevel(v: number) { FX_LEVEL = v; }
+export function setFxLow(v: boolean) { FX_LEVEL = v ? 0 : 2; }
 export function drawSparkle(ctx: CanvasRenderingContext2D, x: number, y: number, r = 7, alpha = 1) {
-  if (FX_LOW) return;
+  if (FX_LEVEL <= 0) return;
+  if (FX_LEVEL === 1) { fxTick++; if (fxTick % 2 === 1) return; }
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.fillStyle = '#fffde7';

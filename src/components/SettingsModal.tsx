@@ -4,9 +4,9 @@ import { useGame } from '../game/store';
 import type { GraphicsQuality } from '../game/types';
 
 const QUALITY_META: { id: GraphicsQuality; name: string; icon: string; desc: string }[] = [
-  { id: 'high', name: 'Cao', icon: '✨', desc: 'Đủ hiệu ứng: bóng, tia lửa, bướm, đom đóm, mưa tuyết dày' },
-  { id: 'medium', name: 'Trung bình', icon: '🌤️', desc: 'Giảm một nửa hạt mưa/tuyết, bướm, đom đóm; giữ bóng + tia lửa' },
-  { id: 'low', name: 'Thấp', icon: '🚀', desc: 'Tắt bóng + tia lửa + bướm + đom đóm, mưa thưa — máy yếu mượt nhất' },
+  { id: 'high', name: 'Cao', icon: '✨', desc: 'Đủ hiệu ứng: bóng, tia lửa, mây, bướm, đom đóm, quầng đèn, mưa tuyết dày' },
+  { id: 'medium', name: 'Trung bình', icon: '🌤️', desc: 'Tia lửa thưa 1/2, bớt mây/bướm/đom đóm/mưa tuyết; giữ bóng + quầng đèn' },
+  { id: 'low', name: 'Thấp', icon: '🚀', desc: 'Tắt tia lửa + bóng + mây + quầng đèn + chim, mưa tuyết thưa nhất — máy yếu mượt nhất' },
 ];
 
 /** Cài đặt game: cấp đồ họa + âm thanh */

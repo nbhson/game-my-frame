@@ -209,10 +209,15 @@ export function rollWeather(): { w: WeatherKind; dur: number } {
   return { w, dur: 60 + Math.random() * 70 };
 }
 export const WEATHER_LABEL: Record<WeatherKind, string> = { sunny: 'Nắng', rain: 'Mưa', snow: 'Tuyết' };
-/** Khung nhìn: 720 = gần nhất, 1400 = xa nhất, mặc định 1050 (rộng hơn trước 850) */
-export const VIEW_H_MIN = 720;
-export const VIEW_H_MAX = 1400;
+/** Khung nhìn: 620 = gần nhất, 1600 = xa nhất (bao hết map 1320 + viền), mặc định 1050 */
+export const VIEW_H_MIN = 620;
+export const VIEW_H_MAX = 1600;
 export const VIEW_H_DEFAULT = 1050;
+/** Mặc định lần đầu theo màn hình: máy dọc (điện thoại) nhìn xa hơn để thấy rộng 2 bên */
+export const defaultViewH = () => {
+  if (typeof window !== 'undefined' && window.innerHeight > window.innerWidth) return 1280;
+  return VIEW_H_DEFAULT;
+};
 export const clampViewH = (h: number) => Math.max(VIEW_H_MIN, Math.min(VIEW_H_MAX, Math.round(h)));
 
 function questDone(stats: Stats, level: number, idx: number): boolean {
@@ -260,7 +265,7 @@ export const useGame = create<GameState>()(
       biteCatchId: null, biteCombo: null, biteProgress: 0,
       catchPop: null, outfit: { ...DEFAULT_OUTFIT }, ownedOutfits: Object.keys(DEFAULT_OUTFIT).map((k) => DEFAULT_OUTFIT[k as OutfitSlot]),
       quality: 'high', thiefBiteUntil: null,
-      viewH: VIEW_H_DEFAULT,
+      viewH: defaultViewH(),
       kem: false,
       petFx: null,
       plotFx: [],
@@ -307,7 +312,7 @@ export const useGame = create<GameState>()(
             stats: freshStats(), questIdx: 0, uidSeq: 1,
             redeemedCodes: [],
             outfit: { ...DEFAULT_OUTFIT }, ownedOutfits: Object.values(DEFAULT_OUTFIT),
-            quality: 'high', viewH: VIEW_H_DEFAULT, kem: false,
+            quality: 'high', viewH: defaultViewH(), kem: false,
             modal: null, fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null, biteCatchId: null, biteCombo: null, biteProgress: 0, catchPop: null, petFx: null, plotFx: [], scene: 'farm',
           });
         }

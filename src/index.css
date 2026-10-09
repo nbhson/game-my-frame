@@ -17,9 +17,23 @@
     @apply bg-[#fff8dc] border-4 border-[#2b2117] rounded shadow-pixel;
   }
   .pixel-btn {
-    @apply font-pixel text-xs px-4 py-3 border-[3px] border-[#2b2117] rounded bg-amber-300 shadow-pixel active:translate-x-[3px] active:translate-y-[3px] active:shadow-none transition-transform disabled:opacity-50 font-bold;
+    @apply font-pixel text-xs px-4 py-3 border-[3px] border-[#2b2117] rounded bg-amber-300 shadow-pixel active:translate-x-[3px] active:translate-y-[3px] active:shadow-none transition-transform disabled:opacity-50 font-bold touch-manipulation;
   }
   .icon-btn {
-    @apply w-10 h-10 rounded-lg bg-amber-300 border-2 border-black flex items-center justify-center hover:scale-105 active:scale-95 transition-transform;
+    @apply w-10 h-10 rounded-lg bg-amber-300 border-2 border-black flex items-center justify-center hover:scale-105 active:scale-95 transition-transform shrink-0 touch-manipulation select-none;
+  }
+  /* cuộn ngang toolbar trên mobile: ẩn scrollbar cho gọn */
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@layer base {
+  input {
+    touch-action: manipulation;
   }
 }

@@ -43,7 +43,7 @@ export default function App() {
   if (!started) return <MenuScreen />;
 
   return (
-    <div className="h-full flex flex-col bg-[#223322]">
+    <div className="h-full flex flex-col bg-[#223322] supports-[height:100dvh]:h-[100dvh]">
       <HUD />
       <div className="relative flex-1 min-h-0 flex items-center justify-center bg-[#101d10] overflow-hidden">
         <GameCanvas onTarget={onTarget} target={target} />

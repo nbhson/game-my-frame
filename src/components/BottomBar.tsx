@@ -32,30 +32,32 @@ function FarmBottomBar({ target }: { target: InteractTarget | null }) {
   ];
 
   return (
-    <div className="flex gap-2 items-center bg-[#2b2117] px-2 py-1.5">
-      <div className="flex gap-1.5">
+    <div className="bg-[#2b2117] px-2 pt-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] flex flex-col gap-1.5 md:flex-row md:items-center md:gap-2">
+      {/* hàng tools: cuộn ngang trên mobile, không đẩy tràn màn hình */}
+      <div className="flex gap-1.5 items-center overflow-x-auto no-scrollbar -mx-2 px-2 md:mx-0 md:px-0 md:overflow-visible" style={{ touchAction: 'pan-x' }}>
         {slots.map(([ic, n, c]) => (
-          <div key={n} title={n} className="w-[52px] h-[52px] bg-[#3e3428] border-[3px] border-black rounded-lg flex flex-col items-center justify-center text-white cursor-pointer hover:border-yellow-300">
-            <GameIcon name={ic} size={22} />
-            <span className="text-[10px] text-yellow-300 font-extrabold">{c}</span>
+          <div key={n} title={n} className="w-11 h-11 md:w-[52px] md:h-[52px] shrink-0 bg-[#3e3428] border-[3px] border-black rounded-lg flex flex-col items-center justify-center text-white cursor-pointer hover:border-yellow-300">
+            <GameIcon name={ic} size={20} />
+            <span className="text-[10px] text-yellow-300 font-extrabold leading-none">{c}</span>
           </div>
         ))}
         <button
           onClick={() => doInteractWith(target)}
-          className="h-[52px] px-4 rounded-lg bg-yellow-300 border-[3px] border-black font-black text-lg hover:bg-yellow-200 active:scale-95 max-md:hidden"
+          className="h-11 md:h-[52px] px-4 shrink-0 rounded-lg bg-yellow-300 border-[3px] border-black font-black text-lg hover:bg-yellow-200 active:scale-95 max-md:hidden"
         >
           E
         </button>
         <button
           onClick={() => setModal({ name: 'bulk' })}
-          className="h-[52px] px-3 rounded-lg bg-orange-400 border-[3px] border-black font-black text-sm text-white hover:bg-orange-300 active:scale-95 whitespace-nowrap"
+          className="h-11 md:h-[52px] px-3 shrink-0 rounded-lg bg-orange-400 border-[3px] border-black font-black text-[13px] md:text-sm text-white hover:bg-orange-300 active:scale-95 whitespace-nowrap"
           title="Làm hàng loạt: gieo/tưới/phun/thu cả farm, cho ăn cả đàn 1 chạm"
         >
           ⚡ Hàng loạt
         </button>
       </div>
-      <div className="flex-1 bg-[#fff8dc] border-2 border-yellow-300 rounded-lg px-3 py-1.5 text-[13px] font-semibold truncate flex items-center gap-1.5">
-        <GameIcon name="sprout" size={18} /><span className="truncate">Nhiệm vụ: {cur ? cur.text : 'Hoàn thành tất cả! Bạn là tỷ phú'}</span>
+      {/* hàng nhiệm vụ: full width, gọn trên mobile */}
+      <div className="flex-1 min-w-0 bg-[#fff8dc] border-2 border-yellow-300 rounded-lg px-2 py-1 md:px-3 md:py-1.5 text-[12px] md:text-[13px] font-semibold truncate flex items-center gap-1.5">
+        <GameIcon name="sprout" size={16} /><span className="truncate">Nhiệm vụ: {cur ? cur.text : 'Hoàn thành tất cả! Bạn là tỷ phú'}</span>
       </div>
     </div>
   );
@@ -74,43 +76,46 @@ function TownBottomBar({ target }: { target: InteractTarget | null }) {
   };
 
   return (
-    <div className="flex gap-2 items-center bg-[#5b2a86] px-2 py-1.5 flex-wrap">
-      <button
-        onClick={() => goToFarm()}
-        className="h-[52px] px-3 rounded-lg bg-green-500 border-[3px] border-black font-black text-white text-sm hover:bg-green-400 active:scale-95 flex items-center gap-1"
-        title="Về nông trại (cổng phía đông)"
-      >
-        <Tractor size={18} /> Farm
-      </button>
-      <button
-        onClick={() => doInteractWith(target)}
-        className="h-[52px] px-4 rounded-lg bg-yellow-300 border-[3px] border-black font-black text-lg hover:bg-yellow-200 active:scale-95 max-md:hidden"
-        title={target ? target.label : 'Lại gần điểm sáng để tương tác'}
-      >
-        E
-      </button>
-      {/* chat realtime */}
-      <div className="flex gap-1 items-center flex-1 min-w-[200px]">
-        <input
-          value={draft}
-          onChange={(e) => setDraft(e.target.value.slice(0, 80))}
-          onKeyDown={(e) => { if (e.key === 'Enter') send(); e.stopPropagation(); }}
-          onKeyUp={(e) => e.stopPropagation()}
-          placeholder={target ? `E: ${target.label} — hoặc chat…` : 'Chat với cả công viên… (Enter)'}
-          className="flex-1 border-[3px] border-black rounded-lg px-3 py-2 text-sm"
-        />
-        <button onClick={send} className="h-[44px] px-3 rounded-lg bg-sky-400 border-[3px] border-black font-black text-white hover:bg-sky-300 active:scale-95" title="Gửi chat">
-          <Send size={16} />
+    <div className="bg-[#5b2a86] px-2 pt-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] flex flex-col gap-1.5">
+      {/* hàng 1: về farm + chat — luôn vừa màn hình */}
+      <div className="flex gap-1.5 items-center min-w-0">
+        <button
+          onClick={() => goToFarm()}
+          className="h-11 md:h-[52px] px-2 md:px-3 shrink-0 rounded-lg bg-green-500 border-[3px] border-black font-black text-white text-[13px] md:text-sm hover:bg-green-400 active:scale-95 flex items-center gap-1"
+          title="Về nông trại (cổng phía đông)"
+        >
+          <Tractor size={16} /><span className="hidden xs:inline sm:inline">Farm</span>
         </button>
+        <button
+          onClick={() => doInteractWith(target)}
+          className="h-11 md:h-[52px] px-4 shrink-0 rounded-lg bg-yellow-300 border-[3px] border-black font-black text-lg hover:bg-yellow-200 active:scale-95 max-md:hidden"
+          title={target ? target.label : 'Lại gần điểm sáng để tương tác'}
+        >
+          E
+        </button>
+        {/* chat realtime */}
+        <div className="flex gap-1 items-center flex-1 min-w-0">
+          <input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value.slice(0, 80))}
+            onKeyDown={(e) => { if (e.key === 'Enter') send(); e.stopPropagation(); }}
+            onKeyUp={(e) => e.stopPropagation()}
+            placeholder={target ? `E: ${target.label} — hoặc chat…` : 'Chat cả park… (Enter)'}
+            className="flex-1 min-w-0 border-[3px] border-black rounded-lg px-2 md:px-3 py-1.5 md:py-2 text-[13px] md:text-sm"
+          />
+          <button onClick={send} className="h-10 md:h-[44px] px-2.5 md:px-3 shrink-0 rounded-lg bg-sky-400 border-[3px] border-black font-black text-white hover:bg-sky-300 active:scale-95" title="Gửi chat">
+            <Send size={16} />
+          </button>
+        </div>
       </div>
-      {/* cảm xúc + hành động realtime */}
-      <div className="flex gap-1 flex-wrap">
+      {/* hàng 2: cảm xúc — cuộn ngang trên mobile thay vì wrap tràn */}
+      <div className="flex gap-1 overflow-x-auto no-scrollbar -mx-2 px-2 pb-0.5 md:flex-wrap md:mx-0 md:px-0 md:overflow-visible" style={{ touchAction: 'pan-x' }}>
         {TOWN_EMOTES.map((e) => (
           <button
             key={e.id}
             title={`${e.label} — đứng gần bạn + cùng bấm để diễn chung!`}
             onClick={() => sendEmote(e.emoji)}
-            className="w-[44px] h-[44px] text-xl bg-white border-[3px] border-black rounded-lg hover:scale-110 active:scale-95 transition-transform"
+            className="w-10 h-10 md:w-[44px] md:h-[44px] shrink-0 text-lg md:text-xl bg-white border-[3px] border-black rounded-lg hover:scale-110 active:scale-95 transition-transform"
           >
             {e.emoji}
           </button>
@@ -135,8 +140,8 @@ function PairHint() {
   if (!near.length) return null;
   const names = near.slice(0, 2).map((p) => p.name).join(', ');
   return (
-    <div className="basis-full text-[11px] font-bold text-yellow-200 animate-pulse">
-      Đứng gần {names} — rủ cùng bấm 🥊 🤗 🤝 💋 👋 để 2 người diễn chung!
+    <div className="text-[11px] font-bold text-yellow-200 animate-pulse truncate px-1">
+      Đứng gần {names} — cùng bấm 🥊 🤗 🤝 💋 👋 để diễn chung!
     </div>
   );
 }

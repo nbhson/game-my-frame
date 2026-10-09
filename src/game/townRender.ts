@@ -8,7 +8,7 @@ import {
   TOWN_SHOP, TOWN_STAGE, farmGateCenter,
 } from './town';
 import { computePairOffsets, drawActionFx, drawEggThrow, drawKem, drawKiki, drawMimi, drawPairFx, drawPlayerDetailed, type PairActor, type VisitorDraw } from './render';
-import { drawMoon, drawSparkle, drawSun, setFxLow } from './icons';
+import { drawMoon, drawSparkle, drawSun, setFxLevel } from './icons';
 
 export interface TownRenderState {
   player: { x: number; y: number; dir: number; moving: boolean; tx: number | null; ty: number | null; name: string };
@@ -1504,7 +1504,8 @@ function drawCritters(ctx: CanvasRenderingContext2D, cam: { x: number; y: number
     ctx.fillStyle = '#3e2723';
     rr(ctx, bx - 1.4, by - 3.4, 2.8, 7, 1.4); ctx.fill();
   }
-  // chim bay vòng trên hội quán
+  // chim bay vòng trên hội quán (Thấp: tắt)
+  if (TQ_LOW) return;
   for (let i = 0; i < 3; i++) {
     const a = t * 0.5 + i * 2.1;
     const bx = TOWN_HALL.x + TOWN_HALL.w / 2 + Math.cos(a) * 160 - cam.x;
@@ -1640,7 +1641,7 @@ export function renderTown(ctx: CanvasRenderingContext2D, W: number, H: number, 
   // cấp đồ họa áp dụng ngay cho cả frame công viên
   TQ_LOW = s.quality === 'low';
   TQ_MED = s.quality === 'medium';
-  setFxLow(TQ_LOW);
+  setFxLevel(TQ_LOW ? 0 : TQ_MED ? 1 : 2);
   const dt = s.dayTime;
   const night = dt < 0.2 || dt > 0.8;
   const isDay = dt > 0.2 && dt < 0.78;
@@ -1802,8 +1803,9 @@ export function renderTown(ctx: CanvasRenderingContext2D, W: number, H: number, 
   else dark = 0.35 + ((dt - 0.85) / 0.15) * 0.25;
   if (dark > 0.02) { ctx.fillStyle = `rgba(8,8,50,${dark})`; ctx.fillRect(0, 0, W, H); }
   if (night) {
-    // quầng đèn + cửa sổ làng
+    // quầng đèn + cửa sổ làng (Thấp: tắt quầng gradient cho nhẹ)
     const glow = (wx: number, wy: number, r: number, c = '255,200,80') => {
+      if (TQ_LOW) return;
       const X = wx - cam.x, Y = wy - cam.y;
       if (X < -r || Y < -r || X > W + r || Y > H + r) return;
       const g2 = ctx.createRadialGradient(X, Y, 2, X, Y, r);
@@ -1823,7 +1825,7 @@ export function renderTown(ctx: CanvasRenderingContext2D, W: number, H: number, 
       ctx.beginPath(); ctx.arc(fx, fy, 2.2, 0, 7); ctx.fill();
     }
     ctx.fillStyle = 'rgba(255,255,255,.8)';
-    for (let i = 0; i < (TQ_LOW ? 15 : 30); i++) {
+    for (let i = 0; i < (TQ_LOW ? 12 : TQ_MED ? 20 : 30); i++) {
       const sx = (i * 311) % W, sy = (i * 167) % Math.max(80, H * 0.4);
       if (Math.sin(t * 2 + i) > 0.2) ctx.fillRect(sx, sy, 2, 2);
     }
@@ -1833,7 +1835,8 @@ export function renderTown(ctx: CanvasRenderingContext2D, W: number, H: number, 
     ctx.beginPath(); ctx.arc(W - 60, 44, 30, 0, 7); ctx.fill();
     drawSun(ctx, W - 60, 44, 15, t);
     if (Math.sin(t * 2) > 0.4) drawSparkle(ctx, W - 92, 30 + Math.sin(t) * 3, 5, 0.9);
-    for (let i = 0; i < 4; i++) {
+    // mây ngày: Thấp tắt, TB 2 đám
+    for (let i = 0; i < (TQ_LOW ? 0 : TQ_MED ? 2 : 4); i++) {
       // mây ngày: layer trời xa (parallax 0.2 + tự trôi)
       const cxm = pmod(t * 9 + i * 420 - cam.x * 0.2, W + 260) - 130;
       cloud(ctx, cxm, 54 + i * 24, 15, 0.92);
@@ -1851,7 +1854,8 @@ export function renderTown(ctx: CanvasRenderingContext2D, W: number, H: number, 
   const rainN = TQ_LOW ? 24 : TQ_MED ? 40 : 70;
   const snowN = TQ_LOW ? 20 : TQ_MED ? 36 : 60;
   if (w === 'rain') {
-    for (let i = 0; i < 5; i++) {
+    // mây mưa: Thấp 2, TB 3
+    for (let i = 0; i < (TQ_LOW ? 2 : TQ_MED ? 3 : 5); i++) {
       // mây mưa: layer trời xa
       const cxm = pmod(t * 22 + i * 340 - cam.x * 0.2, W + 300) - 150;
       cloud(ctx, cxm, 26 + (i % 3) * 26, 22, 0.95);

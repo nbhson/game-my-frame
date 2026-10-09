@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useGame } from '../game/store';
+import { useGame, VIEW_H_MAX } from '../game/store';
 import { useVillage, farmVisible, visiblePlayers } from '../net/village';
 import type { InteractTarget } from '../game/types';
 import { FARM_GATE_SPAWN, PIERS, WORLD, isBlocked, plotPos } from '../game/world';
@@ -236,12 +236,12 @@ export default function GameCanvas({ target, onTarget }: Props) {
         } else playerRef.moving = false;
       } else playerRef.moving = false;
 
-      // --- viewport: mặc định xa rộng (viewH), zoom ra thêm 0.8x khi ra bờ sông để thấy sông rộng ---
-      // (máy quay lên cao / xa hơn, thấy rộng hơn; mượt bằng lerp mỗi frame)
+      // --- viewport: khung nhìn theo cài đặt (viewH); ra bờ sông thì THU NHỎ lại
+      // (thu xa để thấy sông rộng + cả trên/dưới, kẹp trong max; mượt bằng lerp mỗi frame) ---
       {
         const sc = screen.current;
         const base = st.viewH || 1050;
-        const targetH = st.scene === 'town' ? base : (playerRef.y > 980 ? base * 0.8 : base);
+        const targetH = st.scene === 'town' ? base : (playerRef.y > 980 ? Math.min(VIEW_H_MAX, base * 1.15) : base);
         const k = Math.min(1, dt * 2.5);
         view.current.h += (targetH - view.current.h) * k;
         if (Math.abs(view.current.h - targetH) < 0.5) view.current.h = targetH;
@@ -467,9 +467,9 @@ export default function GameCanvas({ target, onTarget }: Props) {
       {target && !fishingSpot && <InteractHint target={target} />}
       <RiverHint />
       <Joystick />
-      <div className="absolute right-3 bottom-3 flex gap-2 md:hidden">
+      <div className="absolute right-3 bottom-3 flex gap-2 md:hidden" style={{ marginBottom: 'env(safe-area-inset-bottom)' }}>
         <button
-          className="w-16 h-16 rounded-full text-2xl font-black bg-yellow-300 border-[3px] border-[#2b2117] shadow-pixel active:scale-95"
+          className="w-14 h-14 rounded-full text-xl font-black bg-yellow-300 border-[3px] border-[#2b2117] shadow-pixel active:scale-95 touch-manipulation select-none"
           onClick={() => doInteractWith(targetRef.current)}
         >
           E
@@ -555,7 +555,7 @@ function clampCam(c: number, worldSize: number, viewSize: number): number {
 
 function InteractHint({ target }: { target: InteractTarget }) {
   return (
-    <div className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-[#fff8dc] border-[3px] border-[#2b2117] rounded-full px-5 py-2 font-extrabold shadow-pixel animate-bounce whitespace-nowrap z-[5]">
+    <div className="absolute bottom-[5.5rem] md:bottom-20 left-1/2 -translate-x-1/2 bg-[#fff8dc] border-[3px] border-[#2b2117] rounded-full px-3 md:px-5 py-1.5 md:py-2 text-[12px] md:text-base font-extrabold shadow-pixel animate-bounce whitespace-nowrap z-[5] max-w-[92vw] overflow-hidden text-ellipsis pointer-events-none">
       E: {target.label}
     </div>
   );
@@ -580,7 +580,8 @@ function Joystick() {
   return (
     <div
       ref={base}
-      className="absolute left-3 bottom-3 w-28 h-28 rounded-full border-[3px] border-white/50 bg-white/10 hidden max-md:block touch-none"
+      className="absolute left-3 bottom-3 w-24 h-24 md:w-28 md:h-28 rounded-full border-[3px] border-white/50 bg-white/10 hidden max-md:block touch-none select-none"
+      style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
       onPointerDown={(e) => { id.current = e.pointerId; (e.target as HTMLElement).setPointerCapture(e.pointerId); setFromEvent(e.clientX, e.clientY); }}
       onPointerMove={(e) => { if (e.pointerId === id.current) setFromEvent(e.clientX, e.clientY); }}
       onPointerUp={() => { id.current = null; joyRef.x = 0; joyRef.y = 0; if (knob.current) knob.current.style.transform = 'translate(-50%,-50%)'; }}

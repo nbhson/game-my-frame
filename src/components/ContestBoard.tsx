@@ -28,7 +28,7 @@ export default function ContestBoard() {
   const myRank = board.findIndex((e) => e.name === me);
 
   return (
-    <div className="absolute top-2 right-2 z-[6] w-[228px] bg-[#fff8dc]/95 border-[3px] border-[#2b2117] rounded-lg p-2 shadow-pixel">
+    <div className="absolute top-2 right-2 z-[6] w-[180px] md:w-[228px] bg-[#fff8dc]/95 border-[3px] border-[#2b2117] rounded-lg p-1.5 md:p-2 shadow-pixel max-h-[40%] overflow-hidden">
       {!c.running && !board.length ? (
         <div className="text-center">
           <p className="font-black text-[13px]">🏆 GIẢI CÂU CÁ</p>

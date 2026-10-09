@@ -8,13 +8,13 @@ export default function VisitBanner() {
   if (!visiting) return null;
   const left = Math.max(0, STEAL_MAX_PER_DAY - stealCountToday(visiting.code));
   return (
-    <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[6] flex items-center gap-2 bg-purple-900/90 text-white border-2 border-yellow-300 rounded-full px-4 py-1.5 text-sm font-bold shadow-lg whitespace-nowrap">
-      <span>Đang thăm farm của <b>{visiting.snap.name}</b> (Lv {visiting.snap.level})</span>
-      <span className="text-yellow-300 text-xs" title="Đi gần ô chín rồi bấm E (hoặc chạm vào ô) để hái trộm — chó Vàng/Mực có thể cắn!">
-        Hái trộm còn {left}/{STEAL_MAX_PER_DAY} 🐕
+    <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[6] flex items-center gap-1.5 md:gap-2 bg-purple-900/90 text-white border-2 border-yellow-300 rounded-full px-2.5 md:px-4 py-1 md:py-1.5 text-[11px] md:text-sm font-bold shadow-lg max-w-[94vw] overflow-hidden">
+      <span className="truncate">Thăm <b>{visiting.snap.name}</b> (Lv {visiting.snap.level})</span>
+      <span className="text-yellow-300 text-[10px] md:text-xs shrink-0" title="Đi gần ô chín rồi bấm E (hoặc chạm vào ô) để hái trộm — chó Vàng/Mực có thể cắn!">
+        🐕 {left}/{STEAL_MAX_PER_DAY}
       </span>
-      <button onClick={leaveVisit} className="bg-yellow-300 text-black rounded-full px-3 py-0.5 font-extrabold flex items-center gap-1 hover:bg-yellow-200">
-        <Home size={14} /> Về nhà
+      <button onClick={leaveVisit} className="bg-yellow-300 text-black rounded-full px-2 md:px-3 py-0.5 font-extrabold flex items-center gap-1 hover:bg-yellow-200 shrink-0 text-[11px] md:text-sm">
+        <Home size={14} /> Về
       </button>
     </div>
   );
