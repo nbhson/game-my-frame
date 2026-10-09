@@ -160,7 +160,7 @@ function PairHint({ map }: { map: 'town' | 'mall' }) {
   const names = near.slice(0, 2).map((p) => p.name).join(', ');
   return (
     <div className="text-[11px] font-bold text-yellow-200 animate-pulse truncate px-1">
-      Đứng gần {names} — cùng bấm 🥊 🤗 🤝 💋 👋 để diễn chung!
+      Đứng gần {names} — cùng bấm 🥊 🤗 🤝 💋 👋 💍 để diễn chung!
     </div>
   );
 }

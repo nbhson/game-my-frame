@@ -15,6 +15,11 @@ import { renderInterior } from '../game/interiorRender';
 import { openInteriorFurn, tickInteriorEvents } from '../game/interiorActions';
 import { startAutoSync, stopAutoSync } from '../net/account';
 import { checkRaceCp, finishRace, raceBotPos, raceGridSlot, tickRace, useRace, RACE_BOT_STYLE, RACE_LAPS } from '../net/race';
+import { TEACHER_NAME, useEnglish } from '../net/english';
+import { displaySlot, isMarketOpen, marketStatus, nearestStall, useMarket } from '../net/market';
+import { useBoard } from '../net/board';
+import { WED_DURATION, useWedding } from '../net/wedding';
+import { itemName } from '../game/data';
 import { sfx } from '../game/audio';
 
 /** Đưa cả người về đường đua khi giải bắt đầu (từ farm/nhà/town đều được) */
@@ -28,6 +33,8 @@ function goRaceTrack() {
 }
 /** đã xếp ô xuất phát cho lượt đếm ngược hiện tại chưa */
 let raceGridDone = '';
+/** tin chat cuối đã cho cô giáo chấm (tránh chấm lại) */
+let lastChatSeen: unknown = null;
 
 interface Props {
   target: InteractTarget | null;
@@ -101,8 +108,30 @@ export function doInteractWith(t: InteractTarget | null | undefined) {
     return;
   }
   if (t.kind === 'townProp') {
+    // sạp chợ đêm (propId 'stall:Tên') — mở modal mua / quản lý sạp
+    if (t.propId?.startsWith('stall:')) {
+      const seller = t.propId.slice(6);
+      sfx.click();
+      useMarket.getState().setBuyTarget(seller);
+      s.setModal('market');
+      return;
+    }
     const p = TOWN_PROPS.find((x) => x.id === t.propId) ?? MALL_PROPS.find((x) => x.id === t.propId);
     sfx.click();
+    if (p?.id === 'market') {
+      const mk = useMarket.getState();
+      mk.setBuyTarget(mk.own ? gameMe().name : null);
+      s.setModal('market');
+      return;
+    }
+    if (p?.id === 'board') {
+      s.setModal('board');
+      return;
+    }
+    if (p?.id === 'culture') {
+      s.setModal('wedding');
+      return;
+    }
     if (p?.id === 'casino' || p?.id === 'garage' || p?.id === 'mart') {
       goToInterior(p.id === 'mart' ? 'shop' : p.id);
       return;
@@ -536,6 +565,32 @@ export default function GameCanvas({ target, onTarget }: Props) {
       // sự kiện theo giờ trong nhà (giờ diễn mèo, giờ vàng slot, đèn yêu cầu)
       if (st.scene === 'interior' && st.interiorId) tickInteriorEvents(playerRef.x, playerRef.y);
 
+      // --- cô giáo tiếng Anh: đi dạo + hỏi từ vựng (chỉ chấm tin chat của chính mình) ---
+      {
+        const en = useEnglish.getState();
+        en.tick(dt, nowMs);
+        const ch = village.chat;
+        if (ch.length && ch[ch.length - 1] !== lastChatSeen) {
+          let idx = -1;
+          for (let i = ch.length - 1; i >= 0; i--) {
+            if (ch[i] === lastChatSeen) { idx = i; break; }
+          }
+          for (let i = idx + 1; i < ch.length; i++) en.checkChat(ch[i].fromName, ch[i].text, nowMs);
+          lastChatSeen = ch[ch.length - 1];
+        }
+      }
+
+      // --- chợ đêm + bảng tin + đám cưới: tick mỗi frame ---
+      useMarket.getState().tick(nowMs);
+      useBoard.getState().tick(nowMs);
+      if (st.scene === 'town') {
+        useWedding.getState().tick(nowMs, dt, {
+          px: playerRef.x, py: playerRef.y,
+          emote: village.selfEmote || '', emoteAt: village.selfEmoteAt || 0,
+          players: visiblePlayers(nowMs, 'town'),
+        });
+      }
+
       // phát vị trí cho làng (để bạn bè thấy mình đi lại, kèm map + emote)
       village.pushPosition(playerRef.x, playerRef.y, playerRef.dir, playerRef.moving);
 
@@ -574,7 +629,7 @@ export default function GameCanvas({ target, onTarget }: Props) {
       const visitKem = !visitSteal && (!visitPet || visitPet.d >= 95) && kem
         ? Math.hypot(playerRef.x - kem.x, playerRef.y - kem.y)
         : Infinity;
-      const near = st.scene === 'interior' && st.interiorId
+      const near0 = st.scene === 'interior' && st.interiorId
         ? nearestInteriorInteract(st.interiorId, playerRef.x, playerRef.y)
         : st.scene === 'town'
         ? nearestTownInteract({ px: playerRef.x, py: playerRef.y, kem })
@@ -589,6 +644,19 @@ export default function GameCanvas({ target, onTarget }: Props) {
             pesticide: st.inv.pesticide || 0,
             now: nowMs, t, kem,
           });
+      // sạp chợ đêm: đứng sát sạp thì ưu tiên mua hàng
+      let near: InteractTarget | null = near0;
+      if (st.scene === 'town') {
+        const sn = nearestStall(playerRef.x, playerRef.y);
+        if (sn && (!near0 || sn.d < 70)) {
+          const stall = useMarket.getState().stalls[sn.seller];
+          const mine = sn.seller === gameMe().name;
+          near = {
+            kind: 'townProp', propId: 'stall:' + sn.seller,
+            label: !stall ? 'Sạp chợ' : mine ? 'Sạp của bạn' : `Mua ${itemName(stall.pid)[0]} (${sn.seller})`,
+          };
+        }
+      }
       const prev = targetRef.current;
       if (!sameTarget(prev, near)) {
         targetRef.current = near;
@@ -625,6 +693,25 @@ export default function GameCanvas({ target, onTarget }: Props) {
           self: true,
         });
       }
+      // cô giáo tiếng Anh đi dạo quanh thị trấn (câu hỏi + đếm ngược trên đầu)
+      if (st.scene === 'town') {
+        const en = useEnglish.getState();
+        visitors.push({
+          x: en.tx, y: en.ty, dir: en.tdir, moving: en.tmoving,
+          name: TEACHER_NAME, avatar: 2, bubble: en.bubble(), bubbleAt: nowMs,
+          emote: undefined, emoteAt: undefined,
+          self: false,
+        });
+        // khách đi chợ đêm (NPC local cho vui)
+        for (const c of useMarket.getState().crowd) {
+          visitors.push({
+            x: c.x, y: c.y, dir: c.dir, moving: c.moving,
+            name: c.name, avatar: 5, bubble: c.bubble, bubbleAt: nowMs,
+            emote: undefined, emoteAt: undefined,
+            self: false,
+          });
+        }
+      }
       const fs = st.fishingSpot;
       const biting = !!fs && st.biteAt != null && st.biteUntil != null && nowMs >= st.biteAt && nowMs <= st.biteUntil;
       if (st.scene === 'interior' && st.interiorId && INTERIORS[st.interiorId]) {
@@ -652,6 +739,24 @@ export default function GameCanvas({ target, onTarget }: Props) {
           carKind: st.activeCar ? CARS[st.activeCar]?.kind ?? null : null,
           carId: st.activeCar ?? null,
           quality: effQ,
+          market: (() => {
+            const mk = useMarket.getState();
+            const me = gameMe().name;
+            return {
+              open: isMarketOpen(),
+              statusLabel: marketStatus().label,
+              stalls: Object.keys(mk.stalls).map((seller) => ({
+                seller, slot: displaySlot(mk.stalls, seller),
+                pid: mk.stalls[seller].pid, price: mk.stalls[seller].price,
+                qty: mk.stalls[seller].qty, me: seller === me,
+              })),
+            };
+          })(),
+          wedFx: useWedding.getState().fx,
+          wedding: (() => {
+            const c = useWedding.getState().ceremony;
+            return c ? { a: c.a, b: c.b } : null;
+          })(),
         }, t);
       } else if (st.scene === 'mall') {
         const mallSit = fs && fs.at === 'mall'
@@ -810,6 +915,7 @@ export default function GameCanvas({ target, onTarget }: Props) {
         className="border-4 border-black bg-[#7ec850] cursor-pointer block"
       />
       {target && !fishingSpot && <InteractHint target={target} />}
+      <WeddingBanner />
       <RiverHint />
       <Joystick />
       {/* HUD hiệu năng: để TOP-CENTER cho chắc chắn thấy ở mọi bản đồ —
@@ -827,6 +933,26 @@ export default function GameCanvas({ target, onTarget }: Props) {
           E
         </button>
       </div>
+    </div>
+  );
+}
+
+/** Banner lễ cưới toàn màn hình thị trấn: tên đôi uyên ương + đếm ngược + rủ tung hoa */
+function WeddingBanner() {
+  const ceremony = useWedding((s) => s.ceremony);
+  const guests = useWedding((s) => s.guests);
+  const scene = useGame((s) => s.scene);
+  const [, force] = useState(0);
+  useEffect(() => {
+    if (!ceremony) return;
+    const id = setInterval(() => force((x) => x + 1), 1000);
+    return () => clearInterval(id);
+  }, [ceremony]);
+  if (!ceremony || scene !== 'town') return null;
+  const left = Math.max(0, Math.ceil((WED_DURATION - (Date.now() - ceremony.startsAt)) / 1000));
+  return (
+    <div className="absolute top-10 left-1/2 -translate-x-1/2 border-[3px] border-[#2b2117] rounded-2xl px-5 py-1.5 font-extrabold shadow-pixel whitespace-nowrap z-30 bg-pink-100 animate-pulse pointer-events-none max-w-[94vw] overflow-hidden text-ellipsis text-center">
+      💒 {ceremony.a} ❤️ {ceremony.b} — {left}s! Bấm emote tung hoa ({guests.length} khách) 🧧
     </div>
   );
 }

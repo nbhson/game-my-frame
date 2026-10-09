@@ -29,6 +29,19 @@ export const TOWN_GARDEN = { x: 90, y: 700, w: 280, h: 200 };
 export const TOWN_HOUSE1 = { x: 110, y: 1000, w: 240, h: 180 }; // nhà dân góc tây-nam (cửa ở y=1210, đi lại thoải mái; cách gara ~100px)
 export const TOWN_HOUSE2 = { x: 1190, y: 920, w: 240, h: 180 }; // nhà dân
 export const TOWN_STAGE = { x: 660, y: 1020, w: 280, h: 110 }; // sân khấu sự kiện (nam)
+// Chợ đêm cuối tuần: bãi đông-nam quảng trường (họp tối T7–CN, 8 sạp 2 hàng)
+export const NIGHT_MARKET = { x: 1120, y: 480, w: 300, h: 200 };
+/** tọa độ ô sạp thứ i (2 hàng x 4 cột) — render + logic chợ dùng chung */
+export function marketSlotPos(i: number): { x: number; y: number } {
+  return {
+    x: NIGHT_MARKET.x + 55 + (i % 4) * 64,
+    y: NIGHT_MARKET.y + 65 + Math.floor(i / 4) * 80,
+  };
+}
+// Nhà văn hóa: góc đông-bắc, đối xứng quán cafe (tổ chức đám cưới)
+export const CULTURE_HALL = { x: 1070, y: 80, w: 300, h: 200 };
+// Bảng tin làng: cạnh cổng nam quảng trường, trên sân khấu
+export const BOARD_SIGN = { x: 980, y: 940 };
 
 // Cây anh đào trang trí
 export const SAKURA_SPOTS = [
@@ -40,7 +53,7 @@ export const SAKURA_SPOTS = [
 export const LAMP_SPOTS = [
   { x: 560, y: 480 }, { x: 1040, y: 480 }, { x: 560, y: 800 },
   { x: 1040, y: 800 }, { x: 800, y: 380 }, { x: 800, y: 900 },
-  { x: 320, y: 640 }, { x: 1280, y: 640 },
+  { x: 320, y: 640 }, { x: 1440, y: 700 },
 ];
 // Ghế đá
 export const BENCH_SPOTS = [
@@ -52,9 +65,11 @@ export function isTownBlocked(x: number, y: number): boolean {
   // đài phun nước (trừ vành ngoài để đứng ngắm)
   if (Math.hypot(x - FOUNTAIN.x, y - FOUNTAIN.y) < FOUNTAIN.r - 6) return true;
   // nhà cửa còn lại (gara/casino/shop đã chuyển sang khu mua sắm)
-  for (const b of [TOWN_HALL, TOWN_CAFE, TOWN_HOUSE1, TOWN_HOUSE2]) {
+  for (const b of [TOWN_HALL, TOWN_CAFE, TOWN_HOUSE1, TOWN_HOUSE2, CULTURE_HALL]) {
     if (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h) return true;
   }
+  // bảng tin làng (cột gỗ nhỏ)
+  if (Math.hypot(x - BOARD_SIGN.x, y - BOARD_SIGN.y) < 12) return true;
   // sân khấu: chặn leo lên (đứng dưới xem)
   if (x > TOWN_STAGE.x && x < TOWN_STAGE.x + TOWN_STAGE.w && y > TOWN_STAGE.y && y < TOWN_STAGE.y + TOWN_STAGE.h) return true;
   // cây anh đào (gốc)
@@ -78,6 +93,9 @@ export const TOWN_PROPS: { id: string; x: number; y: number; label: string; hint
   { id: 'stage', x: TOWN_STAGE.x + TOWN_STAGE.w / 2, y: TOWN_STAGE.y - 20, label: 'Sân khấu', hint: 'Sân khấu sự kiện: leo lên nhảy múa, thi thố cùng bạn bè!' },
   { id: 'house1', x: TOWN_HOUSE1.x + TOWN_HOUSE1.w / 2, y: TOWN_HOUSE1.y + TOWN_HOUSE1.h + 30, label: 'Nhà cô Ba', hint: 'Nhà cô Ba: nghe đồn trong nhà có kho bánh thần thánh!' },
   { id: 'house2', x: TOWN_HOUSE2.x + TOWN_HOUSE2.w / 2, y: TOWN_HOUSE2.y + TOWN_HOUSE2.h + 30, label: 'Nhà chú Tám', hint: 'Nhà chú Tám: ông trùm chế đồ tái chế, vào xem thử!' },
+  { id: 'market', x: NIGHT_MARKET.x + NIGHT_MARKET.w / 2, y: NIGHT_MARKET.y + NIGHT_MARKET.h + 20, label: 'Chợ đêm', hint: 'Chợ đêm họp tối thứ 7 – chủ nhật (18h–24h): dựng sạp bán nông sản giá tự đặt!' },
+  { id: 'culture', x: CULTURE_HALL.x + CULTURE_HALL.w / 2, y: CULTURE_HALL.y + CULTURE_HALL.h + 30, label: 'Nhà văn hóa', hint: 'Nhà văn hóa: đứng gần người ấy, cùng bấm 💍 để tổ chức đám cưới!' },
+  { id: 'board', x: BOARD_SIGN.x, y: BOARD_SIGN.y + 34, label: 'Bảng tin làng', hint: 'Bảng tin làng: ghim lời nhắn, rao bán, tìm đồ — thả tim cho tin hay!' },
 ];
 
 /** Cảm xúc realtime ở thị trấn (emoji hiện trên đầu 4s, cả làng thấy) */
@@ -97,5 +115,6 @@ export const TOWN_EMOTES: { id: string; emoji: string; label: string }[] = [
   { id: 'hug', emoji: '🤗', label: 'Ôm cái' },
   { id: 'handshake', emoji: '🤝', label: 'Bắt tay' },
   { id: 'fight', emoji: '🥊', label: 'Đánh yêu' },
+  { id: 'ring', emoji: '💍', label: 'Cầu hôn' },
   { id: 'tease', emoji: '🤪', label: 'Chọc quê' },
 ];

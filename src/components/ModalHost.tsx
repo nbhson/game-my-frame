@@ -20,6 +20,9 @@ import SettingsModal from './SettingsModal';
 import TownHouseModal from './TownHouseModal';
 import LotteryModal from './LotteryModal';
 import RaceModal from './RaceModal';
+import MarketModal from './MarketModal';
+import BoardModal from './BoardModal';
+import WeddingModal from './WeddingModal';
 import { GameIcon } from './GameIcon';
 
 // Casino (sảnh + 5 bàn + logic bài) nặng — tải lười khi mở, nhẹ bundle lúc đăng nhập
@@ -44,6 +47,9 @@ export default function ModalHost() {
   else if (modal === 'carshop') { icon = 'shop'; title = '🚗 GARA ANH TÝ'; body = <CarShopModal />; }
   else if (modal === 'lottery') { icon = 'coin'; title = '🎫 VÉ SỐ THỊ TRẤN'; body = <LotteryModal />; }
   else if (modal === 'race') { icon = 'shop'; title = '🏁 TRƯỜNG ĐUA XE'; body = <RaceModal />; }
+  else if (modal === 'market') { icon = 'shop'; title = '🏪 CHỢ ĐÊM CUỐI TUẦN'; body = <MarketModal />; }
+  else if (modal === 'board') { icon = 'mail'; title = '📌 BẢNG TIN LÀNG'; body = <BoardModal />; }
+  else if (modal === 'wedding') { icon = 'quest'; title = '💒 NHÀ VĂN HÓA'; body = <WeddingModal />; }
   else if (modal === 'settings') { icon = 'quest'; title = 'CÀI ĐẶT'; body = <SettingsModal />; }
   else if (typeof modal === 'object' && modal.name === 'house') {
     const hn = modal.house === 'cafe' ? 'QUÁN CÀ PHÊ MÈO' : modal.house === 'stage' ? 'SÂN KHẤU SỰ KIỆN'

@@ -1,11 +1,12 @@
 // ===== Thị trấn anime 9/10 — cùng ngôn ngữ nông trại (viền #4a3226, pastel, má hồng,
 // highlight chéo, bóng mềm, lấp lánh, khói puff, ngày/đêm, mưa/tuyết) =====
-import { SHIRTS, shirtColorOf, type BiteDir } from './data';
+import { SHIRTS, itemName, shirtColorOf, type BiteDir } from './data';
 import type { GraphicsQuality, WeatherKind } from './types';
 import {
-  BENCH_SPOTS, FARM_GATE, FOUNTAIN, LAMP_SPOTS, MALL_GATE, PLAZA, SAKURA_SPOTS,
+  BENCH_SPOTS, BOARD_SIGN, CULTURE_HALL, FARM_GATE, FOUNTAIN, LAMP_SPOTS, MALL_GATE,
+  NIGHT_MARKET, PLAZA, SAKURA_SPOTS,
   TOWN, TOWN_CAFE, TOWN_GARDEN, TOWN_HALL, TOWN_HOUSE1, TOWN_HOUSE2,
-  TOWN_STAGE, farmGateCenter, mallGateCenter,
+  TOWN_STAGE, farmGateCenter, mallGateCenter, marketSlotPos,
 } from './town';
 import { computePairOffsets, drawActionFx, drawBikeSide, drawEggThrow, drawKem, drawKiki, drawMimi, drawMotoSide, drawPairFx, drawParkedCar, drawPlayerDetailed, type PairActor, type VisitorDraw } from './render';
 import { drawMoon, drawSparkle, drawSun, setFxLevel } from './icons';
@@ -39,6 +40,12 @@ export interface TownRenderState {
   race?: { cps: { x: number; y: number }[]; next: number; r: number; lap: number; laps: number } | null;
   /** xe các tay đua máy (vẽ lên đường đua khi có giải) */
   raceBots?: { name: string; x: number; y: number; dir: number; moving: boolean; color: string; shirt: string }[] | null;
+  /** chợ đêm: sạp đang mở (vẽ mái + hàng + giá) + trạng thái mở/đóng */
+  market?: { open: boolean; statusLabel: string; stalls: { seller: string; slot: number; pid: string; price: number; qty: number; me: boolean }[] } | null;
+  /** hạt mưa hoa đám cưới (rơi quanh sân nhà văn hóa) */
+  wedFx?: { x: number; y: number; emoji: string }[] | null;
+  /** đang làm lễ cưới (vẽ thảm đỏ + chữ song hỷ trước nhà văn hóa) */
+  wedding?: { a: string; b: string } | null;
 }
 
 // ===== Cấp đồ họa: renderTown đặt mỗi frame =====
@@ -1890,7 +1897,7 @@ export function drawMapActors(ctx: CanvasRenderingContext2D, cam: { x: number; y
       const at = v.self ? nowMs : (v.bubbleAt ?? 0);
       if (bub && nowMs - at < 5000) {
         ctx.font = `bold 12px 'Be Vietnam Pro', monospace`;
-        const wpx = Math.min(220, ctx.measureText(bub).width + 18);
+        const wpx = Math.min(300, ctx.measureText(bub.slice(0, 44)).width + 18);
         const bx = Math.max(wpx / 2 + 4, Math.min(W - wpx / 2 - 4, X));
         const by = Y - 62;
         ctx.fillStyle = '#fff';
@@ -1899,7 +1906,7 @@ export function drawMapActors(ctx: CanvasRenderingContext2D, cam: { x: number; y
         (ctx as CanvasRenderingContext2D & { roundRect?: (x: number, y: number, w: number, h: number, r: number) => void }).roundRect?.(bx - wpx / 2, by - 18, wpx, 24, 8);
         ctx.fill(); ctx.stroke();
         ctx.fillStyle = '#2b2117'; ctx.textAlign = 'center';
-        ctx.fillText(bub.slice(0, 26), bx, by - 1);
+        ctx.fillText(bub.slice(0, 44), bx, by - 1);
       }
       const em = v.self ? s.selfEmote : v.emote;
       const emAt = v.self ? (s.selfEmoteAt ?? nowMs) : (v.emoteAt ?? 0);
@@ -2043,6 +2050,169 @@ export function drawSkyFx(
   }
 }
 
+// ---------- nhà văn hóa / chợ đêm / bảng tin làng ----------
+function drawCultureHall(
+  ctx: CanvasRenderingContext2D, cam: { x: number; y: number }, t: number, night: boolean,
+  wedding: { a: string; b: string } | null | undefined,
+) {
+  drawBuilding(ctx, cam, t, CULTURE_HALL, {
+    id: 'hall', roof: 'double', wall: '#fff5f5', roofTop: '#e53935', roofBot: '#7f0000', sign: 'NHÀ VĂN HÓA',
+  }, night);
+  const X = CULTURE_HALL.x + CULTURE_HALL.w / 2 - cam.x;
+  const Y = CULTURE_HALL.y + CULTURE_HALL.h - cam.y;
+  // thảm đỏ từ cửa ra sân
+  ctx.fillStyle = wedding ? '#d81b60' : '#b0392e';
+  rr(ctx, X - 26, Y - 6, 52, 40, 4); ctx.fill();
+  ctx.lineWidth = 2; ctx.strokeStyle = OUT; ctx.stroke();
+  ctx.fillStyle = 'rgba(255,213,79,.85)';
+  ctx.fillRect(X - 26, Y + 8, 52, 4);
+  // lồng đèn đỏ 2 bên cửa (đêm sáng rực)
+  for (const dx of [-64, 64]) {
+    const lx = X + dx, ly = Y - 52 + Math.sin(t * 2 + dx) * 1.5;
+    ctx.strokeStyle = OUT; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(lx, Y - 76); ctx.lineTo(lx, ly - 10); ctx.stroke();
+    const gl = night || wedding ? 0.85 : 0.4;
+    ctx.fillStyle = `rgba(229,57,53,${gl})`;
+    ctx.beginPath(); ctx.ellipse(lx, ly, 9, 11, 0, 0, 7); ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = OUT; ctx.stroke();
+    ctx.fillStyle = '#ffd54f';
+    ctx.font = "bold 9px 'Be Vietnam Pro', monospace"; ctx.textAlign = 'center';
+    ctx.fillText('HỶ', lx, ly + 3);
+    if (night || wedding) drawSparkle(ctx, lx, ly - 14, 5, 0.8);
+  }
+  if (wedding) {
+    // chữ song hỷ to + tên đôi uyên ương khi đang làm lễ
+    ctx.fillStyle = '#c62828';
+    rr(ctx, X - 44, Y - 128, 88, 40, 10); ctx.fill();
+    ctx.lineWidth = 2.6; ctx.strokeStyle = '#ffd54f'; ctx.stroke();
+    txt(ctx, 'HỶ 💒 HỶ', X, Y - 112, 15, '#ffd54f');
+    txt(ctx, `${wedding.a} ❤ ${wedding.b}`.slice(0, 24), X, Y - 96, 10, '#ffffff');
+  }
+}
+
+function drawMarketStall(
+  ctx: CanvasRenderingContext2D, cam: { x: number; y: number }, t: number,
+  sx: number, sy: number, emoji: string, price: number, qty: number, seller: string, isMe: boolean, seed: number,
+) {
+  const X = sx - cam.x, Y = sy - cam.y;
+  if (X < -120 || X > 3000) return;
+  const bob = Math.sin(t * 2 + seed) * 1.2;
+  shadow(ctx, X, Y + 12, 30, 6, 0.24);
+  // 2 cột + mái sọc đỏ trắng
+  ctx.strokeStyle = '#7c4f21'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(X - 28, Y - 46); ctx.lineTo(X - 28, Y + 10); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(X + 28, Y - 46); ctx.lineTo(X + 28, Y + 10); ctx.stroke();
+  for (let k = 0; k < 5; k++) {
+    ctx.fillStyle = k % 2 ? '#ffffff' : '#e53935';
+    ctx.fillRect(X - 32 + k * 13, Y - 60 + bob * 0.4, 13, 14);
+  }
+  ctx.lineWidth = 2.4; ctx.strokeStyle = OUT;
+  ctx.strokeRect(X - 32, Y - 60 + bob * 0.4, 65, 14);
+  // bàn hàng + mẹt hàng
+  frame(ctx, X - 26, Y - 16, 52, 26, 6, '#c8915a', 2.6);
+  ctx.fillStyle = '#8d5a2b';
+  ctx.beginPath(); ctx.ellipse(X, Y - 16, 24, 7, 0, 0, 7); ctx.fill();
+  ctx.lineWidth = 2; ctx.strokeStyle = OUT; ctx.stroke();
+  ctx.font = '17px serif'; ctx.textAlign = 'center';
+  ctx.fillText(emoji, X - 12, Y - 8);
+  ctx.fillText(emoji, X + 8, Y - 6 + Math.sin(t * 3 + seed) * 1.5);
+  if (qty <= 0) {
+    txt(ctx, 'HẾT HÀNG', X, Y - 26, 9, '#9e9e9e');
+  } else {
+    txt(ctx, `${price} xu`, X, Y - 26, 10, isMe ? '#2e7d32' : '#b0392e');
+  }
+  namePill(ctx, X, Y + 26, isMe ? `${seller} (bạn)` : seller);
+}
+
+function drawNightMarket(
+  ctx: CanvasRenderingContext2D, cam: { x: number; y: number }, t: number, night: boolean,
+  mk: { open: boolean; statusLabel: string; stalls: { seller: string; slot: number; pid: string; price: number; qty: number; me: boolean }[] } | null | undefined,
+) {
+  const m = NIGHT_MARKET;
+  const X = m.x - cam.x, Y = m.y - cam.y;
+  // nền chiếu cói
+  for (let i = 0; i < 6; i++) {
+    frame(ctx, X + 8 + i * 48, Y + 10, 44, m.h - 20, 6, i % 2 ? '#d9b06a' : '#c99a54', 2);
+  }
+  // 4 cột + 2 dây đèn lồng
+  const poles: [number, number][] = [[m.x + 14, m.y + 16], [m.x + m.w - 14, m.y + 16], [m.x + 14, m.y + m.h - 14], [m.x + m.w - 14, m.y + m.h - 14]];
+  for (const [px, py] of poles) {
+    const PX = px - cam.x, PY = py - cam.y;
+    ctx.fillStyle = '#6d4c41';
+    rr(ctx, PX - 3, PY - 46, 6, 46, 3); ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = OUT; ctx.stroke();
+  }
+  const bulb = (x: number, y: number, hue: string) => {
+    const BX = x - cam.x, BY = y - cam.y;
+    if (night || mk?.open) {
+      ctx.fillStyle = 'rgba(255,213,79,.25)';
+      ctx.beginPath(); ctx.arc(BX, BY, 9, 0, 7); ctx.fill();
+    }
+    ctx.fillStyle = night || mk?.open ? '#ffd54f' : '#b0a898';
+    ctx.beginPath(); ctx.arc(BX, BY, 4, 0, 7); ctx.fill();
+    ctx.lineWidth = 1.6; ctx.strokeStyle = OUT; ctx.stroke();
+    void hue;
+  };
+  for (let k = 0; k <= 10; k++) {
+    const f = k / 10;
+    const sag = Math.sin(f * Math.PI) * 14;
+    bulb(m.x + 14 + (m.w - 28) * f, m.y + 16 + 44 + sag, '');
+    bulb(m.x + 14 + (m.w - 28) * f, m.y + m.h - 58 + sag, '');
+  }
+  ctx.strokeStyle = 'rgba(60,40,20,.7)'; ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.moveTo(m.x + 14 - cam.x, m.y + 60 - cam.y);
+  ctx.quadraticCurveTo(X + m.w / 2, Y + 74, m.x + m.w - 14 - cam.x, m.y + 60 - cam.y); ctx.stroke();
+  // biển chợ
+  const SX = X + m.w / 2, SY = Y - 26;
+  ctx.fillStyle = '#6d4c41';
+  rr(ctx, SX - 4, SY - 6, 8, 34, 3); ctx.fill();
+  frame(ctx, SX - 86, SY - 40, 172, 44, 8, '#8d5a2b', 3);
+  txt(ctx, 'CHỢ ĐÊM • T7-CN 18-24H', SX, SY - 22, 11, '#ffe9b0');
+  txt(ctx, mk?.open ? 'ĐANG MỞ 🌙' : (mk?.statusLabel ?? ''), SX, SY - 8, 10, mk?.open ? '#aeea00' : '#ffccbc');
+  // 8 ô sạp: ô trống vẽ nét đứt, sạp mở vẽ gian hàng
+  const taken = new Set((mk?.stalls ?? []).map((s) => s.slot));
+  for (let i = 0; i < 8; i++) {
+    const p = marketSlotPos(i);
+    if (!taken.has(i)) {
+      const PX = p.x - cam.x, PY = p.y - cam.y;
+      ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 2;
+      ctx.setLineDash([6, 5]);
+      ctx.strokeRect(PX - 28, PY - 52, 56, 66);
+      ctx.setLineDash([]);
+      txt(ctx, `ô ${i + 1}`, PX, PY + 24, 9, 'rgba(255,255,255,.8)');
+    }
+  }
+  (mk?.stalls ?? []).forEach((st, i) => {
+    const p = marketSlotPos(st.slot);
+    drawMarketStall(ctx, cam, t, p.x, p.y, itemName(st.pid)[1] || '📦', st.price, st.qty, st.seller, st.me, i * 1.3);
+  });
+}
+
+function drawBoardSign(ctx: CanvasRenderingContext2D, cam: { x: number; y: number }, t: number) {
+  const X = BOARD_SIGN.x - cam.x, Y = BOARD_SIGN.y - cam.y;
+  shadow(ctx, X, Y + 10, 30, 6, 0.24);
+  ctx.fillStyle = '#6d4c41';
+  rr(ctx, X - 30, Y - 44, 7, 54, 3); ctx.fill();
+  rr(ctx, X + 23, Y - 44, 7, 54, 3); ctx.fill();
+  ctx.lineWidth = 2; ctx.strokeStyle = OUT;
+  ctx.strokeRect(X - 30, Y - 44, 7, 54);
+  ctx.strokeRect(X + 23, Y - 44, 7, 54);
+  frame(ctx, X - 40, Y - 88, 80, 52, 6, '#a9713a', 3);
+  frame(ctx, X - 35, Y - 83, 70, 42, 4, '#f3e2c2', 2);
+  // giấy ghim + đinh
+  const notes: [number, number, string][] = [[-22, -70, '#fff59d'], [0, -66, '#ffccbc'], [22, -70, '#c5e1a5'], [-11, -52, '#b3e5fc'], [12, -52, '#e1bee7']];
+  for (const [ox, oy, col] of notes) {
+    ctx.fillStyle = col;
+    const wob = Math.sin(t * 1.5 + ox) * 1;
+    ctx.fillRect(X + ox - 8, Y + oy - 6 + wob, 16, 12);
+    ctx.lineWidth = 1.4; ctx.strokeStyle = OUT;
+    ctx.strokeRect(X + ox - 8, Y + oy - 6 + wob, 16, 12);
+    ctx.fillStyle = '#c62828';
+    ctx.beginPath(); ctx.arc(X + ox, Y + oy - 6 + wob, 2, 0, 7); ctx.fill();
+  }
+  txt(ctx, 'BẢNG TIN', X, Y - 94, 10, '#5d4037');
+}
+
 export function renderTown(ctx: CanvasRenderingContext2D, W: number, H: number, cam: { x: number; y: number }, s: TownRenderState, t: number) {
   // cấp đồ họa áp dụng ngay cho cả frame thị trấn
   setTQ(s.quality ?? 'medium');
@@ -2091,6 +2261,10 @@ export function renderTown(ctx: CanvasRenderingContext2D, W: number, H: number, 
   drawBunting(ctx, cam, t);
   drawVendor(ctx, cam, t, 500, 470, 'kem', 'Bà Hoa · Kem', 1.3);
   drawVendor(ctx, cam, t, 1100, 470, 'bongbong', 'Chú Tám · Bóng bay', 4.1);
+  // nhà văn hóa (đông-bắc) + chợ đêm (đông-nam) + bảng tin làng
+  drawCultureHall(ctx, cam, t, night, s.wedding);
+  drawNightMarket(ctx, cam, t, night, s.market);
+  drawBoardSign(ctx, cam, t);
   // thêm 2 cây anh đào lấp chỗ shop/casino cũ ở đông-bắc
   drawSakura(ctx, cam, 1290, 330, t, 9.1);
   drawSakura(ctx, cam, 1290, 500, t, 10.7);
@@ -2128,6 +2302,14 @@ export function renderTown(ctx: CanvasRenderingContext2D, W: number, H: number, 
   }
 
   drawMapActors(ctx, cam, W, H, s, t);
+  // mưa hoa đám cưới rơi trên đầu cả làng
+  if (s.wedFx) {
+    ctx.textAlign = 'center';
+    for (const p of s.wedFx) {
+      ctx.font = '15px serif';
+      ctx.fillText(p.emoji, p.x - cam.x, p.y - cam.y);
+    }
+  }
   drawSkyFx(ctx, cam, W, H, s, t, night, isDay, TOWN.w, TOWN.h, LAMP_SPOTS, [
     { x: FOUNTAIN.x, y: FOUNTAIN.y - 20, r: 90, c: '140,220,255' },
     { x: TOWN_STAGE.x + TOWN_STAGE.w / 2, y: TOWN_STAGE.y, r: 120 },

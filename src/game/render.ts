@@ -4307,13 +4307,22 @@ export function drawActionFx(ctx: CanvasRenderingContext2D, X: number, Y: number
     ctx.strokeText('êu êu~', X - 26, Y - 56 + Math.sin(t * 6) * 2);
     ctx.fillStyle = '#a78bfa'; ctx.fillText('êu êu~', X - 26, Y - 56 + Math.sin(t * 6) * 2);
   }
+  if (emote.includes('💍')) {
+    // nhẫn lấp lánh trên tay + tim nhỏ
+    const bob = Math.sin(t * 5) * 2;
+    ctx.font = '22px serif'; ctx.textAlign = 'center';
+    ctx.fillText('💍', X + 20, Y - 48 + bob);
+    drawSparkle(ctx, X + 20, Y - 52 + bob, 7, 1);
+    ctx.font = '12px serif';
+    ctx.fillText('💖', X - 18, Y - 60 + Math.sin(t * 4) * 3);
+  }
   // 🥚 pupu v2: trứng NÉM THẬT vào người khác — toàn bộ vẽ ở drawEggThrow trong vòng visitor (có nạn nhân cụ thể).
 }
 // ============================================================
 //  HÀNH ĐỘNG ĐÔI — 2 nhân vật cùng emote + đứng gần nhau (260px)
 //  thì THỰC SỰ lao vào nhau diễn hoạt ảnh (đánh/ôm/bắt tay/hun/chào)
 // ============================================================
-export type PairAction = 'fight' | 'hug' | 'handshake' | 'kiss' | 'greet';
+export type PairAction = 'fight' | 'hug' | 'handshake' | 'kiss' | 'greet' | 'propose';
 
 /** map emoji emote → hành động đôi (2 người cùng loại mới ghép cặp) */
 export function pairActionOf(emote: string | undefined): PairAction | null {
@@ -4322,6 +4331,7 @@ export function pairActionOf(emote: string | undefined): PairAction | null {
   if (emote.includes('🤗')) return 'hug';
   if (emote.includes('🤝')) return 'handshake';
   if (emote.includes('💋')) return 'kiss';
+  if (emote.includes('💍')) return 'propose';
   if (emote.includes('👋')) return 'greet';
   return null;
 }
@@ -4365,8 +4375,8 @@ export function computePairOffsets(
       const punch = 10 + Math.abs(Math.sin(t * 9 + i * 1.3)) * 18;
       offsets[i] = { dx: nx * punch, dy: ny * punch, act: a };
       offsets[best] = { dx: -nx * punch, dy: -ny * punch, act: a };
-    } else if (a === 'hug' || a === 'handshake' || a === 'kiss') {
-      // tiến lại sát nhau (cách ~40px thì dừng)
+    } else if (a === 'hug' || a === 'handshake' || a === 'kiss' || a === 'propose') {
+      // tiến lại sát nhau (cách ~40px thì dừng) — cầu hôn thì 1 người quỳ gối
       const come = Math.max(0, Math.min(bd / 2 - 20, 48));
       offsets[i] = { dx: nx * come, dy: ny * come, act: a };
       offsets[best] = { dx: -nx * come, dy: -ny * come, act: a };
@@ -4443,6 +4453,19 @@ export function drawPairFx(ctx: CanvasRenderingContext2D, X1: number, Y1: number
       ctx.fillText(i % 2 ? '💕' : '💋', hx, hy + Math.sin(t * 5 + i) * 2);
     }
     txt(ctx, 'chụt chụt!', mx, my - 44, 13, '#f48fb1');
+  } else if (act === 'propose') {
+    // nhẫn lấp lánh giữa 2 người + mưa tim + chữ cầu hôn
+    const tw = 10 + Math.sin(t * 8) * 3;
+    ctx.font = `${26 + tw * 0.6}px serif`; ctx.textAlign = 'center';
+    ctx.fillText('💍', mx, my - 16 + Math.sin(t * 4) * 3);
+    drawSparkle(ctx, mx - 16, my - 22, 6, 0.9);
+    drawSparkle(ctx, mx + 16, my - 26, 6, 0.9);
+    for (let i = 0; i < 5; i++) {
+      const ph = t * 2 + i * 1.7;
+      ctx.font = `${11 + (i % 3) * 2}px serif`;
+      ctx.fillText(i % 2 ? '💖' : '❤️', mx - 30 + i * 15 + Math.sin(ph) * 4, my - 40 - ((ph * 14) % 26));
+    }
+    txt(ctx, 'LỜI CẦU HÔN!', mx, my - 66, 14, '#ff8fb0');
   } else {
     // chào nhau: vòng tay vẫy trên đầu mỗi người + chữ CHÀO
     for (const [X, Y] of [[X1, Y1], [X2, Y2]] as [number, number][]) {
