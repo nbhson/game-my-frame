@@ -4,7 +4,7 @@ import { useVillage, farmVisible, gameMe, visiblePlayers } from '../net/village'
 import type { InteractTarget } from '../game/types';
 import { FARM_GATE_SPAWN, PIERS, WORLD, isBlocked, plotPos } from '../game/world';
 import { FARM_GATE, MALL_GATE, TOWN, TOWN_PROPS, TOWN_SPAWN, isTownBlocked } from '../game/town';
-import { MALL, MALL_PIERS, MALL_PROPS, MALL_SPAWN, isMallBlocked, mallTownGateCenter } from '../game/mall';
+import { MALL, MALL_PIERS, MALL_PROPS, MALL_SPAWN, RACE_CPS, RACE_CP_R, isMallBlocked, isOnRaceTrack, mallTownGateCenter } from '../game/mall';
 import { CARS, MAX_PLOTS } from '../game/data';
 import { KEM_UID, nearestInteract, nearestMallInteract, nearestPet, nearestStealPlot, nearestTownInteract } from '../game/systems';
 import { renderWorld, type VisitorDraw } from '../game/render';
@@ -14,7 +14,7 @@ import { INTERIORS, isInteriorBlocked, nearestInteriorInteract } from '../game/i
 import { renderInterior } from '../game/interiorRender';
 import { openInteriorFurn, tickInteriorEvents } from '../game/interiorActions';
 import { startAutoSync, stopAutoSync } from '../net/account';
-import { checkRaceCp, finishRace, raceGridSlot, tickRace, useRace, RACE_LAPS } from '../net/race';
+import { checkRaceCp, finishRace, raceBotPos, raceGridSlot, tickRace, useRace, RACE_BOT_STYLE, RACE_LAPS } from '../net/race';
 import { sfx } from '../game/audio';
 
 /** Đưa cả người về đường đua khi giải bắt đầu (từ farm/nhà/town đều được) */
@@ -423,7 +423,11 @@ export default function GameCanvas({ target, onTarget }: Props) {
         const car = st.activeCar ? CARS[st.activeCar] : null;
         const SPD = car ? car.speed : st.speedUntil && Date.now() < st.speedUntil ? 330 : 260;
         const iid = st.scene === 'interior' ? st.interiorId : null;
-        const blocked = (x: number, y: number) => (st.scene === 'town' ? isTownBlocked(x, y) : st.scene === 'mall' ? isMallBlocked(x, y) : st.scene === 'interior' && iid ? isInteriorBlocked(iid, x, y) : isBlocked(x, y));
+        // đang đua: khóa xe trong vòng track (khỏi chạy lạc ra ngoài)
+        const racing = st.scene === 'mall' && useRace.getState().phase === 'racing';
+        const blocked = racing
+          ? (x: number, y: number) => !isOnRaceTrack(x, y)
+          : (x: number, y: number) => (st.scene === 'town' ? isTownBlocked(x, y) : st.scene === 'mall' ? isMallBlocked(x, y) : st.scene === 'interior' && iid ? isInteriorBlocked(iid, x, y) : isBlocked(x, y));
         if (mx || my) {
           playerRef.tx = null; playerRef.ty = null;
           const l = Math.hypot(mx, my) || 1;
@@ -653,6 +657,18 @@ export default function GameCanvas({ target, onTarget }: Props) {
         const mallSit = fs && fs.at === 'mall'
           ? { x: fs.x, y: fs.y, bx: fs.bx, by: fs.by, bite: biting, combo: st.biteCombo, progress: st.biteProgress, fishId: st.biteCatchId }
           : null;
+        // đang đua / đếm ngược: hiện cọc số các chốt + mũi tên chỉ chốt tiếp + xe bot
+        const rz2 = useRace.getState();
+        const racingLive = rz2.phase === 'count' || rz2.phase === 'racing' || rz2.phase === 'done';
+        const raceHud = racingLive
+          ? (() => {
+            const mine = rz2.progress[gameMe().name] ?? { lap: 0, cp: 0 };
+            return { cps: RACE_CPS, next: mine.cp, r: RACE_CP_R, lap: mine.lap, laps: RACE_LAPS };
+          })()
+          : null;
+        const raceBots = racingLive
+          ? raceBotPos().map((b) => ({ ...b, ...(RACE_BOT_STYLE[b.name] ?? { color: '#999999', shirt: '#666666' }) }))
+          : null;
         renderMall(ctx, view.current.w, view.current.h, cam.current, {
           player: { x: playerRef.x, y: playerRef.y, dir: playerRef.dir, moving: playerRef.moving, tx: playerRef.tx, ty: playerRef.ty, name: st.name },
           avatar: st.avatar, dayTime: st.dayTime, weather: st.weather,
@@ -668,6 +684,8 @@ export default function GameCanvas({ target, onTarget }: Props) {
           quality: effQ,
           sit: mallSit,
           catchPop: st.catchPop,
+          race: raceHud,
+          raceBots,
         }, t);
       } else {
         const snap = village.visiting?.snap;

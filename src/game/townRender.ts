@@ -35,6 +35,10 @@ export interface TownRenderState {
   sit?: { x: number; y: number; bx: number; by: number; bite: boolean; combo?: BiteDir[] | null; progress?: number; fishId?: string | null } | null;
   /** cá vừa giật dính đang giãy */
   catchPop?: { x: number; y: number; fishId: string; label: string; until: number } | null;
+  /** đua xe: cọc số các chốt trên đường đua (next = chốt cần cán, pulsing) */
+  race?: { cps: { x: number; y: number }[]; next: number; r: number; lap: number; laps: number } | null;
+  /** xe các tay đua máy (vẽ lên đường đua khi có giải) */
+  raceBots?: { name: string; x: number; y: number; dir: number; moving: boolean; color: string; shirt: string }[] | null;
 }
 
 // ===== Cấp đồ họa: renderTown đặt mỗi frame =====

@@ -226,7 +226,7 @@ export const INTERIORS: Record<string, InteriorDef> = {
       { id: 'rug', label: 'Thảm caro đích đến', x: 400, y: 470, w: 300, h: 110, solid: false, look: 'rug' },
     ],
     npcs: [
-      { id: 'trongtai', name: 'Trọng tài Còi', x: 550, y: 300, look: 'dealer', lines: ['Muốn đua thì đăng ký ở bảng kia — tối đa 5 tay lái một giải!', 'Luật mới: lái xe THẬT quanh track 5 vòng, cán đủ 8 chốt/vòng — ai về đích trước thì thắng!', 'Vô địch +300 xu +1 gem, á quân +150, hạng ba +80!'] },
+      { id: 'trongtai', name: 'Trọng tài Còi', x: 550, y: 300, look: 'dealer', lines: ['Muốn đua thì đăng ký ở bảng kia — tối đa 5 tay lái một giải!', 'Luật mới: lái xe THẬT quanh track 5 vòng, cán đủ 10 chốt/vòng — ai về đích trước thì thắng!', 'Vô địch +300 xu +1 gem, á quân +150, hạng ba +80!'] },
       { id: 'taydua', name: 'Tay đua Cũ', x: 250, y: 520, look: 'guest', lines: ['Tui từng vô địch 3 giải liền — giờ treo mũ ở đây!', 'Muốn thắng thì ôm cua gọn, đừng cắt góc bỏ chốt là phải quay lại đó!', 'Có xe xịn ngoài đời thì vào đường đua chạy thử cho nóng máy!'] },
     ],
   },

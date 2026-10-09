@@ -1,14 +1,14 @@
 // ===== GIẢI ĐUA XE TRƯỜNG ĐUA THẬT (tối đa 5 người, không cần chủ trì) =====
 // Ai cũng tạo phòng được: broadcast OPEN kèm tên chủ phòng.
 // Chủ phòng START → mọi tay lái tự về khu mua sắm, xếp vào ô xuất phát,
-// đếm ngược 3s → LÁI XE THẬT quanh vòng track (5 vòng, 8 chốt/vòng, cán đủ chốt
+// đếm ngược 3s → LÁI XE THẬT quanh vòng track (5 vòng, 10 chốt/vòng, cán đủ chốt
 // mới tính) — vị trí xe của nhau thấy trực tiếp trên map qua làng.
 // Tiến trình (vòng/chốt) phát cho cả phòng mỗi khi qua chốt + RFIN khi về đích.
 // Mỗi client tự chốt bảng theo giờ về đích (ai về trước thắng) và tự trao giải.
 // Một mình thì đua với 4 tay đua máy. Tin nhắn qua kênh game ẩn `🏁RC|`.
 import { create } from 'zustand';
 import { useGame } from '../game/store';
-import { RACE_CPS, RACE_CP_R, RACE_LAPS, raceGridSlot } from '../game/mall';
+import { RACE_CPS, RACE_CP_R, RACE_LAPS, raceGridSlot, raceLoopPoint, RACE_LOOP_TOTAL } from '../game/mall';
 export { RACE_LAPS, raceGridSlot };
 import { sfx } from '../game/audio';
 import { gameMe, markSeen, onGameMsg, sendGameMsg } from './village';
@@ -178,6 +178,8 @@ function handleMsg(m: ChatMsg) {
     myDoneAt = 0; finalizeAt = 0;
     useRace.setState({ phase: 'count', host: st.host || m.fromName, racers, progress: {}, finishes: {}, goAt, results: [] });
     sfx.catch_();
+    // đóng bảng ngay để cả phòng THẤY đường đua + ô xuất phát (đếm ngược hiện trên HUD)
+    if (useGame.getState().modal === 'race') useGame.getState().setModal(null);
     useGame.getState().toast('🏁 Chuẩn bị… đang đưa bạn ra vạch xuất phát!');
   } else if (kind === 'RPOS') {
     if (st.phase !== 'racing') return;
@@ -259,6 +261,7 @@ export const useRace = create<RaceState>()((set, get) => ({
     set({ racers, progress: {}, finishes: {}, phase: 'count', goAt, results: [] });
     sendGameMsg(`${P}START|${goAt}|${racers.join(',')}`);
     sfx.catch_();
+    if (useGame.getState().modal === 'race') useGame.getState().setModal(null);
     useGame.getState().toast('🏁 Chuẩn bị… đang đưa cả phòng ra vạch xuất phát!');
   },
 
@@ -301,6 +304,44 @@ onGameMsg(P, handleMsg);
 // tick gọi mỗi frame từ GameCanvas (tự tính dt, gọi nhiều nơi cũng an toàn)
 export function tickRace(now = Date.now()) {
   try { useRace.getState().tick(now); } catch { /* ignore */ }
+}
+
+/** màu xe + áo của 4 tay đua máy */
+export const RACE_BOT_STYLE: Record<string, { color: string; shirt: string }> = {
+  'Tí Lửa': { color: '#e53935', shirt: '#e53935' },
+  'Tèo Bốc': { color: '#3b82f6', shirt: '#3b82f6' },
+  'Tũn Khói': { color: '#9ca3af', shirt: '#4b5563' },
+  'Tẹt Ga': { color: '#fdd835', shirt: '#f59e0b' },
+};
+
+export interface RaceBotDraw { name: string; x: number; y: number; dir: 1 | -1; moving: boolean }
+
+/** Vị trí xe các tay đua máy để vẽ lên map: đếm ngược thì xếp ô xuất phát,
+ *  đang đua thì chạy theo tiến trình, về đích thì đậu sau vạch. */
+export function raceBotPos(): RaceBotDraw[] {
+  const st = useRace.getState();
+  if (st.phase !== 'count' && st.phase !== 'racing' && st.phase !== 'done') return [];
+  const out: RaceBotDraw[] = [];
+  st.racers.forEach((n, i) => {
+    if (!isRaceBot(n)) return;
+    if (st.phase === 'count') {
+      const g = raceGridSlot(i);
+      out.push({ name: n, x: g.x, y: g.y, dir: 1, moving: false });
+      return;
+    }
+    const total = RACE_LAPS * RACE_N;
+    if (st.finishes[n] != null) {
+      // về đích rồi thì lái vào bãi giữa đậu, xếp hàng theo thứ tự tên
+      const order = Object.keys(st.finishes).filter((k) => isRaceBot(k)).sort().indexOf(n);
+      out.push({ name: n, x: 1000 + Math.max(0, order) * 50, y: 800, dir: 1, moving: false });
+      return;
+    }
+    const f = Math.min(botFloat[n] ?? 0, total);
+    const d = (f / total) * RACE_LOOP_TOTAL;
+    const p = raceLoopPoint(d);
+    out.push({ name: n, x: p.x, y: p.y, dir: Math.cos(p.ang) >= 0 ? 1 : -1, moving: true });
+  });
+  return out;
 }
 
 /** GameCanvas gọi khi xe cán đúng chốt kỳ vọng → trả tiến trình mới (null nếu chưa cán) */

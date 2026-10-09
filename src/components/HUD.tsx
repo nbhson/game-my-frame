@@ -82,7 +82,14 @@ function PlayMenu({ compact }: { compact?: boolean }) {
 function RaceHud() {
   const r = useRace();
   const me = gameMe().name;
-  if (r.phase !== 'count' && r.phase !== 'racing') return null;
+  const [, setTick] = useState(0);
+  const live = r.phase === 'count' || r.phase === 'racing';
+  useEffect(() => {
+    if (!live) return;
+    const id = setInterval(() => setTick((x) => x + 1), 250);
+    return () => clearInterval(id);
+  }, [live]);
+  if (!live) return null;
   const sorted = [...r.racers].sort((a, b) => {
     const fa = r.finishes[a], fb = r.finishes[b];
     if (fa != null && fb != null) return fa - fb;
@@ -93,7 +100,24 @@ function RaceHud() {
   const rank = sorted.indexOf(me) + 1;
   const mine = r.progress[me];
   const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `${rank}.`;
+  const now = Date.now();
+  // số đếm ngược lớn giữa màn hình + chớp XUẤT PHÁT lúc GO
+  const countLeft = r.phase === 'count' ? Math.max(1, Math.ceil((r.goAt - now) / 1000)) : 0;
+  const justGo = r.phase === 'racing' && now - r.goAt < 1500;
   return (
+    <>
+      {(r.phase === 'count' || justGo) && (
+        <div className="fixed inset-0 z-20 flex items-center justify-center pointer-events-none">
+          <div className="text-center animate-pulse">
+            <div className="font-black text-white" style={{ fontSize: 96, textShadow: '4px 4px 0 #000, -2px -2px 0 #000' }}>
+              {r.phase === 'count' ? countLeft : 'GO! 🏁'}
+            </div>
+            <div className="font-black text-yellow-300 text-lg" style={{ textShadow: '2px 2px 0 #000' }}>
+              {r.phase === 'count' ? 'CHUẨN BỊ XUẤT PHÁT…' : 'LÁI ĐI! QUA ĐỦ CHỐT VÀNG!'}
+            </div>
+          </div>
+        </div>
+      )}
     <button
       type="button"
       onClick={() => useGame.getState().setModal('race')}
@@ -109,6 +133,7 @@ function RaceHud() {
         </span>
       )}
     </button>
+    </>
   );
 }
 /** Nút ở thị trấn: sang khu mua sắm (gara/casino/shop đã dọn sang đó) */
