@@ -163,6 +163,7 @@ const BOTS: RemotePlayer[] = [
   { id: 'bot-lan', name: 'Lan', avatar: 1, x: 400, y: 500, dir: 1, moving: true, map: 'farm', updatedAt: Date.now() },
   { id: 'bot-teo', name: 'Tèo', avatar: 2, x: 1200, y: 900, dir: -1, moving: true, map: 'farm', updatedAt: Date.now() },
   { id: 'bot-dao', name: 'Đào', avatar: 3, x: 800, y: 640, dir: 1, moving: true, map: 'town', updatedAt: Date.now() },
+  { id: 'bot-phong', name: 'Phong', avatar: 0, x: 800, y: 640, dir: 1, moving: true, map: 'mall', updatedAt: Date.now() },
 ];
 function botPositions(t: number): RemotePlayer[] {
   return BOTS.map((b, i) => ({
@@ -196,7 +197,19 @@ export const useVillage = create<VillageState>()((set, get) => ({
     if (transport || get().connected) return;
     // đang dò mạng → hiện syncing trước để HUD phản hồi ngay
     set({ cloud: 'syncing' });
-    transport = await buildTransport();
+    // buildTransport không bao giờ được làm chết connect (trước đây lỗi là
+    // connected=false vĩnh viễn → nút mở giải/lô tô/ma sói bấm chỉ thấy toast)
+    try {
+      transport = await buildTransport();
+    } catch {
+      try {
+        const { LocalTransport } = await import('./local');
+        transport = new LocalTransport(getPresenceId(), codeFromName(useGame.getState().name || 'ABCDEF'));
+      } catch {
+        const { LocalTransport } = await import('./local');
+        transport = new LocalTransport(`offline-${Math.floor(Math.random() * 1e9)}`, 'ABCDEF');
+      }
+    }
     const g = useGame.getState();
     transport.connect({ id: getPresenceId(), name: g.name, avatar: g.avatar });
     set({ connected: true, mode: transport.mode, myCode: transport.code, cloud: transport.mode === 'local' ? 'local' : 'syncing' });
@@ -311,7 +324,7 @@ export const useVillage = create<VillageState>()((set, get) => ({
       // đã có Kem rồi → không có gì xảy ra (đúng yêu cầu: chỉ 1 con duy nhất)
       if (g.summonKem()) {
         sfx.meow();
-        g.toast('KEMKEM! Mèo cam Kem xuất hiện, từ nay bám theo bạn khắp farm + công viên 🐱💖');
+        g.toast('KEMKEM! Mèo cam Kem xuất hiện, từ nay bám theo bạn khắp farm + thị trấn 🐱💖');
       }
       return;
     }
@@ -451,7 +464,7 @@ export const useVillage = create<VillageState>()((set, get) => ({
 }));
 
 /** players để vẽ = online thật + bots (nếu bật), lọc theo map đang đứng */
-export function visiblePlayers(now: number, map?: 'farm' | 'town' | 'interior'): RemotePlayer[] {
+export function visiblePlayers(now: number, map?: 'farm' | 'town' | 'mall' | 'interior'): RemotePlayer[] {
   const { players, demoBots } = useVillage.getState();
   const want = map ?? useGame.getState().scene;
   const sameMap = (p: RemotePlayer) => (p.map ?? 'farm') === want;
@@ -477,9 +490,15 @@ export function farmVisible(now: number, visitingCode: string | null): RemotePla
   );
 }
 
-/** số người đang ở công viên (để HUD hiện) */
+/** số người đang ở thị trấn (để HUD hiện) */
 export function townCount(): number {
   const { players } = useVillage.getState();
   return players.filter((p) => (p.map ?? 'farm') === 'town').length;
+}
+
+/** số người đang ở khu mua sắm & giải trí (để HUD hiện) */
+export function mallCount(): number {
+  const { players } = useVillage.getState();
+  return players.filter((p) => (p.map ?? 'farm') === 'mall').length;
 }
 

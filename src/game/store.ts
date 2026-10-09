@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Animal, AnimalType, CoopCap, DailyState, GraphicsQuality, InAct, ModalKind, Plot, PondFish, ResMode, SceneKind, ShopTab, Stats, WeatherKind } from './types';
 import {
-  ANIMALS, BITE_MAX, BITE_MIN, BITE_WINDOW, CROPS, DAY_LENGTH, FEED_PRO_PRICE, FEED_PRICE,
+  ANIMALS, BITE_MAX, BITE_MIN, BITE_WINDOW, CARS, CROPS, DAY_LENGTH, FEED_PRO_PRICE, FEED_PRICE,
   BAIT_PRO_PRICE, BAIT_PRICE, DEFAULT_OUTFIT, FISHES, MAX_CAP, MAX_PLOTS, MAX_POND, OUTFITS, QUESTS,
   PEST_PRICE, PEST_RATE, genBiteCombo,
   type BiteDir,
@@ -11,6 +11,7 @@ import {
   rollRiverCatch, sellPrice,
 } from './data';
 import { PIERS } from './world';
+import { MALL_PIERS } from './mall';
 import { PETS, KEM_UID } from './systems';
 import { sfx } from './audio';
 import { reportContestCatch } from '../net/contest';
@@ -24,6 +25,7 @@ export interface FishSpot {
   pier: number;
   x: number; y: number; // chỗ ngồi
   bx: number; by: number; // phao
+  at: 'farm' | 'mall'; // ngồi câu ở sông nào
 }
 
 interface GameState {
@@ -84,6 +86,9 @@ interface GameState {
   // thời trang: slot -> itemId + kho đồ đã sở hữu
   outfit: Record<string, string>;
   ownedOutfits: string[];
+  // ô tô: xe đã mua (gara) + xe đang lái (null = đi bộ)
+  ownedCars: string[];
+  activeCar: string | null;
   // cấp đồ họa: high (đủ hiệu ứng) / medium / low (máy yếu) — persist + sync
   quality: GraphicsQuality;
   // tự động chỉnh đồ họa theo FPS thật (mặc định BẬT để hết lag; tắt khi muốn cố định tay)
@@ -112,8 +117,10 @@ interface GameState {
     daily?: DailyState; junkAt?: number;
     redeemedCodes?: string[];
     outfit?: Record<string, string>; ownedOutfits?: string[];
+    ownedCars?: string[]; activeCar?: string | null;
     quality?: GraphicsQuality; viewH?: number; kem?: boolean;
     autoQuality?: boolean; resMode?: ResMode;
+    stageColor?: string;
   } | null) => void;
   toast: (msg: string) => void;
   dismissToast: (id: number) => void;
@@ -158,6 +165,10 @@ interface GameState {
   exchangeGem: () => void;
   buyOutfit: (id: string) => void;
   wearOutfit: (id: string) => void;
+  /** Mua ô tô ở Chợ Xe — xe cất vào gara, ra gara bấm Lái để chạy */
+  buyCar: (id: string) => void;
+  /** Lên/xuống xe: driveCar(id) khi sở hữu, driveCar(null) để xuống đi bộ */
+  driveCar: (id: string | null) => void;
   /** Đổi cấp đồ họa (áp dụng ngay, lưu máy + tài khoản) */
   setQuality: (q: GraphicsQuality) => void;
   /** Bật/tắt tự động chỉnh đồ họa theo FPS */
@@ -203,7 +214,7 @@ interface GameState {
   sellAnimal: (uid: number) => void;
   /** Bán 1 con cá đã lớn trong ao */
   sellFish: (uid: number) => void;
-  startRiverFishing: (pier: number, baitId: string) => void;
+  startRiverFishing: (pier: number, baitId: string, at?: 'farm' | 'mall') => void;
   reelRiver: () => void;
   pressBiteKey: (dir: BiteDir) => void;
   cancelRiver: (silent?: boolean) => void;
@@ -246,6 +257,12 @@ function migrateFishes(old: PondFish[] | undefined, uidSeqRef: { v: number }): P
 
 export const xpNeed = (level: number) => level * 100;
 
+/** Làm hàng loạt (⚡) mở khóa từ cấp này — dưới mức này bấm vào sẽ nhận thông báo */
+export const BULK_MIN_LEVEL = 10;
+/** Thông báo khóa khi chưa đủ cấp mở Hàng loạt */
+export const bulkLockedMsg = (level: number) =>
+  `🔒 Hàng loạt mở từ Lv${BULK_MIN_LEVEL}! Bạn đang Lv${level} — lên cấp thêm nhé!`;
+
 /** Thời tiết kế tiếp: nắng nhiều, mưa vừa, tuyết hiếm (farm nhiệt đới mà có tuyết là sự kiện!) */
 export function rollWeather(): { w: WeatherKind; dur: number } {
   const r = Math.random();
@@ -287,6 +304,15 @@ function takeFeed(s: { inv: Record<string, number> }): 'feed' | 'feedPro' | null
   return null;
 }
 
+/**
+ * Lưu ngay lên server + local sau khi mua/mặc/lên xe — khỏi chờ autosync 10s
+ * (mua xe xong restart server liền vẫn còn). Dynamic import để tránh vòng
+ * lặp module store <-> net/account (account cũng import store).
+ */
+function saveSoon() {
+  void import('../net/account').then((m) => m.syncNow()).catch(() => {});
+}
+
 export const useGame = create<GameState>()(
   persist(
     (set, get) => ({
@@ -312,6 +338,7 @@ export const useGame = create<GameState>()(
       fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null,
       biteCatchId: null, biteCombo: null, biteProgress: 0,
       catchPop: null, outfit: { ...DEFAULT_OUTFIT }, ownedOutfits: Object.keys(DEFAULT_OUTFIT).map((k) => DEFAULT_OUTFIT[k as OutfitSlot]),
+      ownedCars: [], activeCar: null,
       quality: 'high', autoQuality: true, autoLevel: 'medium', resMode: 'auto', thiefBiteUntil: null,
       viewH: defaultViewH(),
       kem: false,
@@ -349,12 +376,15 @@ export const useGame = create<GameState>()(
             ownedOutfits: Array.isArray(data.ownedOutfits) && data.ownedOutfits.length > 0
               ? [...new Set([...Object.values(DEFAULT_OUTFIT), ...data.ownedOutfits])]
               : Object.values(DEFAULT_OUTFIT),
+            ownedCars: Array.isArray(data.ownedCars) ? data.ownedCars.filter((id) => !!CARS[id]) : [],
+            activeCar: data.activeCar && CARS[data.activeCar] && (data.ownedCars ?? []).includes(data.activeCar) ? data.activeCar : null,
             quality: data.quality === 'low' || data.quality === 'medium' ? data.quality : 'high',
             autoQuality: data.autoQuality !== false,
             autoLevel: data.quality === 'low' ? 'low' : 'medium',
             resMode: data.resMode === 'full' || data.resMode === 'med' || data.resMode === 'low' ? data.resMode : 'auto',
             viewH: clampViewH(data.viewH ?? VIEW_H_DEFAULT),
             kem: !!data.kem,
+            stageColor: data.stageColor ?? '#ffd24d',
             modal: null, fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null, biteCatchId: null, biteCombo: null, biteProgress: 0, catchPop: null, petFx: null, plotFx: [], scene: 'farm',
           });
         } else {
@@ -368,6 +398,7 @@ export const useGame = create<GameState>()(
             stats: freshStats(), questIdx: 0, uidSeq: 1,
             redeemedCodes: [],
             outfit: { ...DEFAULT_OUTFIT }, ownedOutfits: Object.values(DEFAULT_OUTFIT),
+            ownedCars: [], activeCar: null,
             quality: 'high', autoQuality: true, autoLevel: 'medium', resMode: 'auto', viewH: defaultViewH(), kem: false,
             modal: null, fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null, biteCatchId: null, biteCombo: null, biteProgress: 0, catchPop: null, petFx: null, plotFx: [], scene: 'farm',
           });
@@ -628,6 +659,7 @@ export const useGame = create<GameState>()(
       // ================= LÀM HÀNG LOẠT =================
       bulkHoe: () => {
         const s = get();
+        if (s.level < BULK_MIN_LEVEL) { sfx.error(); get().toast(bulkLockedMsg(s.level)); return; }
         const targets = s.plots.map((pl, i) => ({ pl, i })).filter(({ pl }) => !pl.locked && pl.state === 'grass');
         if (!targets.length) { sfx.error(); get().toast('Không còn ô cỏ nào để cuốc!'); return; }
         const plots = s.plots.slice();
@@ -640,6 +672,7 @@ export const useGame = create<GameState>()(
 
       bulkSow: (cropId) => {
         const s = get();
+        if (s.level < BULK_MIN_LEVEL) { sfx.error(); get().toast(bulkLockedMsg(s.level)); return; }
         const c = CROPS[cropId];
         if (!c) return;
         const empties = s.plots.map((pl, i) => ({ pl, i })).filter(({ pl }) => !pl.locked && pl.state === 'soil');
@@ -663,6 +696,7 @@ export const useGame = create<GameState>()(
 
       bulkWater: () => {
         const s = get();
+        if (s.level < BULK_MIN_LEVEL) { sfx.error(); get().toast(bulkLockedMsg(s.level)); return; }
         const targets = s.plots.map((pl, i) => ({ pl, i })).filter(({ pl }) => !pl.locked && pl.state === 'growing' && !pl.watered);
         if (!targets.length) { sfx.error(); get().toast('Mọi cây đều đã đủ nước!'); return; }
         const plots = s.plots.slice();
@@ -678,6 +712,7 @@ export const useGame = create<GameState>()(
 
       bulkSpray: () => {
         const s = get();
+        if (s.level < BULK_MIN_LEVEL) { sfx.error(); get().toast(bulkLockedMsg(s.level)); return; }
         const targets = s.plots.map((pl, i) => ({ pl, i })).filter(({ pl }) => !pl.locked && pl.state === 'growing' && pl.pest);
         if (!targets.length) { sfx.error(); get().toast('Không cây nào bị sâu!'); return; }
         const bottles = s.inv.pesticide || 0;
@@ -699,6 +734,7 @@ export const useGame = create<GameState>()(
 
       bulkHarvest: () => {
         const s = get();
+        if (s.level < BULK_MIN_LEVEL) { sfx.error(); get().toast(bulkLockedMsg(s.level)); return; }
         const targets = s.plots.map((pl, i) => ({ pl, i })).filter(({ pl }) => !pl.locked && pl.state === 'ready' && pl.crop);
         if (!targets.length) { sfx.error(); get().toast('Chưa có ô nào chín!'); return; }
         const plots = s.plots.slice();
@@ -719,6 +755,7 @@ export const useGame = create<GameState>()(
 
       bulkFeedAnimals: () => {
         const s = get();
+        if (s.level < BULK_MIN_LEVEL) { sfx.error(); get().toast(bulkLockedMsg(s.level)); return; }
         const now = Date.now();
         const targets = s.animals.filter((a) => a.hunger < 60);
         if (!targets.length) { sfx.error(); get().toast('Cả đàn đều no nê!'); return; }
@@ -754,6 +791,7 @@ export const useGame = create<GameState>()(
 
       bulkCollectAnimals: () => {
         const s = get();
+        if (s.level < BULK_MIN_LEVEL) { sfx.error(); get().toast(bulkLockedMsg(s.level)); return; }
         const now = Date.now();
         const targets = s.animals.filter((a) => {
           const A = ANIMALS[a.type];
@@ -778,6 +816,7 @@ export const useGame = create<GameState>()(
 
       bulkFeedFish: () => {
         const s = get();
+        if (s.level < BULK_MIN_LEVEL) { sfx.error(); get().toast(bulkLockedMsg(s.level)); return; }
         const targets = s.fishes.filter((f) => !f.grown);
         if (!targets.length) { sfx.error(); get().toast('Cá đều đã lớn, thu hoạch thôi!'); return; }
         let feed = s.inv.feed || 0, pro = s.inv.feedPro || 0;
@@ -807,6 +846,7 @@ export const useGame = create<GameState>()(
 
       bulkHarvestFish: () => {
         const s = get();
+        if (s.level < BULK_MIN_LEVEL) { sfx.error(); get().toast(bulkLockedMsg(s.level)); return; }
         const targets = s.fishes.filter((f) => f.grown);
         if (!targets.length) { sfx.error(); get().toast('Chưa có con cá nào lớn!'); return; }
         const inv = { ...s.inv };
@@ -1010,17 +1050,52 @@ export const useGame = create<GameState>()(
         if (s.xu < px) { sfx.error(); get().toast('Không đủ xu!'); return; }
         if (s.gem < pg) { sfx.error(); get().toast('Không đủ gem!'); return; }
         set({ xu: s.xu - px, gem: s.gem - pg, ownedOutfits: [...s.ownedOutfits, id] });
-        get().wearOutfit(id);
-        sfx.coin(); get().toast(`Đã mua ${it.emoji} ${it.name}! Mặc ngay cho nóng`);
+        sfx.coin(); get().toast(`Đã mua ${it.emoji} ${it.name}! Đồ đã cất vào Tủ đồ 🎒`);
         get().addXP(5);
+        saveSoon();
       },
       wearOutfit: (id) => {
         const s = get();
         const it = OUTFITS[id];
         if (!it) return;
         if (!s.ownedOutfits.includes(id)) { sfx.error(); get().toast('Chưa sở hữu món này!'); return; }
+        if (s.outfit[it.slot] === id) return;
         set({ outfit: { ...s.outfit, [it.slot]: id } });
         sfx.click();
+        get().toast(`Đã mặc ${it.emoji} ${it.name}!`);
+        saveSoon();
+      },
+      buyCar: (id) => {
+        const s = get();
+        const car = CARS[id];
+        if (!car) return;
+        if (s.ownedCars.includes(id)) { get().toast(`${car.emoji} ${car.name} đã có trong gara rồi!`); return; }
+        if (s.level < (car.minLevel ?? 1)) { sfx.error(); get().toast(`🔒 ${car.name} mở bán từ Lv${car.minLevel}! Bạn đang Lv${s.level}`); return; }
+        const px = car.priceXu ?? 0, pg = car.priceGem ?? 0;
+        if (s.xu < px) { sfx.error(); get().toast('Không đủ xu rước xe!'); return; }
+        if (s.gem < pg) { sfx.error(); get().toast('Không đủ gem rước xe!'); return; }
+        set({ xu: s.xu - px, gem: s.gem - pg, ownedCars: [...s.ownedCars, id] });
+        sfx.coin(); get().toast(`Đã mua ${car.emoji} ${car.name}! Xe cất trong gara 🚗`);
+        get().addXP(20);
+        saveSoon();
+      },
+      driveCar: (id) => {
+        const s = get();
+        if (id == null) {
+          if (!s.activeCar) return;
+          set({ activeCar: null });
+          sfx.click(); get().toast('Đã xuống xe, đi bộ cho khỏe! 🚶');
+          saveSoon();
+          return;
+        }
+        const car = CARS[id];
+        if (!car) return;
+        if (!s.ownedCars.includes(id)) { sfx.error(); get().toast('Chưa sở hữu xe này!'); return; }
+        if (s.fishingSpot) { sfx.error(); get().toast('Đang câu cá, thu cần rồi hẵng lái!'); return; }
+        if (s.activeCar === id) return;
+        set({ activeCar: id });
+        sfx.click(); get().toast(`Lên xe ${car.emoji} ${car.name}! Chạy nhanh gấp ${(car.speed / 260).toFixed(1)} lần đi bộ`);
+        saveSoon();
       },
       setQuality: (q) => {
         // chọn tay = tắt Auto để giữ đúng ý người chơi
@@ -1110,10 +1185,11 @@ export const useGame = create<GameState>()(
         get().addXP(8); get().checkQuest();
       },
 
-      startRiverFishing: (pier, baitId) => {
+      startRiverFishing: (pier, baitId, at) => {
         const s = get();
         if ((s.inv[baitId] || 0) <= 0) { sfx.error(); get().toast('Hết mồi! Mua ở cửa hàng'); return; }
-        const p = PIERS[pier];
+        const inMall = at === 'mall' || pier >= 100;
+        const p = inMall ? MALL_PIERS[pier >= 100 ? pier - 100 : pier] : PIERS[pier];
         if (!p) return;
         const wait = BITE_MIN * 1000 + Math.random() * (BITE_MAX - BITE_MIN) * 1000;
         const biteAt = Date.now() + wait;
@@ -1123,7 +1199,7 @@ export const useGame = create<GameState>()(
         const pending = rollRiverCatch(s.level, premium);
         const combo = genBiteCombo(sellPrice(pending));
         set({
-          fishingSpot: { pier, x: p.x, y: p.sitY, bx: p.x + 14, by: p.bobY },
+          fishingSpot: { pier, x: p.x, y: p.sitY, bx: p.x + 14, by: p.bobY, at: inMall ? 'mall' : 'farm' },
           biteAt, biteUntil: biteAt + BITE_WINDOW * 1000,
           fishingBait: baitId, modal: null,
           biteCatchId: pending, biteCombo: combo, biteProgress: 0,
@@ -1184,7 +1260,7 @@ export const useGame = create<GameState>()(
           }));
           sfx.catch_(); sfx.coin();
           get().toast(`Giật dính ${nm}!`);
-          // đang thi câu cá công viên → tự báo điểm cho cả làng
+          // đang thi câu cá thị trấn → tự báo điểm cho cả làng
           try { reportContestCatch(id); } catch { /* ignore */ }
           get().addXP(xp); get().checkQuest();
         } else {
@@ -1229,6 +1305,7 @@ export const useGame = create<GameState>()(
           stats: freshStats(), questIdx: 0, uidSeq: 1,
           redeemedCodes: [],
           outfit: { ...DEFAULT_OUTFIT }, ownedOutfits: Object.values(DEFAULT_OUTFIT),
+          ownedCars: [], activeCar: null,
           quality: 'high', autoQuality: true, autoLevel: 'medium', resMode: 'auto', kem: false,
           modal: null, fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null, biteCatchId: null, biteCombo: null, biteProgress: 0, catchPop: null, petFx: null, plotFx: [], toasts: [], scene: 'farm',
           interiorId: null, inAct: null, baLove: 0, loveClaim: [], fundTotal: 0, fundClaim: [],
@@ -1253,7 +1330,9 @@ export const useGame = create<GameState>()(
         baLove: s.baLove, loveClaim: s.loveClaim, fundTotal: s.fundTotal, fundClaim: s.fundClaim,
         daily: s.daily, junkAt: s.junkAt,
         outfit: s.outfit, ownedOutfits: s.ownedOutfits,
+        ownedCars: s.ownedCars, activeCar: s.activeCar,
         quality: s.quality, autoQuality: s.autoQuality, resMode: s.resMode, viewH: s.viewH, kem: s.kem,
+        stageColor: s.stageColor,
       }),
     }
   )

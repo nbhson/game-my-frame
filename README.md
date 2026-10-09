@@ -42,25 +42,25 @@ chơi ma sói, ném trứng, gọi chó khổng lồ/mèo đàn, nuôi mèo Kem 
 - **Mã farm 6 ký tự + link mời `?visit=MÃ`** cho mỗi người
 - **Thăm farm + hái trộm:** thấy ruộng/ao/chuồng của bạn, hái trộm ô chín (có % bị **chó nhà cắn đuổi**, trộm nhiều càng dễ bị cắn) — chủ farm mất cây thật + thấy bóng "Gâu gâu!" trên đầu trộm
 - **Hành động đôi:** đứng gần bạn + cùng bấm 1 emote (👋 chào, 🤝 bắt tay, 🤗 ôm, 💋 hun, 🥊 đánh yêu) → 2 nhân vật **thực sự lao vào nhau** diễn hoạt ảnh chung
-- **Lệnh ẩn trong chat công viên:** `pupu` ném trứng thối vào đứa gần nhất (trúng đầu dính bết + choáng) • `kiki` gọi **chó khổng lồ** vòng quanh bạn 2 vòng rồi chạy đi • `mimi` gọi **đàn 7 con mèo** vây quanh • `kemkem` triệu hồi **mèo cam Kem** đi theo bạn mãi mãi ở cả farm + công viên (đúng 1 con)
+- **Lệnh ẩn trong chat thị trấn:** `pupu` ném trứng thối vào đứa gần nhất (trúng đầu dính bết + choáng) • `kiki` gọi **chó khổng lồ** vòng quanh bạn 2 vòng rồi chạy đi • `mimi` gọi **đàn 7 con mèo** vây quanh • `kemkem` triệu hồi **mèo cam Kem** đi theo bạn mãi mãi ở cả farm + thị trấn (đúng 1 con)
 - **Cloud save:** snapshot farm tự đẩy mỗi 10s — thăm được cả khi chủ offline
 
-### 🎰 Casino công viên (multiplayer, cược xu 10–10.000/ván)
-- **Vị trí:** nhà Casino neon tím-vàng phía đông-bắc công viên (dưới shop lưu niệm) — lại gần bấm `E` hoặc nút 🎰 Casino trên HUD
+### 🎰 Casino thị trấn (multiplayer, cược xu 10–10.000/ván)
+- **Vị trí:** nhà Casino neon tím-vàng phía đông-bắc thị trấn (dưới shop lưu niệm) — lại gần bấm `E` hoặc nút 🎰 Casino trên HUD
 - **5 game:** Tiến lên (2-4 người, 13 lá, nhất ăn tất) • Bài cào (2-4 người, 3 lá, nhiều nút thắng) • Xì dách (2-4 người cùng đấu nhà cái, Xì bàng > Xì dách > Ngũ linh) • Caro (2 người, 12×12, 5 liên tiếp) • Cờ vua (2 người, full luật + AI minimax có giới hạn thời gian, không treo ván)
 - **Phòng:** tạo phòng theo game + mức cược (slider + preset), mã phòng 4 ký tự, chủ phòng bắt đầu, có thể thêm 🤖 máy, ván mới sau khi xong
 - **Mạng:** LAN server làm trọng tài (nhiều máy cùng WiFi) • 2 tab cùng máy qua BroadcastChannel • 1 mình chơi với máy
 - **Xu:** trừ cược khi ván bắt đầu, thắng nhận pot = cược × số người (hòa chia đều, caro/cờ vua hòa hoàn cược, xì dách nhà cái ăn hết thì mất)
 
-### 🏆 Giải câu cá công viên (multiplayer, không cần chủ trì)
-- Bảng nổi góc phải công viên → ai cũng **mở giải 3 phút** được → cả làng ra 3 bến sông giật cá tính **tổng giá trị**
+### 🏆 Giải câu cá thị trấn (multiplayer, không cần chủ trì)
+- Bảng nổi góc phải thị trấn → ai cũng **mở giải 3 phút** được → cả làng ra 3 bến sông giật cá tính **tổng giá trị**
 - BXH live top 5 + hạng của bạn, hết giờ tự chốt (kể cả khi bạn đang ở farm) — top 3 **tự nhận thưởng**: 🥇600xu+3gem 🥈300xu+1gem 🥉150xu
 
-### 🐺 Ma sói công viên (5–12 người)
-- Nút 🐺 Ma sói trên HUD công viên → mở/tham gia bàn, đủ 5 người chủ bàn bắt đầu
+### 🐺 Ma sói thị trấn (5–12 người)
+- Nút 🐺 Ma sói trên HUD thị trấn → mở/tham gia bàn, đủ 5 người chủ bàn bắt đầu
 - Chia vai **bí mật** theo số người (1–3 sói + tiên tri + bảo vệ từ 6 người + dân) — chỉ mình bạn thấy vai mình
 - **Đêm 40s:** sói chọn thịt (không thịt đồng đội), tiên tri soi (biết sói hay không), bảo vệ cứu (không cứu trùng 2 đêm liền)
-- **Ngày 50s** bàn luận trong chat công viên → **bỏ phiếu treo 30s** công khai, được đổi ý, hòa phiếu thì không ai bị treo
+- **Ngày 50s** bàn luận trong chat thị trấn → **bỏ phiếu treo 30s** công khai, được đổi ý, hòa phiếu thì không ai bị treo
 - Chết thì ngồi xem, hết sói = dân thắng, sói bằng dân = sói thắng — phe thắng mỗi người **+300 xu +1 gem**, bảng lật vai cuối ván
 - Tin nhắn game đi qua kênh ẩn (chat không hiện), chống trùng + chờ echo nên mọi client đồng bộ 1 luồng trên cả 3 backend (local/socket/supabase)
 

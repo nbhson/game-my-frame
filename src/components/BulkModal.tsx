@@ -1,12 +1,25 @@
 import { useState } from 'react';
 import { ANIMALS, CROPS, FISHES } from '../game/data';
-import { useGame } from '../game/store';
+import { BULK_MIN_LEVEL, bulkLockedMsg, useGame } from '../game/store';
 import { GameIcon } from './GameIcon';
 
-/** Làm hàng loạt: 1 chạm xử lý cả farm / cả đàn — đỡ mỏi tay khi farm to */
+/** Làm hàng loạt: 1 chạm xử lý cả farm / cả đàn — đỡ mỏi tay khi farm to (mở từ Lv10) */
 export default function BulkModal() {
   const s = useGame();
   const [seedId, setSeedId] = useState<string | null>(null);
+
+  // Chưa đủ cấp → màn hình khóa (nút BottomBar đã chặn + store đã chặn, đây là lớp cuối)
+  if (s.level < BULK_MIN_LEVEL) {
+    return (
+      <div className="text-center space-y-2 py-4">
+        <p className="text-4xl">🔒</p>
+        <p className="font-black text-sm">{bulkLockedMsg(s.level)}</p>
+        <p className="text-[12px] font-bold opacity-70">
+          Chăm chỉ cuốc đất, gieo hạt, cho thú ăn để lên cấp nhé — đủ Lv{BULK_MIN_LEVEL} là làm cả farm chỉ với 1 chạm!
+        </p>
+      </div>
+    );
+  }
 
   // --- đếm việc cần làm: NHÓM NÔNG TRẠI ---
   let grass = 0, empty = 0, thirsty = 0, buggy = 0, ripe = 0;

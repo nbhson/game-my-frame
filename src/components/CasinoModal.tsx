@@ -79,7 +79,7 @@ function Lobby() {
   return (
     <div className="flex flex-col gap-3">
       <div className="bg-gradient-to-r from-purple-700 to-pink-600 border-2 border-black rounded-xl px-3 py-2 text-white text-center">
-        <div className="font-black text-lg">🎰 CASINO CÔNG VIÊN</div>
+        <div className="font-black text-lg">🎰 CASINO THỊ TRẤN</div>
         <div className="text-xs opacity-90">Tiến lên • Bài cào • Xì dách • Caro • Cờ vua — cược {CASINO_MIN_BET}-{CASINO_MAX_BET} xu/ván • Nhất ăn tất</div>
         <div className="text-xs mt-1">Ví của bạn: <b className="text-yellow-300">{xu} xu</b> • {transport === 'socket' ? '🟢 Chơi chung LAN' : '🟡 Tab gần / máy'}</div>
       </div>

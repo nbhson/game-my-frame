@@ -37,6 +37,11 @@ export interface RenderState {
   catchPop?: { x: number; y: number; fishId: string; label: string; until: number } | null;
   /** trang phục đang mặc (slot -> itemId) */
   outfit?: Record<string, string>;
+  /** màu xe đang lái (null = đi bộ) — vẽ xe dưới chân */
+  carColor?: string | null;
+  /** loại + id xe đang lái (đạp/máy/hơi + chi tiết riêng từng dòng) */
+  carKind?: string | null;
+  carId?: string | null;
   /** hiệu ứng động tác trên ô ruộng (transient, store tự dọn) */
   plotFx?: { plot: number; kind: 'hoe' | 'plant' | 'water' | 'spray' | 'harvest'; at: number; crop?: string }[];
   /** cấp đồ họa: high đủ hiệu ứng / medium giảm một nửa / low tắt bóng + tia lửa + ambient */
@@ -58,7 +63,7 @@ export function depthScale(wy: number): number {
   const k = Math.max(0, Math.min(1, wy / 1320));
   return 0.88 + 0.24 * k;
 }
-function withDepth(ctx: CanvasRenderingContext2D, X: number, Y: number, wy: number, fn: () => void) {
+export function withDepth(ctx: CanvasRenderingContext2D, X: number, Y: number, wy: number, fn: () => void) {
   const s = depthScale(wy);
   ctx.save(); ctx.translate(X, Y); ctx.scale(s, s); ctx.translate(-X, -Y); fn(); ctx.restore();
 }
@@ -2881,9 +2886,9 @@ export function drawKem(
 }
 
 // ---------- nông dân chibi anime: đầu to + mắt kawaii + nón lá viền ----------
-export function drawPlayerDetailed(ctx: CanvasRenderingContext2D, X: number, Y: number, dir: number, moving: boolean, shirt: string, name: string, t: number, outfit?: Record<string, string>) {
-  axShadow(ctx, X, Y + 22, 16, 6, 0.3);
-  if (moving && Math.abs(Math.sin(t * 12)) > 0.6) {
+export function drawPlayerDetailed(ctx: CanvasRenderingContext2D, X: number, Y: number, dir: number, moving: boolean, shirt: string, name: string, t: number, outfit?: Record<string, string>, carColor?: string | null, carKind?: string | null, carId?: string | null, withHoe?: boolean) {
+  if (!carColor) axShadow(ctx, X, Y + 22, 16, 6, 0.3);
+  if (moving && !carColor && Math.abs(Math.sin(t * 12)) > 0.6) {
     ctx.fillStyle = 'rgba(255,255,255,.7)';
     ell(ctx, X - dir * 10, Y + 19, 4.4, 2.4);
     ell(ctx, X - dir * 16, Y + 18, 2.6, 1.6);
@@ -2897,43 +2902,261 @@ export function drawPlayerDetailed(ctx: CanvasRenderingContext2D, X: number, Y: 
   const shoesC = (fit.shoes && OUTFITS[fit.shoes]?.color) || '#5d4037';
   const hairC = (fit.hair && OUTFITS[fit.hair]?.color) || '#1f2937';
   const hatId = fit.hat ?? 'hat_la';
+  const hairId = fit.hair ?? 'hair_black';
+  const shirtId = fit.shirt ?? 'shirt_basic';
+  const pantsId = fit.pants ?? 'pants_basic';
+  const shoesId = fit.shoes ?? 'shoes_basic';
   const accId = fit.acc ?? 'acc_none';
-  ctx.save(); ctx.translate(X, Y + bob);
-  if (dir < 0) ctx.scale(-1, 1);
-  // ủng/giày anime bo viền (màu theo giày đang mang)
-  for (const [ox, sw] of [[-9, step * 0.6], [2, -step * 0.6]] as [number, number][]) {
-    axShadow(ctx, (ox as number) + 4, 21 + (sw as number) * 0.6, 5, 2, 0.2);
-    rr(ctx, ox as number, 10 + (sw as number) * 0.6, 8, 11, 3.5); ctx.fillStyle = shoesC; ctx.fill();
-    ctx.lineWidth = 2.2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
-    rr(ctx, (ox as number) - 1, 17 + (sw as number) * 0.6, 10, 4.5, 2); ctx.fillStyle = '#3e2723'; ctx.fill();
-    ctx.lineWidth = 1.8; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  // --- ngồi lái: nâng người lên yên + cắt phần thân khuất trong xe (ô tô) ---
+  // xe đạp/moto: không cắt (chân đứng pê-đan/gác máy là đúng dáng)
+  const rideLift = !carColor ? 0 : carKind === 'bike' || carKind === 'moto' ? -6 : carId === 'car_co' ? -1 : -10;
+  const rideClipCar = !!carColor && carKind !== 'bike' && carKind !== 'moto';
+  if (rideClipCar) {
+    ctx.save();
+    ctx.beginPath(); ctx.rect(X - 70, Y - 110, 140, 100); ctx.clip(); // chỉ thấy từ Y-110 tới Y-10
   }
-  // quần yếm anime + nút vàng viền (màu theo quần)
-  axFrame(ctx, -11, -2, 22, 15, 5, pantsC, 2.4);
+  ctx.save(); ctx.translate(X, Y + bob + rideLift);
+  if (dir < 0) ctx.scale(-1, 1);
+  // --- đồ đeo sau lưng (cánh / balo / mai rùa): vẽ TRƯỚC người = khuất sau thân ---
+  const wingId = fit.wing ?? 'wing_none';
+  if (wingId !== 'wing_none') {
+    const wingC = OUTFITS[wingId]?.color || '#f472b6';
+    const fl = Math.sin(t * 8) * (moving ? 4 : 1.5); // vỗ khẽ theo nhịp
+    ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT; ctx.lineJoin = 'round';
+    const ellS = (x: number, y: number, rx: number, ry: number, c: string) => {
+      ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, 7); ctx.fillStyle = c; ctx.fill(); ctx.stroke();
+    };
+    if (wingId === 'wing_buom' || wingId === 'wing_doi' || wingId === 'wing_thien') {
+      // cánh: bên xa (phải) vẽ trước, mờ hơn = ở sau
+      ctx.save(); ctx.globalAlpha = 0.7;
+      if (wingId === 'wing_buom') {
+        ellS(15, -19 - fl * 0.4, 8, 10.5, wingC); ellS(13, -4 - fl * 0.5, 5.5, 7, wingC);
+        ctx.fillStyle = '#fff'; ell(ctx, 16, -22 - fl * 0.4, 2, 2.6); ell(ctx, 13, -5 - fl * 0.5, 1.6, 2);
+      } else if (wingId === 'wing_doi') {
+        ctx.beginPath(); ctx.moveTo(5, -24);
+        ctx.quadraticCurveTo(20, -28 - fl, 27, -27 - fl);
+        ctx.quadraticCurveTo(21, -20, 24, -12 - fl * 0.5);
+        ctx.quadraticCurveTo(16, -12, 12, -4 - fl * 0.5);
+        ctx.quadraticCurveTo(8, -8, 5, -10); ctx.closePath();
+        ctx.fillStyle = wingC; ctx.fill(); ctx.stroke();
+      } else {
+        ellS(14, -22 - fl, 5.5, 10, wingC); ellS(19, -15 - fl * 1.4, 4.5, 8, wingC); ellS(21, -6 - fl * 1.8, 4, 6.5, wingC);
+      }
+      ctx.restore();
+      // cánh gần (trái) chi tiết đầy đủ
+      if (wingId === 'wing_buom') {
+        ellS(-20, -21 - fl * 0.4, 10, 13, wingC); ellS(-17, -4 - fl * 0.5, 7, 8.5, wingC);
+        ctx.lineWidth = 1.4; ctx.strokeStyle = 'rgba(60,20,40,.6)';
+        ctx.beginPath(); ctx.moveTo(-11, -14); ctx.quadraticCurveTo(-18, -18, -26, -26 - fl * 0.4); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(-11, -8); ctx.quadraticCurveTo(-16, -6, -21, -8 - fl * 0.5); ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ell(ctx, -22, -25 - fl * 0.4, 2.6, 3.2); ell(ctx, -17, -17 - fl * 0.4, 2, 2.4); ell(ctx, -17, -5 - fl * 0.5, 2, 2.4);
+        ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT;
+      } else if (wingId === 'wing_doi') {
+        ctx.beginPath(); ctx.moveTo(-6, -24);
+        ctx.quadraticCurveTo(-24, -30 - fl, -33, -28 - fl);
+        ctx.quadraticCurveTo(-25, -21, -29, -11 - fl * 0.5);
+        ctx.quadraticCurveTo(-19, -12, -15, -2 - fl * 0.5);
+        ctx.quadraticCurveTo(-9, -8, -6, -10); ctx.closePath();
+        ctx.fillStyle = wingC; ctx.fill(); ctx.stroke();
+        ctx.lineWidth = 1.4; ctx.strokeStyle = 'rgba(180,200,230,.55)'; // xương cánh
+        for (const [ex, ey] of [[-33, -28], [-29, -11], [-15, -2]] as [number, number][]) {
+          ctx.beginPath(); ctx.moveTo(-6, -22); ctx.lineTo(ex, ey - fl * 0.6); ctx.stroke();
+        }
+        ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT;
+      } else {
+        ellS(-18, -24 - fl, 7, 12, wingC); ellS(-24, -16 - fl * 1.4, 6, 10, wingC); ellS(-27, -6 - fl * 1.8, 5, 8, wingC);
+        ctx.fillStyle = '#fde68a'; ell(ctx, -19, -28 - fl, 2.2, 2.2); // chỏm vàng
+        ctx.lineWidth = 1.2; ctx.strokeStyle = 'rgba(150,130,90,.7)'; // kẽ lông
+        ctx.beginPath(); ctx.moveTo(-22, -20 - fl); ctx.lineTo(-26, -12 - fl * 1.4); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(-25, -10 - fl * 1.4); ctx.lineTo(-28, -4 - fl * 1.8); ctx.stroke();
+        ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT;
+      }
+      if (moving) { ctx.fillStyle = 'rgba(255,255,255,.8)'; ell(ctx, -24, -30 - fl, 1.6, 1.6); } // tia vỗ khi chạy
+    } else if (wingId === 'wing_balo') {
+      const dark = '#78350f';
+      ctx.fillStyle = wingC; // quai đeo thò lên 2 vai
+      rr(ctx, -11, -33, 4, 13, 2); ctx.fill(); ctx.stroke();
+      rr(ctx, 1, -33, 4, 13, 2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#fbbf24'; // khóa quai
+      rr(ctx, -10.4, -27, 2.8, 2.8, 1); ctx.fill(); ctx.stroke();
+      rr(ctx, 1.6, -27, 2.8, 2.8, 1); ctx.fill(); ctx.stroke();
+      axFrame(ctx, -17, -25, 28, 25, 7, wingC, 2.5); // thân balo (2 hông thò ra khỏi thân người)
+      ctx.fillStyle = dark; // nắp cuộn trên
+      rr(ctx, -13, -30, 20, 7, 3.5); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = 'rgba(0,0,0,.18)'; // túi trước
+      rr(ctx, -9, -12, 12, 9, 3); ctx.fill();
+      ctx.fillStyle = dark; // túi hông 2 bên
+      rr(ctx, -21, -13, 5, 10, 2); ctx.fill(); ctx.stroke();
+      rr(ctx, 10, -13, 5, 10, 2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#22c55e'; // huy hiệu hành trình
+      ell(ctx, -3, -7.5, 2.4, 2.4);
+    } else if (wingId === 'wing_mai') {
+      ctx.fillStyle = '#f2c89b'; // đầu + đuôi rùa thò ra 2 bên hông
+      ell(ctx, 14.5, -2, 3.4, 3);
+      ctx.beginPath(); ctx.moveTo(-14, -4); ctx.lineTo(-19, -1); ctx.lineTo(-14, 1); ctx.closePath(); ctx.fill(); ctx.stroke();
+      axFrame(ctx, -19, -20, 34, 22, 11, wingC, 2.5); // mai (thân người che giữa, viền mai lộ ra)
+      ctx.fillStyle = 'rgba(255,255,255,.25)';
+      ell(ctx, -2, -13, 5, 3.5); // vân mai giữa
+      ctx.lineWidth = 1.4; ctx.strokeStyle = 'rgba(30,60,10,.65)';
+      ctx.beginPath(); ctx.ellipse(-2, -9, 11, 7, 0, 0, 7); ctx.stroke(); // vành vân
+      ctx.beginPath(); ctx.moveTo(-2, -16); ctx.lineTo(-2, -3); ctx.stroke();
+      ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT;
+    }
+  }
+  // ủng/giày anime bo viền (dáng + màu theo giày đang mang)
+  const tallBoot = shoesId === 'shoes_basic' || shoesId === 'shoes_boot' || shoesId === 'shoes_da';
+  for (const [ox, sw] of [[-9, step * 0.6], [2, -step * 0.6]] as [number, number][]) {
+    const fy = 10 + (sw as number) * 0.6;
+    axShadow(ctx, (ox as number) + 4, 21 + (sw as number) * 0.6, 5, 2, 0.2);
+    if (shoesId === 'shoes_dep') {
+      // dép tổ ong: đế mỏng + quai
+      rr(ctx, ox as number, fy + 6, 8, 5, 2); ctx.fillStyle = shoesC; ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+      ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = 1.8;
+      ctx.beginPath(); ctx.moveTo((ox as number) + 1, fy + 6); ctx.lineTo((ox as number) + 4, fy + 1); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo((ox as number) + 7, fy + 6); ctx.lineTo((ox as number) + 4, fy + 1); ctx.stroke();
+    } else {
+      const h = tallBoot ? 15 : 11;
+      const top = fy + 11 - h;
+      rr(ctx, ox as number, top, 8, h, 3.5); ctx.fillStyle = shoesC; ctx.fill();
+      ctx.lineWidth = 2.2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+      // mũi giày thể thao: đế trắng + dây
+      if (shoesId === 'shoes_vai' || shoesId === 'shoes_giay' || shoesId === 'shoes_chay') {
+        ctx.fillStyle = '#fff'; rr(ctx, ox as number, top + 7, 8, 4, 2); ctx.fill();
+        ctx.lineWidth = 1.4; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+        ctx.strokeStyle = 'rgba(0,0,0,.4)'; ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.moveTo((ox as number) + 1.5, top + 2); ctx.lineTo((ox as number) + 6.5, top + 2); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo((ox as number) + 1.5, top + 4.5); ctx.lineTo((ox as number) + 6.5, top + 4.5); ctx.stroke();
+      }
+      rr(ctx, (ox as number) - 1, 17 + (sw as number) * 0.6, 10, 4.5, 2); ctx.fillStyle = '#3e2723'; ctx.fill();
+      ctx.lineWidth = 1.8; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+      if (shoesId === 'shoes_truot') {
+        // patin: 2 bánh lăn dưới đế
+        ctx.fillStyle = '#37474f';
+        ctx.beginPath(); ctx.arc((ox as number) + 1.5, 24 + (sw as number) * 0.6, 2.2, 0, 7); ctx.fill();
+        ctx.beginPath(); ctx.arc((ox as number) + 6.5, 24 + (sw as number) * 0.6, 2.2, 0, 7); ctx.fill();
+      }
+      if (shoesId === 'shoes_bay') {
+        // giày bay: cánh nhỏ ở gót
+        const flap = Math.abs(Math.sin(t * 10)) * 3;
+        ctx.fillStyle = 'rgba(255,255,255,.9)';
+        ctx.beginPath(); ctx.ellipse((ox as number) - 3, 12 - flap, 4, 2.2, -0.5, 0, 7); ctx.fill();
+        ctx.lineWidth = 1.2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+      }
+      if ((shoesId === 'shoes_vang' || shoesId === 'shoes_ngoc' || shoesId === 'shoes_bay') && Math.sin(t * 3 + (ox as number)) > 0.3) {
+        drawSparkle(ctx, (ox as number) + 9, 12, 3.5, 0.9);
+      }
+    }
+  }
+  // quần anime + nút vàng viền (dáng + màu theo quần đang mặc)
+  const shorts = pantsId === 'pants_dui';
+  const ph = shorts ? 8 : 15;
+  axFrame(ctx, -11, -2, 22, ph, 5, pantsC, 2.4);
   ctx.fillStyle = 'rgba(255,255,255,.3)'; ctx.fillRect(-8, 0, 16, 3);
-  for (const ox of [-8, 8]) {
-    ctx.fillStyle = '#ffd24d';
-    ctx.beginPath(); ctx.arc(ox, 1, 2.6, 0, 7); ctx.fill();
-    ctx.lineWidth = 1.6; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  if (shorts) {
+    // quần đùi: lộ chân da + lai
+    ctx.fillStyle = '#ffcf9e'; ctx.fillRect(-9, 6, 7, 5); ctx.fillRect(2, 6, 7, 5);
+    ctx.fillStyle = pantsC; ctx.fillRect(-11, 4, 22, 2.4);
+  } else {
+    for (const ox of [-8, 8]) {
+      ctx.fillStyle = '#ffd24d';
+      ctx.beginPath(); ctx.arc(ox, 1, 2.6, 0, 7); ctx.fill();
+      ctx.lineWidth = 1.6; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    }
+  }
+  if (pantsId === 'pants_vest' || pantsId === 'pants_jean') {
+    // sọc ly / chỉ jean dọc ống
+    ctx.strokeStyle = pantsId === 'pants_vest' ? 'rgba(255,255,255,.6)' : '#f59e0b';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.moveTo(-5, 1); ctx.lineTo(-5, ph - 3); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(5, 1); ctx.lineTo(5, ph - 3); ctx.stroke();
+  } else if (pantsId === 'pants_da') {
+    // đinh tán phượt thủ
+    ctx.fillStyle = '#e5e7eb';
+    for (const [dx, dy] of [[-7, 4], [7, 4], [-7, 9], [7, 9]] as [number, number][]) {
+      ctx.beginPath(); ctx.arc(dx, dy, 1.5, 0, 7); ctx.fill();
+    }
+  } else if (pantsId === 'pants_hoa' || pantsId === 'pants_the') {
+    // hoa / sọc thể thao
+    if (pantsId === 'pants_hoa') {
+      for (const [dx, dy] of [[-6, 5], [6, 9], [0, 11]] as [number, number][]) {
+        ctx.fillStyle = '#fff';
+        for (let p = 0; p < 5; p++) {
+          const a = (p / 5) * Math.PI * 2;
+          ctx.beginPath(); ctx.arc(dx + Math.cos(a) * 1.8, dy + Math.sin(a) * 1.8, 1.2, 0, 7); ctx.fill();
+        }
+        ctx.fillStyle = '#fbbf24'; ctx.beginPath(); ctx.arc(dx, dy, 1.2, 0, 7); ctx.fill();
+      }
+    } else {
+      ctx.fillStyle = '#f8fafc'; ctx.fillRect(-11, 5, 3, ph - 5); ctx.fillRect(8, 5, 3, ph - 5);
+    }
+  } else if ((pantsId === 'pants_gem' || pantsId === 'pants_vang') && Math.sin(t * 3.4) > 0.3) {
+    drawSparkle(ctx, 12, 4, 3.5, 0.9);
   }
   // áo + tay da bo viền (màu theo áo đang mặc)
   axFrame(ctx, -13, -11, 26, 13, 6, shirtC, 2.4);
   ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fillRect(-10, -9, 20, 3.4);
-  for (const [ox, sw] of [[-18, step * 0.7], [12, -step * 0.7]] as [number, number][]) {
+  // --- họa tiết riêng từng áo xịn ---
+  if (shirtId === 'shirt_dragon') {
+    // vảy rồng + viền vàng
+    ctx.strokeStyle = 'rgba(120,10,10,.7)'; ctx.lineWidth = 1.2;
+    for (let r = 0; r < 2; r++) for (let c = 0; c < 4; c++) {
+      ctx.beginPath(); ctx.arc(-9 + c * 6 + (r % 2) * 3, -5 + r * 5, 2.8, 0.2, Math.PI - 0.2); ctx.stroke();
+    }
+    ctx.fillStyle = '#fbbf24'; ctx.fillRect(-13, 0, 26, 2);
+  } else if (shirtId === 'shirt_ran') {
+    // rằn ri ngụy trang
+    ctx.fillStyle = 'rgba(30,45,10,.6)';
+    ell(ctx, -7, -6, 3.4, 2.4); ell(ctx, 6, -3, 2.8, 2); ell(ctx, 0, 0, 3, 2);
+  } else if (shirtId === 'shirt_hoa') {
+    // hoa hòe rực rỡ
+    for (const [dx, dy] of [[-7, -5], [7, -4], [0, -1]] as [number, number][]) {
+      ctx.fillStyle = '#fff';
+      for (let p = 0; p < 5; p++) {
+        const a = (p / 5) * Math.PI * 2;
+        ctx.beginPath(); ctx.arc(dx + Math.cos(a) * 2, dy + Math.sin(a) * 2, 1.4, 0, 7); ctx.fill();
+      }
+      ctx.fillStyle = '#fbbf24'; ctx.beginPath(); ctx.arc(dx, dy, 1.4, 0, 7); ctx.fill();
+    }
+  } else if (shirtId === 'shirt_vua') {
+    // cổ V hoàng gia + ngọc đỏ
+    ctx.fillStyle = '#fbbf24';
+    ctx.beginPath(); ctx.moveTo(-6, -11); ctx.lineTo(0, -4); ctx.lineTo(6, -11); ctx.lineTo(6, -8.5); ctx.lineTo(0, -1.5); ctx.lineTo(-6, -8.5); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#e04848'; ctx.beginPath(); ctx.arc(0, -3, 1.8, 0, 7); ctx.fill();
+    ctx.fillStyle = '#fbbf24'; ctx.fillRect(-13, 0, 26, 2);
+  } else if (shirtId === 'shirt_gio') {
+    // sọc tốc độ
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(-13, -6, 26, 2.2); ctx.fillRect(-13, -2, 26, 2.2);
+  } else if (shirtId === 'shirt_den') {
+    // khóa bạc ngầu
+    ctx.fillStyle = '#9ca3af'; ctx.fillRect(-1.2, -11, 2.4, 13);
+    ctx.fillStyle = '#e5e7eb'; ctx.fillRect(-2.5, -4, 5, 3);
+  } else if ((shirtId === 'shirt_ngoc' || shirtId === 'shirt_bien') && Math.sin(t * 3) > 0.2) {
+    drawSparkle(ctx, 9, -6, 3.5, 0.9);
+  } else if (shirtId !== 'shirt_basic') {
+    // túi ngực nhỏ cho các áo thường còn lại
+    ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fillRect(4, -6, 6, 5);
+  }
+  // tay buông (ẩn khi đang lái — tay lái vẽ riêng tới ghi đông/vô lăng)
+  if (!carColor) for (const [ox, sw] of [[-18, step * 0.7], [12, -step * 0.7]] as [number, number][]) {
     rr(ctx, ox as number, -9 + (sw as number), 6, 13, 3); ctx.fillStyle = '#ffcf9e'; ctx.fill();
     ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
     ctx.fillStyle = '#ffcf9e';
     ctx.beginPath(); ctx.arc((ox as number) + 3, 5 + (sw as number), 3, 0, 7); ctx.fill();
     ctx.lineWidth = 1.8; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
   }
-  // ba lô anime + cuốc viền
+  // ba lô anime (+ cuốc viền CHỈ khi đang ở nông trại — ra thị trấn/ vào nhà thì cất cuốc)
   axShadow(ctx, -20, 4, 5, 2, 0.2);
   axFrame(ctx, -24, -10, 8, 14, 3.5, '#b07a3e', 2.2);
-  ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = 4.4; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(-19, -8); ctx.lineTo(-25, -27); ctx.stroke();
-  ctx.strokeStyle = '#a9763b'; ctx.lineWidth = 2.4;
-  ctx.beginPath(); ctx.moveTo(-19, -8); ctx.lineTo(-25, -27); ctx.stroke();
-  axFrame(ctx, -30, -32, 10, 7, 2.5, '#cfd8dc', 2);
+  if (withHoe !== false && !carColor) {
+    ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = 4.4; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(-19, -8); ctx.lineTo(-25, -27); ctx.stroke();
+    ctx.strokeStyle = '#a9763b'; ctx.lineWidth = 2.4;
+    ctx.beginPath(); ctx.moveTo(-19, -8); ctx.lineTo(-25, -27); ctx.stroke();
+    axFrame(ctx, -30, -32, 10, 7, 2.5, '#cfd8dc', 2);
+  }
   // đầu chibi to + viền
   ctx.fillStyle = '#ffcf9e';
   ctx.beginPath(); ctx.arc(0, -20, 11, 0, 7); ctx.fill();
@@ -2947,10 +3170,20 @@ export function drawPlayerDetailed(ctx: CanvasRenderingContext2D, X: number, Y: 
   // miệng cười
   ctx.strokeStyle = '#6d4c41'; ctx.lineWidth = 1.8; ctx.lineCap = 'round';
   ctx.beginPath(); ctx.arc(ex * 0.4, -14.5, 3.4, 0.3, Math.PI - 0.3); ctx.stroke();
-  // --- tóc mái theo màu tóc đang nhuộm ---
-  ctx.fillStyle = hairC;
-  ctx.beginPath(); ctx.ellipse(0, -28.5, 9.5, 4.2, 0, Math.PI, 0); ctx.fill();
-  ctx.lineWidth = 1.8; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  // --- tóc mái theo màu tóc đang nhuộm (cầu vồng vẽ 5 sọc) ---
+  if (hairId === 'hair_cauvong') {
+    const cols = ['#ef4444', '#f59e0b', '#facc15', '#22c55e', '#3b82f6'];
+    cols.forEach((c, i) => {
+      ctx.fillStyle = c;
+      ctx.beginPath(); ctx.ellipse(0, -28.5, 9.5 - i * 1.1, 4.2 - i * 0.5, 0, Math.PI, 0); ctx.fill();
+    });
+    ctx.lineWidth = 1.8; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  } else {
+    ctx.fillStyle = hairC;
+    ctx.beginPath(); ctx.ellipse(0, -28.5, 9.5, 4.2, 0, Math.PI, 0); ctx.fill();
+    ctx.lineWidth = 1.8; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    if (hairId === 'hair_bachkim' && Math.sin(t * 3.2) > 0.3) drawSparkle(ctx, 10, -32, 4, 0.9);
+  }
   // --- mũ / nón theo trang phục ---
   if (hatId === 'hat_none') {
     // không đội: tóc bồng bềnh
@@ -2983,6 +3216,96 @@ export function drawPlayerDetailed(ctx: CanvasRenderingContext2D, X: number, Y: 
     ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
     ctx.fillStyle = '#ef4444';
     ctx.beginPath(); ctx.arc(0, -33, 2, 0, 7); ctx.fill();
+  } else if (hatId === 'hat_ket' || hatId === 'hat_taibeo' || hatId === 'hat_len' || hatId === 'hat_noel' || hatId === 'hat_phot' || hatId === 'hat_sat' || hatId === 'hat_kimcuong') {
+    // --- nhóm mũ shop: mỗi mũ một dáng riêng, màu theo món đã mua ---
+    const hc = (OUTFITS[hatId]?.color) || '#57534e';
+    if (hatId === 'hat_ket') {
+      // mũ kết đen: vành phẳng dài
+      axShadow(ctx, 0, -27, 13, 3, 0.2);
+      ctx.fillStyle = hc;
+      ctx.beginPath(); ctx.ellipse(0, -30, 10.5, 5.5, 0, Math.PI, 0); ctx.fill();
+      ctx.lineWidth = 2.2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+      ctx.fillStyle = hc;
+      ctx.beginPath(); ctx.ellipse(8, -29.5, 9, 2.4, 0.08, 0, 7); ctx.fill();
+      ctx.lineWidth = 1.8; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+      ctx.fillStyle = '#fbbf24'; ctx.beginPath(); ctx.arc(-3, -32, 1.8, 0, 7); ctx.fill();
+    } else if (hatId === 'hat_taibeo') {
+      // mũ tai bèo: vành rộng rủ + chóp thang
+      axShadow(ctx, 0, -27, 15, 3, 0.2);
+      ctx.fillStyle = hc;
+      ctx.beginPath();
+      ctx.moveTo(-6, -38); ctx.lineTo(6, -38); ctx.lineTo(9, -29); ctx.lineTo(-9, -29);
+      ctx.closePath(); ctx.fill();
+      ctx.lineWidth = 2.2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+      ctx.fillStyle = hc;
+      ctx.beginPath(); ctx.ellipse(0, -28.5, 15, 4, 0, 0, 7); ctx.fill();
+      ctx.lineWidth = 2.2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+      ctx.strokeStyle = 'rgba(0,0,0,.3)'; ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.moveTo(-6, -33); ctx.lineTo(6, -33); ctx.stroke();
+    } else if (hatId === 'hat_len') {
+      // mũ len: chỏm tròn + gân + pompom
+      ctx.fillStyle = hc;
+      ctx.beginPath(); ctx.ellipse(0, -31, 11, 7.5, 0, Math.PI, 0); ctx.fill();
+      ctx.lineWidth = 2.2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+      ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1.4;
+      for (let i = -2; i <= 2; i++) {
+        ctx.beginPath(); ctx.moveTo(i * 4, -37.5); ctx.lineTo(i * 4, -28); ctx.stroke();
+      }
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(0, -39.5, 3.6, 0, 7); ctx.fill();
+      ctx.lineWidth = 1.8; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+      ctx.fillStyle = hc;
+      ctx.beginPath(); ctx.ellipse(0, -27.5, 11.5, 3, 0, 0, 7); ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    } else if (hatId === 'hat_noel') {
+      // mũ noel: chóp đỏ ngả + viền lông + pompom trắng
+      ctx.fillStyle = hc;
+      ctx.beginPath(); ctx.moveTo(-9, -29); ctx.quadraticCurveTo(-4, -42, 8, -40); ctx.lineTo(4, -33); ctx.quadraticCurveTo(-2, -34, -3, -29); ctx.closePath(); ctx.fill();
+      ctx.lineWidth = 2.2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(9, -39.5, 3.4, 0, 7); ctx.fill();
+      ctx.lineWidth = 1.8; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.ellipse(0, -28, 11.5, 3.6, 0, 0, 7); ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    } else if (hatId === 'hat_phot') {
+      // mũ phớt quý ông: chóp bóp + dải băng + vành
+      axShadow(ctx, 0, -27, 14, 3, 0.2);
+      ctx.fillStyle = hc;
+      ctx.beginPath(); ctx.ellipse(0, -28.5, 15, 3.8, 0, 0, 7); ctx.fill();
+      ctx.lineWidth = 2.2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+      ctx.fillStyle = hc;
+      ctx.beginPath(); ctx.ellipse(0, -34, 8, 6, 0, 0, 7); ctx.fill();
+      ctx.lineWidth = 2.2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+      ctx.fillStyle = '#1f2937'; ctx.fillRect(-8, -33.5, 16, 3);
+      ctx.fillStyle = '#e04848'; ctx.beginPath(); ctx.arc(5, -32, 1.6, 0, 7); ctx.fill();
+    } else if (hatId === 'hat_sat') {
+      // mũ sắt chiến binh: vòm thép + khe mắt + mào đỏ
+      ctx.fillStyle = hc;
+      ctx.beginPath(); ctx.ellipse(0, -29, 11.5, 8, 0, Math.PI, 0); ctx.fill();
+      ctx.lineWidth = 2.4; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+      ctx.fillStyle = '#374151'; ctx.fillRect(-11.5, -30, 23, 2.6);
+      ctx.fillStyle = '#111827'; ctx.fillRect(-7, -27, 14, 2.2);
+      ctx.fillStyle = '#e04848';
+      ctx.beginPath(); ctx.ellipse(0, -38, 2.6, 4.5, 0.15, 0, 7); ctx.fill();
+      ctx.lineWidth = 1.6; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+      ctx.fillStyle = hc;
+      ctx.beginPath(); ctx.ellipse(0, -25.5, 12, 2.6, 0, 0, 7); ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    } else {
+      // mũ kim cương: vương miện ngọc lấp lánh
+      ctx.fillStyle = hc;
+      ctx.beginPath();
+      ctx.moveTo(-10, -28); ctx.lineTo(-10, -37); ctx.lineTo(-5, -30);
+      ctx.lineTo(0, -39); ctx.lineTo(5, -30); ctx.lineTo(10, -37); ctx.lineTo(10, -28);
+      ctx.closePath(); ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(0, -33, 2.2, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(-6.5, -31, 1.4, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(6.5, -31, 1.4, 0, 7); ctx.fill();
+      if (Math.sin(t * 3) > 0.2) drawSparkle(ctx, 12, -36, 4, 0.9);
+    }
   } else {
     // nón lá anime viền + quai + nơ đỏ (mặc định)
     axShadow(ctx, 0, -27, 15, 3, 0.2);
@@ -2999,29 +3322,963 @@ export function drawPlayerDetailed(ctx: CanvasRenderingContext2D, X: number, Y: 
     ctx.beginPath(); ctx.arc(0, -35.5, 2.4, 0, 7); ctx.fill();
     ctx.lineWidth = 1.6; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
   }
-  // --- phụ kiện ---
+  // --- phụ kiện (vẽ tay chi tiết) ---
   if (accId === 'acc_kinh') {
-    ctx.fillStyle = 'rgba(20,20,30,.92)';
-    rr(ctx, -9.5, -23.5, 8, 5.5, 2); ctx.fill(); ctx.lineWidth = 1.6; ctx.strokeStyle = '#111'; ctx.stroke();
-    rr(ctx, 1.5, -23.5, 8, 5.5, 2); ctx.fill(); ctx.stroke();
-    ctx.strokeStyle = '#111'; ctx.lineWidth = 1.6;
+    // kính râm: gọng dày + mắt kính gradient + vệt sáng + càng cài tai
+    ctx.strokeStyle = '#111'; ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.moveTo(-9.5, -22); ctx.lineTo(-12, -24); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(9.5, -22); ctx.lineTo(12, -24); ctx.stroke();
+    for (const lx of [-9.5, 1.5]) {
+      const g = ctx.createLinearGradient(0, -23.5, 0, -18);
+      g.addColorStop(0, '#3a3a4e'); g.addColorStop(1, '#0c0c16');
+      ctx.fillStyle = g; rr(ctx, lx as number, -23.5, 8, 5.5, 2); ctx.fill();
+      ctx.lineWidth = 1.8; ctx.strokeStyle = '#111'; ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.lineWidth = 1.3;
+      ctx.beginPath(); ctx.moveTo((lx as number) + 1.8, -19.2); ctx.lineTo((lx as number) + 4.6, -22.8); ctx.stroke();
+    }
+    ctx.strokeStyle = '#111'; ctx.lineWidth = 1.8;
     ctx.beginPath(); ctx.moveTo(-1.5, -21); ctx.lineTo(1.5, -21); ctx.stroke();
   } else if (accId === 'acc_hoa') {
+    // hoa cúc họa mi cài tóc: cành + lá + 6 cánh + nhụy
+    ctx.strokeStyle = '#2f7d32'; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(10, -26); ctx.quadraticCurveTo(13, -30, 16, -29); ctx.stroke();
+    ctx.fillStyle = '#43a047';
+    ctx.beginPath(); ctx.ellipse(14.5, -27.5, 2.6, 1.4, 0.6, 0, 7); ctx.fill();
     ctx.fillStyle = '#fff';
-    for (let p = 0; p < 5; p++) {
-      const a = (p / 5) * Math.PI * 2;
-      ctx.beginPath(); ctx.arc(10 + Math.cos(a) * 3, -30 + Math.sin(a) * 3, 2.2, 0, 7); ctx.fill();
+    for (let p = 0; p < 6; p++) {
+      const a = (p / 6) * Math.PI * 2 + 0.3;
+      ctx.beginPath(); ctx.ellipse(10 + Math.cos(a) * 3.4, -31 + Math.sin(a) * 3.4, 2.4, 1.5, a, 0, 7); ctx.fill();
     }
-    ctx.fillStyle = '#fbbf24'; ctx.beginPath(); ctx.arc(10, -30, 2, 0, 7); ctx.fill();
-    ctx.lineWidth = 1.4; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    ctx.lineWidth = 1; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    ctx.fillStyle = '#fbbf24'; ctx.beginPath(); ctx.arc(10, -31, 2.2, 0, 7); ctx.fill();
+    ctx.fillStyle = '#f59e0b'; ctx.beginPath(); ctx.arc(9.3, -31.7, 0.8, 0, 7); ctx.fill();
+    ctx.lineWidth = 1.2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
   } else if (accId === 'acc_sao') {
-    drawStar(ctx, -14, -30, 5);
+    // huy hiệu ngôi sao: đế tròn + sao vàng + tia sáng
+    ctx.fillStyle = '#c62828';
+    ctx.beginPath(); ctx.arc(-14, -26, 6.5, 0, 7); ctx.fill();
+    ctx.lineWidth = 1.8; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    ctx.fillStyle = '#ffd54f';
+    ctx.beginPath(); ctx.arc(-14, -26, 5, 0, 7); ctx.fill();
+    drawStar(ctx, -14, -26, 5.5);
+    if (Math.sin(t * 5) > 0) drawSparkle(ctx, -8, -31, 3.5, 0.9);
+  } else if (accId === 'acc_dongho') {
+    // đồng hồ: quai trên dưới + núm + mặt số vạch giờ + kim + kính lồi
+    const hx = 12, hy = 2 - step * 0.7;
+    ctx.fillStyle = '#4e342e';
+    ctx.fillRect(hx - 1, hy - 6, 7, 5); ctx.fillRect(hx - 1, hy + 6.5, 7, 5);
+    ctx.fillStyle = '#1f2937'; rr(ctx, hx - 2, hy - 1.5, 9, 8.5, 3); ctx.fill();
+    ctx.lineWidth = 1.6; ctx.strokeStyle = '#fbbf24'; ctx.stroke();
+    ctx.fillStyle = '#dff2ff'; rr(ctx, hx - 0.4, hy, 5.8, 5.5, 2); ctx.fill();
+    ctx.strokeStyle = '#1f2937'; ctx.lineWidth = 0.9;
+    for (let k = 0; k < 4; k++) {
+      const a = (k / 4) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.moveTo(hx + 2.5 + Math.cos(a) * 1.6, hy + 2.75 + Math.sin(a) * 1.6);
+      ctx.lineTo(hx + 2.5 + Math.cos(a) * 2.3, hy + 2.75 + Math.sin(a) * 2.3);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = '#111'; ctx.lineWidth = 1.1;
+    ctx.beginPath(); ctx.moveTo(hx + 2.5, hy + 2.75); ctx.lineTo(hx + 2.5, hy + 1.2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(hx + 2.5, hy + 2.75); ctx.lineTo(hx + 4.2, hy + 3.4); ctx.stroke();
+    ctx.fillStyle = '#fbbf24'; ctx.fillRect(hx + 7, hy + 1.5, 2, 2.5);
+    ctx.strokeStyle = 'rgba(255,255,255,.8)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(hx, hy + 0.5); ctx.lineTo(hx + 2, hy + 0.5); ctx.stroke();
+  } else if (accId === 'acc_daychuyen') {
+    // dây chuyền vàng 2 vòng + mặt ngọc khắc cạnh + lấp lánh
+    ctx.strokeStyle = '#eab308'; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.arc(0, -12, 7.5, 0.3, Math.PI - 0.3); ctx.stroke();
+    ctx.strokeStyle = '#fde047'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(0, -12.8, 7.5, 0.3, Math.PI - 0.3); ctx.stroke();
+    ctx.fillStyle = '#0ea5e9';
+    ctx.beginPath(); ctx.moveTo(0, -6.5); ctx.lineTo(3, -3); ctx.lineTo(0, 0.5); ctx.lineTo(-3, -3); ctx.closePath(); ctx.fill();
+    ctx.lineWidth = 1.4; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(-1.2, -4.5); ctx.lineTo(0.5, -2); ctx.stroke();
+    if (Math.sin(t * 4.2) > 0.2) drawSparkle(ctx, 0, -3, 3.5, 0.9);
+  } else if (accId === 'acc_matna') {
+    // mặt nạ siêu nhân: cánh chéo + viền + hốc mắt trắng + dây qua tai
+    ctx.fillStyle = 'rgba(25,25,60,.94)';
+    ctx.beginPath();
+    ctx.moveTo(-14, -21); ctx.lineTo(-10.5, -26); ctx.lineTo(10.5, -26); ctx.lineTo(14, -21);
+    ctx.lineTo(10.5, -16.5); ctx.lineTo(-10.5, -16.5); ctx.closePath(); ctx.fill();
+    ctx.lineWidth = 1.8; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    ctx.strokeStyle = '#e53935'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(-12, -22.5); ctx.lineTo(12, -22.5); ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.ellipse(ex - 3.5, -21, 2.4, 3, 0, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(ex + 3.5, -21, 2.4, 3, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#111';
+    ctx.beginPath(); ctx.arc(ex - 3.5, -21, 1.1, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(ex + 3.5, -21, 1.1, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#111'; ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.moveTo(-13, -21.5); ctx.lineTo(-15.5, -22.5); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(13, -21.5); ctx.lineTo(15.5, -22.5); ctx.stroke();
+  } else if (accId === 'acc_canh') {
+    // cánh tiên 2 tầng: cánh trên lớn + cánh dưới nhỏ, gân lông, viền sáng
+    const flap = 1 + Math.abs(Math.sin(t * 6)) * 0.22;
+    for (const sgn of [-1, 1] as const) {
+      ctx.save(); ctx.scale(sgn * flap, 1);
+      ctx.fillStyle = 'rgba(165,220,255,.8)';
+      ctx.beginPath(); ctx.ellipse(17, -24, 9.5, 15, 0.5, 0, 7); ctx.fill();
+      ctx.lineWidth = 1.6; ctx.strokeStyle = 'rgba(255,255,255,.95)'; ctx.stroke();
+      ctx.strokeStyle = 'rgba(120,180,230,.8)'; ctx.lineWidth = 1;
+      for (let k = 0; k < 3; k++) {
+        ctx.beginPath(); ctx.moveTo(13, -32 + k * 6); ctx.quadraticCurveTo(19, -28 + k * 6, 23, -30 + k * 6); ctx.stroke();
+      }
+      ctx.fillStyle = 'rgba(220,245,255,.85)';
+      ctx.beginPath(); ctx.ellipse(14, -10, 6, 8, 0.4, 0, 7); ctx.fill();
+      ctx.lineWidth = 1.4; ctx.strokeStyle = 'rgba(255,255,255,.95)'; ctx.stroke();
+      ctx.restore();
+    }
+    if (Math.sin(t * 4) > 0.3) { drawSparkle(ctx, -17, -34, 3.5, 0.9); drawSparkle(ctx, 15, -14, 3, 0.9); }
+  } else if (accId === 'acc_kiem') {
+    // kiếm gỗ: chuôi quấn dây + chắn tròn + lưỡi có rãnh + vệt sáng
+    const hx = 15, hy = 5 - step * 0.7;
+    const dx = 8, dy = -26, len = Math.hypot(dx, dy), ux = dx / len, uy = dy / len;
+    ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = 5; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(hx + dx, hy + dy); ctx.stroke();
+    ctx.strokeStyle = '#c98f4e'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(hx + dx, hy + dy); ctx.stroke();
+    ctx.strokeStyle = '#8a5a2b'; ctx.lineWidth = 1;
+    for (let k = 1; k <= 3; k++) {
+      const px = hx + dx * (k / 4), py = hy + dy * (k / 4);
+      ctx.beginPath(); ctx.moveTo(px - uy * 2.4, py + ux * 2.4); ctx.lineTo(px + uy * 2.4, py - ux * 2.4); ctx.stroke();
+    }
+    ctx.fillStyle = ANIME_OUT;
+    ctx.beginPath(); ctx.arc(hx + dx * 0.22, hy + dy * 0.22, 3.4, 0, 7); ctx.fill();
+    ctx.fillStyle = '#8a5a2b';
+    ctx.beginPath(); ctx.arc(hx + dx * 0.22, hy + dy * 0.22, 2, 0, 7); ctx.fill();
+    ctx.fillStyle = '#8a5a2b';
+    ctx.beginPath(); ctx.arc(hx + dx + ux * 1.5, hy + dy + uy * 1.5, 2.2, 0, 7); ctx.fill();
+    ctx.lineWidth = 1.2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(hx + dx * 0.3 - 1, hy + dy * 0.3); ctx.lineTo(hx + dx * 0.8 - 1, hy + dy * 0.8); ctx.stroke();
+    if (moving && Math.sin(t * 10) > 0.4) drawSparkle(ctx, hx + dx, hy + dy, 4, 1);
+  } else if (accId === 'acc_khien') {
+    // khiên rơm: đan cót chéo + viền mây + um kim loại + đinh tán
+    ctx.fillStyle = ANIME_OUT; ctx.beginPath(); ctx.arc(-16, -6, 9.5, 0, 7); ctx.fill();
+    ctx.fillStyle = '#d9a441'; ctx.beginPath(); ctx.arc(-16, -6, 7.9, 0, 7); ctx.fill();
+    ctx.strokeStyle = 'rgba(138,90,43,.8)'; ctx.lineWidth = 1;
+    for (let k = -2; k <= 2; k++) {
+      ctx.beginPath(); ctx.moveTo(-22, -6 + k * 3); ctx.lineTo(-10, -6 + k * 3 - 4); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-22, -6 + k * 3); ctx.lineTo(-10, -6 + k * 3 + 4); ctx.stroke();
+    }
+    ctx.strokeStyle = '#6d4c41'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(-16, -6, 7.9, 0, 7); ctx.stroke();
+    ctx.fillStyle = '#78909c';
+    ctx.beginPath(); ctx.arc(-16, -6, 3.4, 0, 7); ctx.fill();
+    ctx.lineWidth = 1.6; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.7)';
+    ctx.beginPath(); ctx.arc(-17, -7, 1, 0, 7); ctx.fill();
+    for (let k = 0; k < 4; k++) {
+      const a = (k / 4) * Math.PI * 2 + Math.PI / 4;
+      ctx.fillStyle = '#4e342e';
+      ctx.beginPath(); ctx.arc(-16 + Math.cos(a) * 6.4, -6 + Math.sin(a) * 6.4, 1, 0, 7); ctx.fill();
+    }
+  } else if (accId === 'acc_vong') {
+    // vòng gem: hào quang + 3 viên ngọc + sao bay quanh + nhẫn đính đá
+    ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(0, -44, 10, 3.4, 0, 0, 7); ctx.stroke();
+    for (let k = 0; k < 3; k++) {
+      const a = (k / 3) * Math.PI * 2 - Math.PI / 2;
+      ctx.fillStyle = ['#22d3ee', '#f472b6', '#a78bfa'][k];
+      ctx.beginPath(); ctx.arc(Math.cos(a) * 10, -44 + Math.sin(a) * 3.4, 1.8, 0, 7); ctx.fill();
+      ctx.lineWidth = 1; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    }
+    for (let k = 0; k < 2; k++) {
+      const a = t * 3 + k * Math.PI;
+      drawSparkle(ctx, Math.cos(a) * 14, -44 + Math.sin(a) * 8, 3, 0.9);
+    }
+    const fx = 15, fy = 5 - step * 0.7;
+    ctx.fillStyle = '#fbbf24'; ctx.fillRect(fx - 2.5, fy - 1.5, 5, 3);
+    ctx.lineWidth = 1.2; ctx.strokeStyle = ANIME_OUT; ctx.strokeRect(fx - 2.5, fy - 1.5, 5, 3);
+    ctx.fillStyle = '#22d3ee';
+    ctx.beginPath(); ctx.moveTo(fx, fy - 4.5); ctx.lineTo(fx + 2, fy - 1.5); ctx.lineTo(fx, fy + 1); ctx.lineTo(fx - 2, fy - 1.5); ctx.closePath(); ctx.fill();
+    ctx.lineWidth = 1; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    if (Math.sin(t * 6) > 0.5) drawSparkle(ctx, fx, fy - 5, 3, 1);
   }
   ctx.restore();
+  if (rideClipCar) ctx.restore(); // nhả clip cắt thân xe
+  // --- đang lái xe: xe vẽ đè nửa dưới người = ngồi lái, đầu + vai nhô lên ---
+  if (carColor) {
+    ctx.save(); ctx.translate(X, Y);
+    if (dir < 0) ctx.scale(-1, 1);
+    if (carKind === 'bike') drawBikeSide(ctx, carColor, t, moving, carId ?? undefined);
+    else if (carKind === 'moto') drawMotoSide(ctx, carColor, t, moving, carId ?? undefined);
+    else drawCarSide(ctx, carColor, t, moving, carId ?? undefined);
+    ctx.restore();
+    // tay lái vươn tới ghi đông/vô lăng (xe cổ mui cứng: tay khuất trong xe nên khỏi vẽ)
+    if (carId !== 'car_co') {
+      const grip = carKind === 'bike' ? { x: 25, y: -8 } : carKind === 'moto' ? { x: 29, y: -12 } : { x: 15, y: -10 };
+      const grip2 = carKind === 'bike' || carKind === 'moto' ? { x: grip.x - 13, y: grip.y + 6 } : { x: 7, y: -5 };
+      ctx.save(); ctx.translate(X, Y + bob + rideLift);
+      if (dir < 0) ctx.scale(-1, 1);
+      const arm = (sx: number, sy: number, hx: number, hy: number, w: number) => {
+        ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = w + 2; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(hx, hy); ctx.stroke();
+        ctx.strokeStyle = '#ffcf9e'; ctx.lineWidth = w;
+        ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(hx, hy); ctx.stroke();
+        // tay áo
+        ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = w + 3.4;
+        ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + (hx - sx) * 0.35, sy + (hy - sy) * 0.35); ctx.stroke();
+        ctx.strokeStyle = shirtC; ctx.lineWidth = w + 1.2;
+        ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + (hx - sx) * 0.35, sy + (hy - sy) * 0.35); ctx.stroke();
+        // bàn tay nắm
+        ctx.fillStyle = '#ffcf9e';
+        ctx.beginPath(); ctx.arc(hx, hy, w * 0.75 + 1, 0, 7); ctx.fill();
+        ctx.lineWidth = 1.6; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+      };
+      arm(-4, -6, grip2.x, grip2.y, 3.2);
+      arm(9, -8, grip.x, grip.y, 3.8);
+      if (accId === 'acc_dongho') { // đồng hồ vẫn đeo trên cổ tay lái
+        ctx.fillStyle = '#1f2937'; rr(ctx, grip.x - 8, grip.y - 5, 6, 5, 2); ctx.fill();
+        ctx.lineWidth = 1.2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+        ctx.fillStyle = '#bfe6ff'; rr(ctx, grip.x - 6.8, grip.y - 3.8, 3.6, 2.6, 1.2); ctx.fill();
+      }
+      ctx.restore();
+    }
+  }
   axNamePill(ctx, X, Y - 52 + bob * 0.3, name);
 }
 
-/** Hiệu ứng hành động công viên: hun/ôm/đánh yêu/chọc + trứng pupu (dùng chung farm + town) */
+/** Ô tô nhìn ngang (đầu xe = +x, đã flip theo hướng). Mặt đất Y≈24 ở chân bánh.
+ *  Mỗi dòng xe một thân hình riêng vẽ tay hoàn toàn: xe cọc cạch gỉ sét long sòng,
+ *  bán tải thùng rơm, mui trần thể thao, xe cổ lốp viền trắng, siêu xe cánh gió. */
+export function drawCarSide(ctx: CanvasRenderingContext2D, color: string, t: number, moving: boolean, carId?: string) {
+  if (carId === 'car_bantai') return drawPickup(ctx, color, t, moving);
+  if (carId === 'car_coc') return drawRusty(ctx, color, t, moving);
+  if (carId === 'car_co') return drawVintage(ctx, color, t, moving);
+  if (carId === 'car_sieuxe') return drawSuper(ctx, color, t, moving);
+  return drawConvertible(ctx, color, t, moving, carId);
+}
+
+/** Bánh xe vẽ tay: lốp + tanh + nan hoa (kiểu nan khác nhau từng dòng) */
+function carWheel(ctx: CanvasRenderingContext2D, wx: number, wy: number, r: number, spin: number, spokes: 2 | 3 | 5, hub: string, whitewall?: boolean) {
+  ctx.fillStyle = '#263238';
+  ctx.beginPath(); ctx.arc(wx, wy, r, 0, 7); ctx.fill();
+  ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  if (whitewall) {
+    ctx.fillStyle = '#f5f5f4';
+    ctx.beginPath(); ctx.arc(wx, wy, r - 2.4, 0, 7); ctx.fill();
+    ctx.fillStyle = '#263238';
+    ctx.beginPath(); ctx.arc(wx, wy, r - 4.6, 0, 7); ctx.fill();
+  }
+  ctx.fillStyle = '#b0bec5';
+  ctx.beginPath(); ctx.arc(wx, wy, Math.max(2.6, r - 5.2), 0, 7); ctx.fill();
+  ctx.strokeStyle = '#546e7a'; ctx.lineWidth = 1.6; ctx.lineCap = 'round';
+  for (let k = 0; k < spokes; k++) {
+    const a = spin + (k * Math.PI * 2) / spokes;
+    ctx.beginPath(); ctx.moveTo(wx, wy);
+    ctx.lineTo(wx + Math.cos(a) * (r - 2.6), wy + Math.sin(a) * (r - 2.6)); ctx.stroke();
+  }
+  ctx.fillStyle = hub;
+  ctx.beginPath(); ctx.arc(wx, wy, 1.8, 0, 7); ctx.fill();
+}
+
+/** Xe Cọc Cạch: sedan cũ móp méo, gỉ sét loang, vá víu, khói pô phì phèo */
+function drawRusty(ctx: CanvasRenderingContext2D, color: string, t: number, moving: boolean) {
+  ctx.fillStyle = 'rgba(0,0,0,.28)';
+  ctx.beginPath(); ctx.ellipse(-2, 24, 38, 7, 0, 0, 7); ctx.fill();
+  // khói pô phì phèo cả khi đứng yên (máy lúc nào cũng ho)
+  const puffN = moving ? 4 : 3;
+  for (let i = 0; i < puffN; i++) {
+    const ph = (t * (moving ? 2.2 : 1.1) + i / puffN) % 1;
+    ctx.fillStyle = `rgba(120,120,120,${0.5 * (1 - ph)})`;
+    ctx.beginPath(); ctx.arc(-42 - ph * 16, 10 - ph * 14, 2.5 + ph * 4, 0, 7); ctx.fill();
+  }
+  const spin = moving ? t * 14 : 0.6;
+  carWheel(ctx, -20, 18, 8.5, spin, 2, '#78909c');
+  carWheel(ctx, 20, 18, 8.5, spin + 1, 2, '#b0bec5'); // bánh trước thay mới, lệch tông
+  // thân móp: bụng phệ + nắp ca-pô vênh
+  rr(ctx, -36, -8, 72, 24, 11); ctx.fillStyle = color; ctx.fill();
+  ctx.lineWidth = 2.6; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,.25)'; ctx.fillRect(-30, -5, 60, 3.5);
+  // cabin + kính rạn
+  rr(ctx, -22, -25, 40, 19, 7); ctx.fillStyle = color; ctx.fill();
+  ctx.lineWidth = 2.4; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  ctx.fillStyle = 'rgba(190,230,255,.9)';
+  ctx.beginPath(); ctx.moveTo(2, -22); ctx.lineTo(14, -22); ctx.lineTo(10, -8); ctx.lineTo(2, -8); ctx.closePath(); ctx.fill();
+  ctx.lineWidth = 1.8; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,.8)'; ctx.lineWidth = 1; // vết rạn kính
+  ctx.beginPath(); ctx.moveTo(8, -22); ctx.lineTo(5, -15); ctx.lineTo(9, -10); ctx.stroke();
+  ctx.fillStyle = 'rgba(120,150,180,.9)'; ctx.fillRect(-18, -22, 16, 14);
+  ctx.lineWidth = 1.8; ctx.strokeStyle = ANIME_OUT; ctx.strokeRect(-18, -22, 16, 14);
+  // gỉ sét loang lổ + chấm gỉ
+  ctx.fillStyle = 'rgba(110,55,20,.6)';
+  ell(ctx, -14, 6, 4.5, 3); ell(ctx, 12, 10, 3.4, 2.2); ell(ctx, 26, 0, 2.6, 2); ell(ctx, -28, -2, 3, 2.2);
+  ctx.fillStyle = 'rgba(80,40,15,.7)';
+  ell(ctx, -10, 9, 1.4, 1); ell(ctx, 15, 5, 1.2, 1); ell(ctx, -30, 8, 1.3, 1);
+  // cửa vá miếng tôn khác màu + đinh tán
+  ctx.fillStyle = 'rgba(0,0,0,.2)'; ctx.fillRect(-8, -4, 15, 17);
+  ctx.strokeStyle = '#5d4037'; ctx.lineWidth = 1.4; ctx.setLineDash([2.5, 2]);
+  ctx.strokeRect(-8, -4, 15, 17); ctx.setLineDash([]);
+  ctx.fillStyle = '#2b2117'; ctx.fillRect(-2, 3, 6, 2.4);
+  // cản trước sau lắp lệch
+  ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(32, 14); ctx.lineTo(44, 17); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-34, 16); ctx.lineTo(-44, 13); ctx.stroke();
+  // đèn tròn (1 bên mờ) + đèn hậu nứt
+  ctx.fillStyle = '#ffeb3b';
+  ctx.beginPath(); ctx.arc(36, 4, 3.2, 0, 7); ctx.fill();
+  ctx.lineWidth = 1.6; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  ctx.fillStyle = '#e53935'; ctx.fillRect(-39, 4, 4, 6);
+  ctx.lineWidth = 1.4; ctx.strokeStyle = ANIME_OUT; ctx.strokeRect(-39, 4, 4, 6);
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(-39, 5); ctx.lineTo(-35, 9); ctx.stroke();
+  // ăng-ten cong queo
+  ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(-20, -25); ctx.quadraticCurveTo(-26, -34, -32, -32); ctx.stroke();
+  ctx.fillStyle = '#e53935';
+  ctx.beginPath(); ctx.arc(-32, -32, 2, 0, 7); ctx.fill();
+  ctx.lineWidth = 1.4; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  // pô xệ
+  ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = 3.4;
+  ctx.beginPath(); ctx.moveTo(-36, 12); ctx.lineTo(-41, 13); ctx.stroke();
+}
+
+/** Xe Bán Tải: cabin + thùng rơm cót két, lốp to, cản sắt, chắn bùn */
+function drawPickup(ctx: CanvasRenderingContext2D, color: string, t: number, moving: boolean) {
+  ctx.fillStyle = 'rgba(0,0,0,.3)';
+  ctx.beginPath(); ctx.ellipse(0, 24, 42, 7.5, 0, 0, 7); ctx.fill();
+  if (moving) {
+    ctx.fillStyle = 'rgba(255,255,255,.7)';
+    ell(ctx, -44, 20, 5, 3); ell(ctx, -52, 18, 3.4, 2.2);
+  }
+  const spin = moving ? t * 13 : 0.6;
+  carWheel(ctx, -22, 16, 10, spin, 3, '#37474f');
+  carWheel(ctx, 22, 16, 10, spin, 3, '#37474f');
+  // chắn bùn sau bánh
+  ctx.fillStyle = '#21272b';
+  ctx.fillRect(-34, 8, 5, 12); ctx.fillRect(28, 8, 5, 12);
+  // thùng sau (tối màu hơn thân) + thành gỗ
+  rr(ctx, -42, -14, 34, 26, 4); ctx.fillStyle = color; ctx.fill();
+  ctx.lineWidth = 2.6; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fillRect(-42, -2, 34, 14);
+  ctx.strokeStyle = '#6d4c41'; ctx.lineWidth = 2.2; // cọc gỗ thành thùng
+  for (const sx of [-40, -30, -20, -10]) {
+    ctx.beginPath(); ctx.moveTo(sx, -14); ctx.lineTo(sx, -24); ctx.stroke();
+  }
+  ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = 2.6;
+  ctx.beginPath(); ctx.moveTo(-43, -24); ctx.lineTo(-5, -24); ctx.stroke();
+  ctx.strokeStyle = '#8d6e63'; ctx.lineWidth = 1.8;
+  ctx.beginPath(); ctx.moveTo(-43, -24); ctx.lineTo(-5, -24); ctx.stroke();
+  // 2 bó rơm buộc dây trong thùng
+  for (const [bx, bw] of [[-38, 15], [-21, 13]] as [number, number][]) {
+    rr(ctx, bx, -32, bw, 9, 4); ctx.fillStyle = '#e8c33a'; ctx.fill();
+    ctx.lineWidth = 1.8; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    ctx.strokeStyle = '#a8841f'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(bx + bw / 2, -32); ctx.lineTo(bx + bw / 2, -23); ctx.stroke();
+    ctx.strokeStyle = '#c9962e'; ctx.lineWidth = 1;
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath(); ctx.moveTo(bx + 2 + i * 4, -31); ctx.lineTo(bx + 3 + i * 4, -24); ctx.stroke();
+    }
+  }
+  // cabin: nắp ca-pô dài + buồng lái
+  rr(ctx, -10, -6, 46, 20, 8); ctx.fillStyle = color; ctx.fill();
+  ctx.lineWidth = 2.6; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,.3)'; ctx.fillRect(-6, -3, 38, 3.5);
+  rr(ctx, -2, -26, 28, 22, 6); ctx.fillStyle = color; ctx.fill();
+  ctx.lineWidth = 2.4; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  ctx.fillStyle = 'rgba(190,230,255,.92)'; // kính lái + kính hông
+  ctx.beginPath(); ctx.moveTo(10, -23); ctx.lineTo(22, -23); ctx.lineTo(18, -6); ctx.lineTo(10, -6); ctx.closePath(); ctx.fill();
+  ctx.lineWidth = 1.8; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  ctx.fillStyle = 'rgba(150,190,220,.9)'; ctx.fillRect(-0, -23, 8, 17);
+  ctx.lineWidth = 1.8; ctx.strokeStyle = ANIME_OUT; ctx.strokeRect(-0, -23, 8, 17);
+  // cửa + tay nắm + bậc lên xuống
+  ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 1.8;
+  ctx.beginPath(); ctx.moveTo(2, -4); ctx.lineTo(2, 12); ctx.stroke();
+  ctx.fillStyle = '#2b2117'; ctx.fillRect(6, 2, 7, 2.6);
+  ctx.fillStyle = '#37474f'; ctx.fillRect(-2, 14, 30, 3);
+  // cản sắt trước + đèn vuông + lưới tản nhiệt
+  ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  for (const bx of [32, 38]) { ctx.beginPath(); ctx.moveTo(bx, 4); ctx.lineTo(bx, 16); ctx.stroke(); }
+  ctx.beginPath(); ctx.moveTo(30, 10); ctx.lineTo(40, 10); ctx.stroke();
+  ctx.fillStyle = '#ffeb3b'; ctx.fillRect(30, 0, 5, 5); ctx.fillRect(37, 0, 5, 5);
+  ctx.lineWidth = 1.6; ctx.strokeStyle = ANIME_OUT; ctx.strokeRect(30, 0, 5, 5); ctx.strokeRect(37, 0, 5, 5);
+  ctx.fillStyle = '#37474f'; ctx.fillRect(30, 6, 12, 3);
+  ctx.fillStyle = '#e53935'; ctx.fillRect(-45, 0, 4, 6);
+  ctx.lineWidth = 1.4; ctx.strokeStyle = ANIME_OUT; ctx.strokeRect(-45, 0, 4, 6);
+  // nắp bình xăng tròn trên thùng
+  ctx.fillStyle = '#b0bec5';
+  ctx.beginPath(); ctx.arc(-14, 4, 2.6, 0, 7); ctx.fill();
+  ctx.lineWidth = 1.4; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+}
+
+/** Xe Mui Trần: thân thấp dài, khoang lái lộ thiên 2 ghế da, kính chắn gió nghiêng */
+function drawConvertible(ctx: CanvasRenderingContext2D, color: string, t: number, moving: boolean, carId?: string) {
+  ctx.fillStyle = 'rgba(0,0,0,.28)';
+  ctx.beginPath(); ctx.ellipse(2, 24, 39, 7, 0, 0, 7); ctx.fill();
+  if (moving) {
+    ctx.fillStyle = 'rgba(255,255,255,.7)';
+    ell(ctx, -42, 20, 5, 3); ell(ctx, -50, 18, 3.4, 2.2);
+  }
+  const spin = moving ? t * 15 : 0.6;
+  carWheel(ctx, -20, 18, 8, spin, 5, '#d32f2f');
+  carWheel(ctx, 21, 18, 8, spin, 5, '#d32f2f');
+  // mỏ trước vuốt thấp + lướt gió
+  ctx.fillStyle = color;
+  ctx.beginPath(); ctx.moveTo(-36, 12); ctx.lineTo(40, 2); ctx.lineTo(42, 10); ctx.lineTo(38, 14); ctx.lineTo(-34, 16); ctx.closePath(); ctx.fill();
+  ctx.lineWidth = 2.6; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  rr(ctx, -36, -4, 72, 18, 8); ctx.fillStyle = color; ctx.fill();
+  ctx.lineWidth = 2.6; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fillRect(-31, -1, 62, 3.5);
+  // gờ nổi giữa nắp ca-pô + logo sao
+  ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.moveTo(12, -1); ctx.lineTo(34, -1); ctx.stroke();
+  // khoang lái mở: hốc tối
+  rr(ctx, -26, -14, 36, 11, 5); ctx.fillStyle = '#2b1d16'; ctx.fill();
+  ctx.lineWidth = 2.2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  // 2 ghế da + gối đầu
+  for (const gx of [-22, -10]) {
+    rr(ctx, gx, -22, 10, 10, 3); ctx.fillStyle = '#4e342e'; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.2)'; ctx.fillRect(gx + 1.5, -21, 3, 8);
+    rr(ctx, gx + 1, -27, 8, 6, 2.5); ctx.fillStyle = '#6d4c41'; ctx.fill();
+    ctx.lineWidth = 1.8; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  }
+  // kính chắn gió nghiêng có khung
+  ctx.fillStyle = 'rgba(190,230,255,.92)';
+  ctx.beginPath(); ctx.moveTo(12, -4); ctx.lineTo(20, -18); ctx.lineTo(27, -18); ctx.lineTo(19, -4); ctx.closePath(); ctx.fill();
+  ctx.lineWidth = 2.2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  // vô lăng
+  ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(8, -2); ctx.lineTo(15, -9); ctx.stroke();
+  ctx.fillStyle = '#37474f';
+  ctx.beginPath(); ctx.arc(16, -10, 4, 0, 7); ctx.fill();
+  ctx.lineWidth = 1.8; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  // lưới tản nhiệt mạ crôm + 2 đèn tròn
+  ctx.fillStyle = '#cfd8dc'; ctx.fillRect(36, 4, 6, 8);
+  ctx.lineWidth = 1.8; ctx.strokeStyle = ANIME_OUT; ctx.strokeRect(36, 4, 6, 8);
+  ctx.strokeStyle = '#78909c'; ctx.lineWidth = 1.2;
+  for (let i = 0; i < 2; i++) { ctx.beginPath(); ctx.moveTo(37, 6 + i * 3); ctx.lineTo(41, 6 + i * 3); ctx.stroke(); }
+  for (const hx of [28, 35]) {
+    ctx.fillStyle = '#ffeb3b';
+    ctx.beginPath(); ctx.arc(hx, -1, 3, 0, 7); ctx.fill();
+    ctx.lineWidth = 1.6; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  }
+  // nẹp crôm hông + tay nắm chìm + đèn hậu dải
+  ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.fillRect(-34, 8, 60, 2);
+  ctx.fillStyle = '#2b2117'; ctx.fillRect(-6, 5, 7, 2.2);
+  ctx.fillStyle = '#e53935'; ctx.fillRect(-39, 2, 4, 7);
+  ctx.lineWidth = 1.4; ctx.strokeStyle = ANIME_OUT; ctx.strokeRect(-39, 2, 4, 7);
+  // pô kép
+  ctx.fillStyle = '#37474f';
+  ctx.beginPath(); ctx.arc(-38, 13, 2.4, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(-38, 17, 2.4, 0, 7); ctx.fill();
+  ctx.lineWidth = 1.2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  void carId;
+}
+
+/** Xe Cổ: mui cứng cong, dè tròn, lốp viền trắng, bánh dự phòng hông, đèn stalk */
+function drawVintage(ctx: CanvasRenderingContext2D, color: string, t: number, moving: boolean) {
+  ctx.fillStyle = 'rgba(0,0,0,.28)';
+  ctx.beginPath(); ctx.ellipse(0, 24, 40, 7.5, 0, 0, 7); ctx.fill();
+  if (moving) {
+    ctx.fillStyle = 'rgba(255,255,255,.7)';
+    ell(ctx, -44, 20, 5, 3); ell(ctx, -52, 18, 3.4, 2.2);
+  }
+  const spin = moving ? t * 12 : 0.6;
+  carWheel(ctx, -21, 17, 9, spin, 3, '#8d6e63', true);
+  carWheel(ctx, 21, 17, 9, spin, 3, '#8d6e63', true);
+  // thân cao + dè tròn ôm bánh
+  rr(ctx, -34, -12, 68, 26, 10); ctx.fillStyle = color; ctx.fill();
+  ctx.lineWidth = 2.6; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,.25)'; ctx.fillRect(-29, -9, 58, 3);
+  for (const fx of [-21, 21]) {
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.ellipse(fx, 12, 13, 10, 0, Math.PI, 0); ctx.fill();
+    ctx.lineWidth = 2.4; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  }
+  // bậc lên xuống + viền dưới
+  ctx.fillStyle = '#2b2117'; ctx.fillRect(-12, 12, 24, 3.5);
+  ctx.lineWidth = 1.4; ctx.strokeStyle = ANIME_OUT; ctx.strokeRect(-12, 12, 24, 3.5);
+  // mui cứng: 2 cột + nóc cong + cửa kính
+  ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = 2.6; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-22, -12); ctx.lineTo(-18, -30); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(10, -12); ctx.lineTo(6, -30); ctx.stroke();
+  ctx.fillStyle = color;
+  ctx.beginPath(); ctx.ellipse(-6, -31, 19, 6.5, 0, Math.PI, 0); ctx.fill();
+  ctx.lineWidth = 2.6; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,.3)';
+  ctx.beginPath(); ctx.ellipse(-6, -33, 12, 3, 0, Math.PI, 0); ctx.fill();
+  ctx.fillStyle = 'rgba(190,230,255,.92)';
+  ctx.beginPath(); ctx.moveTo(-17, -14); ctx.lineTo(-14, -28); ctx.lineTo(-1, -28); ctx.lineTo(-1, -14); ctx.closePath(); ctx.fill();
+  ctx.lineWidth = 1.8; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  // lưới tản nhiệt dọc mạ crôm + nắp ca-pô + linh vật
+  ctx.fillStyle = '#cfd8dc'; ctx.fillRect(30, -6, 7, 18);
+  ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT; ctx.strokeRect(30, -6, 7, 18);
+  ctx.strokeStyle = '#78909c'; ctx.lineWidth = 1.2;
+  for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.moveTo(31.5, -3 + i * 4); ctx.lineTo(35.5, -3 + i * 4); ctx.stroke(); }
+  drawStar(ctx, 24, -14, 3.5);
+  // đèn pha tròn trên cần + cản crôm
+  for (const hx of [26, 34]) {
+    ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(hx, 2); ctx.lineTo(hx, -6); ctx.stroke();
+    ctx.fillStyle = '#ffeb3b';
+    ctx.beginPath(); ctx.arc(hx, -9, 3.6, 0, 7); ctx.fill();
+    ctx.lineWidth = 1.8; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  }
+  ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(30, 14); ctx.lineTo(42, 14); ctx.stroke();
+  ctx.strokeStyle = '#eceff1'; ctx.lineWidth = 1.8;
+  ctx.beginPath(); ctx.moveTo(30, 14); ctx.lineTo(42, 14); ctx.stroke();
+  ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(-42, 12); ctx.lineTo(-32, 12); ctx.stroke();
+  // bánh dự phòng đeo hông sau + dây buộc
+  ctx.fillStyle = '#263238';
+  ctx.beginPath(); ctx.arc(-30, -2, 8, 0, 7); ctx.fill();
+  ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  ctx.fillStyle = '#f5f5f4';
+  ctx.beginPath(); ctx.arc(-30, -2, 5, 0, 7); ctx.fill();
+  ctx.fillStyle = '#8d6e63';
+  ctx.beginPath(); ctx.arc(-30, -2, 2, 0, 7); ctx.fill();
+  ctx.strokeStyle = '#5d4037'; ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.moveTo(-30, -10); ctx.lineTo(-30, 6); ctx.stroke();
+  // tay nắm cửa đồng + đèn hậu hạt đậu
+  ctx.fillStyle = '#ffd54f'; ctx.fillRect(-4, 0, 6, 2.4);
+  ctx.fillStyle = '#e53935';
+  ctx.beginPath(); ctx.arc(-37, 2, 2.6, 0, 7); ctx.fill();
+  ctx.lineWidth = 1.4; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+}
+
+/** Siêu Xe: mõm nêm thấp, sọc đua, hốc gió, cánh gió lớn, lửa pô, chùm đèn */
+function drawSuper(ctx: CanvasRenderingContext2D, color: string, t: number, moving: boolean) {
+  ctx.fillStyle = 'rgba(0,0,0,.3)';
+  ctx.beginPath(); ctx.ellipse(2, 24, 40, 7, 0, 0, 7); ctx.fill();
+  if (moving) {
+    ctx.fillStyle = 'rgba(255,255,255,.7)';
+    ell(ctx, -44, 20, 5, 3); ell(ctx, -52, 18, 3.4, 2.2);
+  }
+  const spin = moving ? t * 18 : 0.6;
+  carWheel(ctx, -20, 18, 8, spin, 5, '#d32f2f');
+  carWheel(ctx, 21, 18, 8, spin, 5, '#d32f2f');
+  // chùm sáng đèn pha khi vít ga
+  if (moving) {
+    const beam = ctx.createLinearGradient(38, 6, 90, 6);
+    beam.addColorStop(0, 'rgba(255,241,118,.55)'); beam.addColorStop(1, 'rgba(255,241,118,0)');
+    ctx.fillStyle = beam;
+    ctx.beginPath(); ctx.moveTo(38, 2); ctx.lineTo(92, -6); ctx.lineTo(92, 16); ctx.lineTo(38, 10); ctx.closePath(); ctx.fill();
+  }
+  // thân nêm: mõm thấp đuôi cao
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(-38, 14); ctx.lineTo(-30, 2); ctx.lineTo(-8, -2); ctx.lineTo(20, -2);
+  ctx.lineTo(40, 4); ctx.lineTo(42, 10); ctx.lineTo(38, 15); ctx.lineTo(-38, 16);
+  ctx.closePath(); ctx.fill();
+  ctx.lineWidth = 2.6; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  // sọc đua đôi xuyên suốt
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath(); ctx.moveTo(-34, 1); ctx.lineTo(-8, -1.4); ctx.lineTo(-8, 2.4); ctx.lineTo(-34, 4.6); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-4, -1.2); ctx.lineTo(22, -1.2); ctx.lineTo(22, 2.6); ctx.lineTo(-4, 2.6); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#d32f2f';
+  ctx.beginPath(); ctx.moveTo(-6, -1.3); ctx.lineTo(-2, -1.3); ctx.lineTo(-2, 2.5); ctx.lineTo(-6, 2.5); ctx.closePath(); ctx.fill();
+  // cabin giọt nước kính tối
+  ctx.fillStyle = 'rgba(30,40,60,.95)';
+  ctx.beginPath(); ctx.moveTo(-20, -2); ctx.quadraticCurveTo(-12, -20, 2, -20); ctx.lineTo(10, -2); ctx.closePath(); ctx.fill();
+  ctx.lineWidth = 2.2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  ctx.fillStyle = 'rgba(160,220,255,.5)';
+  ctx.beginPath(); ctx.moveTo(-14, -5); ctx.quadraticCurveTo(-9, -16, 0, -16); ctx.lineTo(0, -5); ctx.closePath(); ctx.fill();
+  // hốc gió hông + đường cửa
+  ctx.fillStyle = 'rgba(20,20,30,.9)';
+  ctx.beginPath(); ctx.moveTo(-24, 6); ctx.lineTo(-12, 4); ctx.lineTo(-12, 10); ctx.lineTo(-24, 12); ctx.closePath(); ctx.fill();
+  ctx.lineWidth = 1.6; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 1.8;
+  ctx.beginPath(); ctx.moveTo(-8, 0); ctx.lineTo(-8, 14); ctx.stroke();
+  // đèn pha vuốt + lướt gió trước
+  ctx.fillStyle = '#fff9c4';
+  ctx.beginPath(); ctx.moveTo(30, 2); ctx.lineTo(39, 4); ctx.lineTo(37, 7); ctx.lineTo(29, 5); ctx.closePath(); ctx.fill();
+  ctx.lineWidth = 1.6; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  ctx.fillStyle = '#21272b'; ctx.fillRect(34, 13, 12, 3);
+  // khuếch tán sau + pô đôi giữa
+  ctx.fillStyle = '#21272b'; ctx.fillRect(-44, 10, 8, 6);
+  ctx.strokeStyle = '#78909c'; ctx.lineWidth = 1.2;
+  for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.moveTo(-43 + i * 2.5, 10); ctx.lineTo(-43 + i * 2.5, 16); ctx.stroke(); }
+  for (const ex of [-40, -35]) {
+    ctx.fillStyle = '#37474f';
+    ctx.beginPath(); ctx.arc(ex, 13, 2.6, 0, 7); ctx.fill();
+    ctx.lineWidth = 1.4; ctx.strokeStyle = '#b0bec5'; ctx.stroke();
+  }
+  if (moving) { // lửa pô xanh-cam khi vít ga
+    const fl = 7 + Math.sin(t * 30) * 3;
+    for (const ex of [-40, -35]) {
+      ctx.fillStyle = '#ff9800';
+      ctx.beginPath(); ctx.moveTo(ex - 2, 11); ctx.lineTo(ex - 2 - fl, 13); ctx.lineTo(ex - 2, 15); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#ffeb3b';
+      ctx.beginPath(); ctx.moveTo(ex - 2, 12); ctx.lineTo(ex - 2 - fl * 0.55, 13); ctx.lineTo(ex - 2, 14); ctx.closePath(); ctx.fill();
+    }
+  }
+  // cánh gió lớn trên 2 trụ + tấm chắn đầu cánh
+  ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = 2.6;
+  ctx.beginPath(); ctx.moveTo(-34, -2); ctx.lineTo(-34, -12); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-26, -2); ctx.lineTo(-26, -12); ctx.stroke();
+  ctx.fillStyle = '#d32f2f'; ctx.fillRect(-44, -17, 24, 5);
+  ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT; ctx.strokeRect(-44, -17, 24, 5);
+  ctx.fillStyle = '#7f0000'; ctx.fillRect(-44, -17, 3, 5); ctx.fillRect(-23, -17, 3, 5);
+  ctx.fillStyle = 'rgba(255,255,255,.4)'; ctx.fillRect(-40, -16, 16, 1.5);
+  // đèn hậu dải LED
+  ctx.fillStyle = '#ff1744'; ctx.fillRect(-38, 4, 10, 3);
+  ctx.lineWidth = 1.2; ctx.strokeStyle = ANIME_OUT; ctx.strokeRect(-38, 4, 10, 3);
+}
+
+/** Xe đạp nhìn ngang (đầu xe = +x): 2 bánh mảnh, khung tam giác, giỏ mây trước. */
+/** Xe đạp nhìn ngang (đầu xe = +x): khung tam giác, giỏ mây, pê-đan xoay.
+ *  Biến thể theo xe: rua (giỏ to + gác chở hàng), doi (khung đôi 2 yên),
+ *  dia (lốp gai + phuộc nhún, không giỏ), dua (khung vuốt + ghi đông cụp, không giỏ). */
+export function drawBikeSide(ctx: CanvasRenderingContext2D, color: string, t: number, moving: boolean, bikeId?: string) {
+  ctx.fillStyle = 'rgba(0,0,0,.22)';
+  ctx.beginPath(); ctx.ellipse(0, 22, 30, 5.5, 0, 0, 7); ctx.fill();
+  if (moving) {
+    ctx.fillStyle = 'rgba(255,255,255,.7)';
+    ell(ctx, -30, 19, 4, 2.4);
+    ell(ctx, -36, 17.5, 2.6, 1.8);
+  }
+  const isDoi = bikeId === 'bike_doi';
+  const isDia = bikeId === 'bike_dia';
+  const isDua = bikeId === 'bike_dua';
+  const isRua = bikeId === 'bike_rua';
+  // trục cơ sở + cỡ lốp theo dòng
+  const wb = isDoi ? 26 : 20;
+  const tireR = isDia ? 11 : isDua ? 8 : 9;
+  const ringR = tireR - 2.6;
+  // bánh xe + nan hoa xoay
+  const spin = moving ? t * 12 : 0.6;
+  for (const wx of [-wb, wb]) {
+    ctx.fillStyle = isDia ? '#37474f' : '#263238';
+    ctx.beginPath(); ctx.arc(wx, 15, tireR, 0, 7); ctx.fill();
+    ctx.lineWidth = 1.8; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    ctx.fillStyle = '#eceff1';
+    ctx.beginPath(); ctx.arc(wx, 15, ringR, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#78909c'; ctx.lineWidth = 1.2;
+    for (let k = 0; k < 3; k++) {
+      const a = spin + (k * Math.PI * 2) / 3;
+      ctx.beginPath(); ctx.moveTo(wx, 15); ctx.lineTo(wx + Math.cos(a) * (ringR - 0.5), 15 + Math.sin(a) * (ringR - 0.5)); ctx.stroke();
+    }
+    ctx.fillStyle = '#546e7a';
+    ctx.beginPath(); ctx.arc(wx, 15, 1.8, 0, 7); ctx.fill();
+    if (isDia) {
+      // gai lốp địa hình xoay theo bánh
+      ctx.fillStyle = '#263238';
+      for (let k = 0; k < 8; k++) {
+        const a = spin * 0.9 + (k * Math.PI) / 4;
+        ctx.fillRect(wx + Math.cos(a) * (tireR + 0.5) - 1.5, 15 + Math.sin(a) * (tireR + 0.5) - 1.5, 3, 3);
+      }
+    }
+  }
+  // khung (viền đậm + ruột màu xe)
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = isDia ? 5.4 : 4.4;
+  const frame = () => {
+    if (isDoi) {
+      // khung đôi: 2 tam giác chung trục giữa
+      ctx.beginPath();
+      ctx.moveTo(-wb, 15); ctx.lineTo(-14, -2); ctx.lineTo(-2, 6); ctx.closePath();
+      ctx.moveTo(6, -2); ctx.lineTo(wb, 15); ctx.lineTo(-2, 6); ctx.closePath();
+      ctx.moveTo(-14, -2); ctx.lineTo(6, -2);
+      ctx.stroke();
+    } else if (isDua) {
+      // khung vuốt khí động: ống trên dốc
+      ctx.beginPath();
+      ctx.moveTo(-wb, 15); ctx.lineTo(2, -8); ctx.moveTo(wb, 15); ctx.lineTo(2, -8);
+      ctx.moveTo(-wb, 15); ctx.lineTo(18, -9);
+      ctx.stroke();
+    } else {
+      ctx.beginPath(); ctx.moveTo(-wb, 15); ctx.lineTo(-2, -2); ctx.moveTo(wb, 15); ctx.lineTo(-2, -2); ctx.moveTo(-wb, 15); ctx.lineTo(14, -8); ctx.stroke();
+    }
+  };
+  frame();
+  ctx.strokeStyle = color; ctx.lineWidth = isDia ? 3.4 : 2.6;
+  // vẽ lại ruột màu (gọi frame lần 2 với màu xe)
+  ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = isDia ? 3.4 : isDua ? 2 : 2.6;
+  if (isDoi) {
+    ctx.beginPath();
+    ctx.moveTo(-wb, 15); ctx.lineTo(-14, -2); ctx.lineTo(-2, 6);
+    ctx.moveTo(6, -2); ctx.lineTo(wb, 15); ctx.lineTo(-2, 6);
+    ctx.moveTo(-14, -2); ctx.lineTo(6, -2);
+    ctx.stroke();
+  } else if (isDua) {
+    ctx.beginPath();
+    ctx.moveTo(-wb, 15); ctx.lineTo(2, -8); ctx.moveTo(wb, 15); ctx.lineTo(2, -8);
+    ctx.moveTo(-wb, 15); ctx.lineTo(18, -9);
+    ctx.stroke();
+  } else {
+    ctx.beginPath(); ctx.moveTo(-wb, 15); ctx.lineTo(-2, -2); ctx.moveTo(wb, 15); ctx.lineTo(-2, -2); ctx.moveTo(-wb, 15); ctx.lineTo(14, -8); ctx.stroke();
+  }
+  ctx.restore();
+  if (isDia) {
+    // phuộc nhún trước (răng cưa) + tay lái ngang rộng
+    ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(wb - 6, -2); ctx.lineTo(wb - 2, 4); ctx.lineTo(wb - 6, 9); ctx.lineTo(wb, 15); ctx.stroke();
+    ctx.strokeStyle = '#37474f'; ctx.lineWidth = 2.6;
+    ctx.beginPath(); ctx.moveTo(wb - 2, -10); ctx.lineTo(wb + 8, -10); ctx.stroke();
+    ctx.fillStyle = '#37474f';
+    ctx.fillRect(wb - 4, -12, 5, 4); ctx.fillRect(wb + 5, -12, 5, 4);
+    // túi khung + bình nước
+    ctx.fillStyle = '#455a64';
+    ctx.beginPath(); ctx.moveTo(-14, -2); ctx.lineTo(8, -6); ctx.lineTo(-2, 6); ctx.closePath(); ctx.fill();
+    ctx.lineWidth = 1.6; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    ctx.fillStyle = '#b3e5fc'; rr(ctx, 0, -6, 4, 9, 2); ctx.fill();
+    ctx.lineWidth = 1.4; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  } else if (isDua) {
+    // ghi đông cụp (tay nắm trên đỉnh để tay lái với tới)
+    ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(wb, 15); ctx.lineTo(24, -9); ctx.stroke();
+    ctx.strokeStyle = '#37474f'; ctx.lineWidth = 2.2;
+    ctx.beginPath(); ctx.moveTo(24, -9); ctx.quadraticCurveTo(29, -8, 28, -2); ctx.lineTo(25, -1); ctx.stroke();
+  } else {
+    // ghi đông ngang classic (tay lái nắm ở 24..29,-8)
+    ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = 3.4;
+    ctx.beginPath(); ctx.moveTo(wb, 15); ctx.lineTo(24, -8); ctx.stroke();
+    ctx.strokeStyle = '#78909c'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(24, -8); ctx.lineTo(18, -8); ctx.moveTo(24, -8); ctx.lineTo(29, -8); ctx.stroke();
+  }
+  // yên (đỉnh yên y=-8 khít mông người lái)
+  ctx.fillStyle = '#4e342e';
+  if (isDoi) {
+    rr(ctx, -8, -8, 12, 4.5, 2); ctx.fill(); // yên trước (người lái ngồi)
+    ctx.lineWidth = 1.8; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    rr(ctx, -27, -8, 11, 4.5, 2); ctx.fill(); // yên sau cho bạn đồng hành
+    ctx.lineWidth = 1.8; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    // tay lái phụ cho người sau
+    ctx.strokeStyle = '#78909c'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(-14, -2); ctx.lineTo(-17, -9); ctx.moveTo(-17, -9); ctx.lineTo(-21, -9); ctx.stroke();
+  } else if (isDia) {
+    rr(ctx, -10, -8, 14, 5, 2.5); ctx.fill();
+    ctx.lineWidth = 1.8; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  } else if (isDua) {
+    rr(ctx, -6, -8.5, 12, 3.5, 1.8); ctx.fill();
+    ctx.lineWidth = 1.6; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  } else {
+    rr(ctx, -8, -8, 12, 4.5, 2); ctx.fill();
+    ctx.lineWidth = 1.8; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  }
+  if (isRua) {
+    // giỏ trước to + gác sau chở hàng + 2 bao tải
+    ctx.fillStyle = ANIME_OUT; rr(ctx, 25, -8, 15, 11, 2); ctx.fill();
+    ctx.fillStyle = '#c98f4e'; rr(ctx, 26.5, -6.5, 12, 8, 1.5); ctx.fill();
+    ctx.strokeStyle = 'rgba(90,55,25,.6)'; ctx.lineWidth = 1;
+    for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.moveTo(29 + i * 4, -6.5); ctx.lineTo(29 + i * 4, 1.5); ctx.stroke(); }
+    ctx.fillStyle = '#6d4c41'; rr(ctx, -38, -5, 18, 4, 2); ctx.fill(); // gác sau
+    ctx.lineWidth = 1.6; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    ctx.fillStyle = '#d7ccc8'; ell(ctx, -31, -10, 6, 5); // bao tải 1
+    ctx.lineWidth = 1.6; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    ctx.fillStyle = '#bcaaa4'; ell(ctx, -23, -9.5, 5, 4.2); // bao tải 2
+    ctx.lineWidth = 1.4; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    ctx.strokeStyle = '#8b5a2b'; ctx.lineWidth = 1.4; // dây buộc
+    ctx.beginPath(); ctx.moveTo(-36, -13); ctx.lineTo(-26, -6); ctx.moveTo(-27, -12); ctx.lineTo(-18, -6); ctx.stroke();
+    ctx.fillStyle = '#e53935'; ctx.fillRect(-wb - 3, 2, 3, 4); // đèn hậu
+  } else if (!isDoi && !isDia && !isDua) {
+    // giỏ mây trước (bản gốc xe đạp thong dong)
+    ctx.fillStyle = ANIME_OUT; rr(ctx, 26, -6, 12, 9, 2); ctx.fill();
+    ctx.fillStyle = '#c98f4e'; rr(ctx, 27.5, -4.5, 9, 6, 1.5); ctx.fill();
+    ctx.strokeStyle = 'rgba(90,55,25,.6)'; ctx.lineWidth = 1;
+    for (let i = 0; i < 2; i++) { ctx.beginPath(); ctx.moveTo(28.5 + i * 4, -4.5); ctx.lineTo(28.5 + i * 4, 1.5); ctx.stroke(); }
+  }
+  if (isRua || bikeId === 'bike_xedap') {
+    // chắn bùn sau
+    ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(-wb, 15, tireR + 2, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke();
+  }
+  // pê-đan xoay theo chân đạp (+ bộ líp sau cho xe đôi)
+  const pa = moving ? t * 12 : 0.6;
+  ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = 2.6;
+  ctx.beginPath(); ctx.moveTo(-2, 6); ctx.lineTo(-2 + Math.cos(pa) * 7, 6 + Math.sin(pa) * 7); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-2, 6); ctx.lineTo(-2 - Math.cos(pa) * 7, 6 - Math.sin(pa) * 7); ctx.stroke();
+  ctx.fillStyle = '#37474f';
+  ctx.fillRect(-2 + Math.cos(pa) * 7 - 3, 6 + Math.sin(pa) * 7 - 1.5, 6, 3);
+  ctx.fillRect(-2 - Math.cos(pa) * 7 - 3, 6 - Math.sin(pa) * 7 - 1.5, 6, 3);
+  if (isDoi) {
+    // bộ líp phụ cho người sau (ngược pha)
+    ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = 2.2;
+    ctx.beginPath(); ctx.moveTo(6, 4); ctx.lineTo(6 - Math.cos(pa) * 6, 4 + Math.sin(pa) * 6); ctx.stroke();
+    ctx.fillStyle = '#37474f';
+    ctx.fillRect(6 - Math.cos(pa) * 6 - 2.5, 4 + Math.sin(pa) * 6 - 1.5, 5, 3);
+  }
+}
+
+/** Xe máy nhìn ngang (đầu xe = +x): lốp to, yếm, yên dài, đèn pha, pô.
+ *  moto_pkl: dàn áo full-fairing, đèn đôi, tem lửa, lốp bản rộng, pô đôi.
+ *  moto_scoot: yếm tròn cổ điển + sàn để chân + baga sau.
+ *  moto_dia: dè cao + tay lái nâng + biển số trước + pô vắt cao + gai lốp.
+ *  moto_the: dàn áo thể thao + kính tối + đuôi vuốt + pô ngắn. */
+export function drawMotoSide(ctx: CanvasRenderingContext2D, color: string, t: number, moving: boolean, carId?: string) {
+  ctx.fillStyle = 'rgba(0,0,0,.26)';
+  ctx.beginPath(); ctx.ellipse(0, 23, 34, 6.5, 0, 0, 7); ctx.fill();
+  if (moving) {
+    ctx.fillStyle = 'rgba(255,255,255,.7)';
+    ell(ctx, -36, 20, 5, 3);
+    ell(ctx, -43, 18, 3.2, 2);
+  }
+  // lốp to + mâm xoay
+  const spin = moving ? t * 13 : 0.6;
+  for (const wx of [-21, 21]) {
+    ctx.fillStyle = '#21272b';
+    ctx.beginPath(); ctx.arc(wx, 16, 10, 0, 7); ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    ctx.fillStyle = '#90a4ae';
+    ctx.beginPath(); ctx.arc(wx, 16, 4.4, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#455a64'; ctx.lineWidth = 1.8; ctx.lineCap = 'round';
+    for (let k = 0; k < 3; k++) {
+      const a = spin + (k * Math.PI * 2) / 3;
+      ctx.beginPath(); ctx.moveTo(wx, 16); ctx.lineTo(wx + Math.cos(a) * 8, 16 + Math.sin(a) * 8); ctx.stroke();
+    }
+  }
+  // yếm trước
+  rr(ctx, 8, -4, 22, 16, 6); ctx.fillStyle = color; ctx.fill();
+  ctx.lineWidth = 2.4; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fillRect(11, -1, 16, 3.5);
+  // đèn pha tròn + xi nhan
+  ctx.fillStyle = '#ffeb3b';
+  ctx.beginPath(); ctx.arc(31, 0, 3.6, 0, 7); ctx.fill();
+  ctx.lineWidth = 1.8; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  // yên dài + tay lái + gương
+  rr(ctx, -22, -8, 26, 7, 3.5); ctx.fillStyle = '#3e2723'; ctx.fill();
+  ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(22, -2); ctx.lineTo(27, -12); ctx.stroke();
+  ctx.strokeStyle = '#37474f'; ctx.lineWidth = 2.4;
+  ctx.beginPath(); ctx.moveTo(27, -12); ctx.lineTo(32, -12); ctx.stroke();
+  ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(27, -12); ctx.lineTo(24, -18); ctx.stroke();
+  ctx.fillStyle = '#b0bec5';
+  ctx.beginPath(); ctx.ellipse(23, -19, 3.4, 2.2, -0.4, 0, 7); ctx.fill();
+  ctx.lineWidth = 1.4; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  // pô + đèn hậu
+  ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.moveTo(-24, 12); ctx.lineTo(-34, 12); ctx.stroke();
+  ctx.strokeStyle = '#b0bec5'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(-24, 12); ctx.lineTo(-34, 12); ctx.stroke();
+  ctx.fillStyle = '#e53935'; ctx.fillRect(-33, -2, 4, 5);
+  ctx.lineWidth = 1.4; ctx.strokeStyle = ANIME_OUT; ctx.strokeRect(-33, -2, 4, 5);
+  if (carId === 'moto_pkl') {
+    // kính chắn gió tối màu trên tay lái
+    ctx.fillStyle = 'rgba(30,40,60,.9)';
+    ctx.beginPath(); ctx.moveTo(24, -12); ctx.lineTo(30, -22); ctx.lineTo(35, -21); ctx.lineTo(29, -11); ctx.closePath(); ctx.fill();
+    ctx.lineWidth = 1.8; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    // đèn pha đôi xếch
+    for (const [hx, hy] of [[29, -3], [33, -1]] as [number, number][]) {
+      ctx.fillStyle = '#fff9c4';
+      ctx.beginPath(); ctx.ellipse(hx, hy, 2.8, 2, 0.4, 0, 7); ctx.fill();
+      ctx.lineWidth = 1.4; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    }
+    // tem lửa trên yếm + bình xăng
+    ctx.fillStyle = '#ff6d00';
+    ctx.beginPath(); ctx.moveTo(10, 8); ctx.quadraticCurveTo(18, 2, 16, -4); ctx.quadraticCurveTo(22, 0, 20, 8); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#ffeb3b';
+    ctx.beginPath(); ctx.moveTo(12, 7); ctx.quadraticCurveTo(16, 3, 15, -1); ctx.quadraticCurveTo(18, 2, 17, 7); ctx.closePath(); ctx.fill();
+    // đuôi vểnh + dải LED hậu
+    rr(ctx, -28, -10, 10, 5, 2); ctx.fillStyle = color; ctx.fill();
+    ctx.lineWidth = 1.8; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    ctx.fillStyle = '#ff1744'; ctx.fillRect(-29, -9, 3, 3);
+    // pô đôi trên dưới
+    ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(-22, 8); ctx.lineTo(-33, 8); ctx.stroke();
+    ctx.strokeStyle = '#78909c'; ctx.lineWidth = 2.4;
+    ctx.beginPath(); ctx.moveTo(-22, 8); ctx.lineTo(-33, 8); ctx.stroke();
+    ctx.fillStyle = '#37474f';
+    ctx.beginPath(); ctx.arc(-33, 8, 2.4, 0, 7); ctx.fill();
+    ctx.lineWidth = 1.2; ctx.strokeStyle = '#eceff1'; ctx.stroke();
+    if (moving) {
+      const fl = 5 + Math.sin(t * 28) * 2;
+      ctx.fillStyle = '#40c4ff';
+      ctx.beginPath(); ctx.moveTo(-35, 6.5); ctx.lineTo(-35 - fl, 8); ctx.lineTo(-35, 9.5); ctx.closePath(); ctx.fill();
+    }
+  }
+  if (carId === 'moto_scoot') {
+    // yếm tròn cổ điển phủ lên yếm cub + đường crôm giữa
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.ellipse(16, 2, 13, 14, 0.15, 0, 7); ctx.fill();
+    ctx.lineWidth = 2.4; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 2.4;
+    ctx.beginPath(); ctx.moveTo(16, -11); ctx.quadraticCurveTo(20, 0, 16, 14); ctx.stroke();
+    // đèn pha tròn to trên cổ lái + viền crôm
+    ctx.fillStyle = '#fff9c4';
+    ctx.beginPath(); ctx.arc(27, -10, 4.6, 0, 7); ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = '#90a4ae'; ctx.stroke();
+    ctx.lineWidth = 1.6; ctx.strokeStyle = ANIME_OUT;
+    ctx.beginPath(); ctx.arc(27, -10, 4.6, 0, 7); ctx.stroke();
+    // kính chắn gió tròn nhỏ + sàn để chân + baga sau
+    ctx.fillStyle = 'rgba(200,230,255,.55)';
+    ctx.beginPath(); ctx.ellipse(26, -17, 5, 4, -0.3, Math.PI, 0); ctx.fill();
+    ctx.lineWidth = 1.4; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    ctx.fillStyle = '#37474f'; rr(ctx, -10, 8, 22, 4, 2); ctx.fill();
+    ctx.lineWidth = 1.6; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = 2.4;
+    ctx.beginPath(); ctx.moveTo(-32, -6); ctx.lineTo(-24, -6); ctx.moveTo(-32, -6); ctx.lineTo(-32, -1); ctx.stroke();
+    if (moving) { ctx.fillStyle = 'rgba(255,255,255,.85)'; ell(ctx, -30, -9, 1.8, 1.8); }
+  }
+  if (carId === 'moto_dia') {
+    // dè trước vắt cao khỏi bánh + tay lái nâng + biển số
+    ctx.fillStyle = color;
+    rr(ctx, 8, -4, 24, 6, 3); ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = 2.6;
+    ctx.beginPath(); ctx.moveTo(22, -2); ctx.lineTo(26, -15); ctx.stroke(); // cổ nâng
+    ctx.strokeStyle = '#37474f'; ctx.lineWidth = 2.4;
+    ctx.beginPath(); ctx.moveTo(21, -15); ctx.lineTo(31, -15); ctx.stroke(); // tay ngang cao
+    ctx.fillStyle = '#fafafa'; rr(ctx, 27, -9, 7, 9, 1.5); ctx.fill(); // biển số trước
+    ctx.lineWidth = 1.4; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    ctx.fillStyle = '#e53935'; ctx.font = "bold 6px monospace"; ctx.textAlign = 'center'; ctx.fillText('68', 30.5, -2);
+    // pô vắt cao bên hông + gai lốp
+    ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = 4.4;
+    ctx.beginPath(); ctx.moveTo(-10, 10); ctx.lineTo(-28, 2); ctx.stroke();
+    ctx.strokeStyle = '#b0bec5'; ctx.lineWidth = 2.6;
+    ctx.beginPath(); ctx.moveTo(-10, 10); ctx.lineTo(-28, 2); ctx.stroke();
+    ctx.fillStyle = '#263238';
+    for (const wx of [-21, 21]) for (let k = 0; k < 8; k++) {
+      const a = (moving ? t * 13 : 0.6) + (k * Math.PI) / 4;
+      ctx.fillRect(wx + Math.cos(a) * 11 - 1.5, 16 + Math.sin(a) * 11 - 1.5, 3, 3);
+    }
+    // bảo vệ tay lái + đèn pha có lưới
+    ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.moveTo(21, -15); ctx.quadraticCurveTo(31, -16, 32, -8); ctx.stroke();
+    ctx.strokeStyle = 'rgba(60,40,20,.7)'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(29, -2); ctx.lineTo(33, 2); ctx.moveTo(33, -2); ctx.lineTo(29, 2); ctx.stroke();
+  }
+  if (carId === 'moto_the') {
+    // dàn áo thể thao phủ thân + tem số + kính tối vuốt thấp
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(-24, 12); ctx.quadraticCurveTo(-20, -8, 2, -10);
+    ctx.lineTo(24, -8); ctx.quadraticCurveTo(30, 0, 26, 12); ctx.closePath(); ctx.fill();
+    ctx.lineWidth = 2.4; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.85)'; // tem chớp trắng
+    ctx.beginPath(); ctx.moveTo(-14, 9); ctx.lineTo(6, -7); ctx.lineTo(10, -7); ctx.lineTo(-8, 9); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#212121'; ctx.font = "bold 9px monospace"; ctx.textAlign = 'center'; ctx.fillText('46', 14, 6);
+    // kính chắn gió tối vuốt thấp + gương gập
+    ctx.fillStyle = 'rgba(20,28,44,.92)';
+    ctx.beginPath(); ctx.moveTo(18, -9); ctx.lineTo(28, -16); ctx.lineTo(32, -14); ctx.lineTo(22, -8); ctx.closePath(); ctx.fill();
+    ctx.lineWidth = 1.6; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    // tay lái clip-on chúc xuống + đuôi vuốt có LED
+    ctx.strokeStyle = '#212121'; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(22, -6); ctx.lineTo(30, -11); ctx.stroke();
+    rr(ctx, -30, -12, 12, 6, 3); ctx.fillStyle = color; ctx.fill();
+    ctx.lineWidth = 1.8; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    ctx.fillStyle = '#ff1744'; ctx.fillRect(-31, -11, 3, 4);
+    // pô ngắn vắt xéo + lốp sau bản rộng
+    ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.moveTo(-14, 12); ctx.lineTo(-26, 4); ctx.stroke();
+    ctx.strokeStyle = '#78909c'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(-14, 12); ctx.lineTo(-26, 4); ctx.stroke();
+    if (moving) {
+      const fl = 6 + Math.sin(t * 30) * 2.5;
+      ctx.fillStyle = '#ff9100';
+      ctx.beginPath(); ctx.moveTo(-27, 2.5); ctx.lineTo(-27 - fl, 4); ctx.lineTo(-27, 5.5); ctx.closePath(); ctx.fill();
+    }
+  }
+}
+
+/** Xe trưng bày đứng yên trong bãi (không tài xế) */
+export function drawParkedCar(ctx: CanvasRenderingContext2D, X: number, Y: number, dir: number, color: string, t: number, kind?: string | null, carId?: string | null) {
+  ctx.save(); ctx.translate(X, Y);
+  if (dir < 0) ctx.scale(-1, 1);
+  if (kind === 'bike') drawBikeSide(ctx, color, t, false, carId ?? undefined);
+  else if (kind === 'moto') drawMotoSide(ctx, color, t, false, carId ?? undefined);
+  else drawCarSide(ctx, color, t, false, carId ?? undefined);
+  ctx.restore();
+}
+
+/** Hiệu ứng hành động thị trấn: hun/ôm/đánh yêu/chọc + trứng pupu (dùng chung farm + town) */
 export function drawActionFx(ctx: CanvasRenderingContext2D, X: number, Y: number, emote: string, t: number) {
   if (emote.includes('💋') || emote.includes('🤗') || emote.includes('❤️')) {
     // chùm tim bay
@@ -3741,7 +4998,7 @@ function drawWeather(ctx: CanvasRenderingContext2D, W: number, H: number, cam: {
 }
 
 // ============================================================
-//  CỔNG CÔNG VIÊN — ngoài cùng bên phải, nơi đường ngang kết thúc
+//  CỔNG THỊ TRẤN — ngoài cùng bên phải, nơi đường ngang kết thúc
 //  Torii gỗ anime + đèn lồng 2 bên + biển treo + vệt sáng dẫn lối
 // ============================================================
 function drawTownGate(ctx: CanvasRenderingContext2D, cam: { x: number; y: number }, t: number) {
@@ -3799,14 +5056,14 @@ function drawTownGate(ctx: CanvasRenderingContext2D, cam: { x: number; y: number
     ctx.fillStyle = '#2b2117';
     ctx.beginPath(); ctx.ellipse(X + ex, Y - 70, 8, 12, ex > 0 ? 0.5 : -0.5, 0, 7); ctx.fill();
   }
-  // biển treo CÔNG VIÊN
+  // biển treo THỊ TRẤN
   const bob = Math.sin(t * 1.6) * 1.4;
   ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = 2.2;
   ctx.beginPath(); ctx.moveTo(X - 30, Y - 54); ctx.lineTo(X - 30, Y - 38 + bob); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(X + 30, Y - 54); ctx.lineTo(X + 30, Y - 38 + bob); ctx.stroke();
   axFrame(ctx, X - 44, Y - 38 + bob, 88, 26, 9, '#ffd24d', 2.8);
   rr(ctx, X - 40, Y - 35 + bob, 80, 20, 7); ctx.fillStyle = '#fff3d6'; ctx.fill();
-  txt(ctx, 'CÔNG VIÊN', X, Y - 20 + bob, 12, '#fff3d6');
+  txt(ctx, 'THỊ TRẤN', X, Y - 20 + bob, 12, '#fff3d6');
   // mũi tên nhấp nháy mời vào
   const ay = Y + 22 + Math.sin(t * 4) * 3;
   ctx.fillStyle = '#ff5b5b';
@@ -4083,7 +5340,7 @@ export function renderWorld(ctx: CanvasRenderingContext2D, W: number, H: number,
   } else {
     const X = s.player.x - cam.x + pairRes.offsets[0].dx, Y = s.player.y - cam.y + pairRes.offsets[0].dy;
     const shirt = SHIRTS[s.avatar % SHIRTS.length];
-    withDepth(ctx, X, Y, s.player.y, () => drawPlayerDetailed(ctx, X, Y, s.player.dir, s.player.moving, shirt, s.player.name, t, s.outfit));
+    withDepth(ctx, X, Y, s.player.y, () => drawPlayerDetailed(ctx, X, Y, s.player.dir, s.player.moving, shirt, s.player.name, t, s.outfit, s.carColor, s.carKind, s.carId));
     if (s.player.tx != null && s.player.ty != null) {
       ctx.fillStyle = '#ffeb3b';
       ctx.beginPath(); ctx.arc(s.player.tx - cam.x, s.player.ty - cam.y, 6 + Math.sin(t * 8) * 2, 0, 7); ctx.fill();
@@ -4133,7 +5390,7 @@ export function renderWorld(ctx: CanvasRenderingContext2D, W: number, H: number,
         ctx.fillStyle = '#2b2117'; ctx.textAlign = 'center';
         ctx.fillText(bub.slice(0, 26), bx, by - 1);
       }
-      // emote realtime (công viên): emoji nảy trên đầu 4s + FX hành động
+      // emote realtime (thị trấn): emoji nảy trên đầu 4s + FX hành động
       const em = v.self ? s.selfEmote : v.emote;
       const emAt = v.self ? (s.selfEmoteAt ?? nowMs) : (v.emoteAt ?? 0);
       if (em && nowMs - emAt < 4000) {
@@ -4258,7 +5515,7 @@ export function renderWorld(ctx: CanvasRenderingContext2D, W: number, H: number,
 }
 
 /** HUD dãy mũi tên khi cá cắn — vẽ giữa màn hình trong canvas để màn to vẫn thấy */
-function drawBiteComboHUD(ctx: CanvasRenderingContext2D, W: number, H: number, combo: BiteDir[], progress: number, t: number) {
+export function drawBiteComboHUD(ctx: CanvasRenderingContext2D, W: number, H: number, combo: BiteDir[], progress: number, t: number) {
   const arrows: Record<BiteDir, string> = { up: '↑', down: '↓', left: '←', right: '→' };
   const n = combo.length;
   const cell = n > 6 ? 44 : 52;
@@ -4311,11 +5568,16 @@ function drawBiteComboHUD(ctx: CanvasRenderingContext2D, W: number, H: number, c
 }
 
 /** Nông dân ngồi câu chi tiết: nón, áo, cần trúc, phao, gợn sóng, báo cắn vẽ tay */
-function drawSittingFisher(
+export function drawSittingFisher(
   ctx: CanvasRenderingContext2D, X: number, Y: number, BX: number, BY: number,
   s: RenderState, t: number,
 ) {
   const shirt = shirtColorOf(s.outfit, SHIRTS[s.avatar % SHIRTS.length]);
+  const fit = s.outfit ?? {};
+  const pantsC = (fit.pants && OUTFITS[fit.pants]?.color) || '#2f7fc4';
+  const shoesC = (fit.shoes && OUTFITS[fit.shoes]?.color) || '#5d4037';
+  const hairC = (fit.hair && OUTFITS[fit.hair]?.color) || '#1f2937';
+  const hatId = fit.hat ?? 'hat_la';
   axShadow(ctx, X, Y + 16, 19, 6, 0.28);
   // chiếu cói anime viền
   ctx.fillStyle = '#f2d06b';
@@ -4326,10 +5588,10 @@ function drawSittingFisher(
   ctx.beginPath(); ctx.ellipse(X, Y + 12, 9, 3, 0, 0, 7); ctx.stroke();
   const bob = Math.sin(t * 2) * 1;
   ctx.save(); ctx.translate(X, Y + bob);
-  // chân xếp bằng anime + dép viền
+  // chân xếp bằng anime + dép viền (màu theo quần/giày đang mặc)
   for (const ox of [-17, 3]) {
-    axFrame(ctx, ox, 4, 14, 9, 4, '#2f7fc4', 2.2);
-    axFrame(ctx, ox, 10, 14, 4, 2, '#5d4037', 1.8);
+    axFrame(ctx, ox, 4, 14, 9, 4, pantsC, 2.2);
+    axFrame(ctx, ox, 10, 14, 4, 2, shoesC, 1.8);
   }
   // thân anime + tay
   axFrame(ctx, -12, -13, 24, 21, 8, shirt, 2.4);
@@ -4343,13 +5605,35 @@ function drawSittingFisher(
   axEye(ctx, 3, -21, 2.4, false);
   ctx.strokeStyle = '#6d4c41'; ctx.lineWidth = 1.6;
   ctx.beginPath(); ctx.arc(1, -16, 3, 0.3, Math.PI - 0.3); ctx.stroke();
-  // nón lá anime
-  ctx.fillStyle = '#ffd24d';
-  ctx.beginPath(); ctx.ellipse(0, -31.5, 18, 5.4, 0, 0, 7); ctx.fill();
-  ctx.lineWidth = 2.4; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
-  ctx.fillStyle = '#fff3c4';
-  ctx.beginPath(); ctx.ellipse(0, -34, 10.5, 4, 0, Math.PI, 0); ctx.fill();
-  ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  // tóc + mũ theo tủ đồ (mặc gì thấy nấy, như lúc đứng)
+  ctx.fillStyle = hairC;
+  ctx.beginPath(); ctx.ellipse(0, -29, 9.5, 4, 0, Math.PI, 0); ctx.fill();
+  if (hatId === 'hat_none') {
+    ctx.beginPath(); ctx.arc(0, -27, 10, Math.PI * 1.02, Math.PI * 1.98); ctx.fill();
+  } else if (hatId === 'hat_vuong' || hatId === 'hat_kimcuong') {
+    ctx.fillStyle = hatId === 'hat_vuong' ? '#fbbf24' : (OUTFITS[hatId]?.color || '#67e8f9');
+    ctx.beginPath();
+    ctx.moveTo(-8, -30); ctx.lineTo(-8, -38); ctx.lineTo(-4, -32);
+    ctx.lineTo(0, -40); ctx.lineTo(4, -32); ctx.lineTo(8, -38); ctx.lineTo(8, -30);
+    ctx.closePath(); ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  } else if (hatId !== 'hat_la') {
+    // các mũ còn lại: chỏm theo màu mũ
+    ctx.fillStyle = (OUTFITS[hatId]?.color) || '#ef4444';
+    ctx.beginPath(); ctx.ellipse(0, -31, 10.5, 6, 0, Math.PI, 0); ctx.fill();
+    ctx.lineWidth = 2.2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    ctx.fillStyle = (OUTFITS[hatId]?.color) || '#ef4444';
+    ctx.beginPath(); ctx.ellipse(0, -28, 12.5, 3, 0, 0, 7); ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  } else {
+    // nón lá anime
+    ctx.fillStyle = '#ffd24d';
+    ctx.beginPath(); ctx.ellipse(0, -31.5, 18, 5.4, 0, 0, 7); ctx.fill();
+    ctx.lineWidth = 2.4; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    ctx.fillStyle = '#fff3c4';
+    ctx.beginPath(); ctx.ellipse(0, -34, 10.5, 4, 0, Math.PI, 0); ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  }
   // cần trúc anime nhiều đốt hướng ra sông
   const tipX = BX - X, tipY = BY - Y - 30;
   ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = 5.4; ctx.lineCap = 'round';
@@ -4410,7 +5694,7 @@ function drawSittingFisher(
 }
 
 /** Cá vừa giật dính giãy trên dây ở chỗ phao (world coords) + bảng tên */
-function drawCatchPop(ctx: CanvasRenderingContext2D, X: number, Y: number, fishId: string, label: string, t: number) {
+export function drawCatchPop(ctx: CanvasRenderingContext2D, X: number, Y: number, fishId: string, label: string, t: number) {
   const fid = (FISHES[fishId] ? fishId : 'caro') as FishIconId;
   const jump = Math.abs(Math.sin(t * 7)) * -10;
   const wig = Math.sin(t * 18) * 0.3;

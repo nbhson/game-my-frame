@@ -1,4 +1,4 @@
-// ===== GIẢI CÂU CÁ CÔNG VIÊN (multiplayer, không cần chủ trì) =====
+// ===== GIẢI CÂU CÁ THỊ TRẤN (multiplayer, không cần chủ trì) =====
 // Ai cũng mở giải được: broadcast START kèm giờ kết thúc cố định.
 // Trong giờ thi, mỗi con cá sông giật dính tự báo điểm (tổng giá trị).
 // Hết giờ: mọi client cùng tính 1 bảng → tự trao giải cho chính mình (top 3).
@@ -96,17 +96,34 @@ export const useContest = create<ContestState>()((set, get) => ({
 
   start: () => {
     const s = get();
-    if (!useVillage.getState().connected) {
-      useGame.getState().toast('Chưa vào làng (đang kết nối…), thử lại sau 2 giây!');
-      return;
-    }
     if (s.running && Date.now() <= s.endsAt) {
       useGame.getState().toast('Đang có giải diễn ra, chờ hết giờ nhé!');
       return;
     }
+    const v = useVillage.getState();
+    if (!v.connected) {
+      // làng chưa vào (connect chết hoặc đang dò) → nối lại rồi tự mở, khỏi bấm lần 2
+      useGame.getState().toast('Đang vào làng… tự mở giải sau 2 giây!');
+      void (async () => {
+        try { await v.connect(); } catch { /* ignore */ }
+        setTimeout(() => useContest.getState().start(), 2000);
+      })();
+      return;
+    }
     const me = gameMe();
+    const endsAt = Date.now() + CONTEST_MS;
     // chờ echo về rồi mới bật (1 luồng duy nhất, mọi client đồng bộ)
-    sendGameMsg(`${P}START|${Date.now() + CONTEST_MS}|${me.name}`);
+    sendGameMsg(`${P}START|${endsAt}|${me.name}`);
+    // watchdog: socket rớt tin mà không báo (gửi đi nhưng echo không về) →
+    // tự bật giải local sau 2s để nút không bao giờ "bấm mà không gì xảy ra"
+    setTimeout(() => {
+      const cur = useContest.getState();
+      if (!cur.running) {
+        useContest.setState({ running: true, endsAt, host: me.name, scores: {}, claimedFor: 0 });
+        sfx.catch_();
+        useGame.getState().toast(`🏆 ${me.name} mở GIẢI CÂU CÁ 3 phút! Ra bến sông giật cá ngay!`);
+      }
+    }, 2000);
   },
 
   reportCatch: (fishId: string) => {

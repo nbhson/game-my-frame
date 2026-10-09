@@ -27,18 +27,30 @@ export interface AccountData {
   redeemedCodes?: string[];
   outfit?: Record<string, string>;
   ownedOutfits?: string[];
+  ownedCars?: string[];
+  activeCar?: string | null;
   quality?: GraphicsQuality;
   autoQuality?: boolean;
   resMode?: ResMode;
   viewH?: number;
   kem?: boolean;
+  stageColor?: string;
+  /** ms lúc export — để so bản nào mới hơn khi server/local lệch nhau */
+  updatedAt?: number;
 }
 
 export interface AccountBackend {
   readonly kind: 'server' | 'local';
-  load(username: string): Promise<{ name: string; avatar: number; data: AccountData } | null>;
+  load(username: string): Promise<LoadedAccount | null>;
   save(username: string, name: string, avatar: number, data: AccountData): Promise<void>;
   beaconSave(username: string, name: string, avatar: number, data: AccountData): void;
+}
+
+/** Kết quả đọc 1 backend: kèm thời điểm + nguồn để so mới/cũ */
+export interface LoadedAccount {
+  name: string; avatar: number; data: AccountData;
+  updatedAt: number | null;
+  source: 'server' | 'local';
 }
 
 /** Backend 1: LAN server — DB thật, chung cho cả mạng */
@@ -53,33 +65,30 @@ class ServerAccountBackend implements AccountBackend {
       return await fn(ctl.signal);
     } finally { clearTimeout(t); }
   }
-  async load(username: string) {
+  async load(username: string): Promise<LoadedAccount | null> {
     try {
       const r = await this.withTimeout((signal) => fetch(this.url(username), { cache: 'no-store', signal }));
       if (!r.ok) return null;
       const acc = await r.json();
       if (!acc?.data) return null;
-      return { name: acc.name as string, avatar: acc.avatar as number, data: acc.data as AccountData };
+      return {
+        name: acc.name as string, avatar: acc.avatar as number, data: acc.data as AccountData,
+        updatedAt: (acc.updatedAt as number) ?? (acc.data?.updatedAt as number) ?? null,
+        source: 'server',
+      };
     } catch {
-      // server chết giữa chừng → rớt về local để game vẫn vào được
-      resetBackendToLocal();
-      const local = new LocalAccountBackend();
-      try { return await local.load(username); } catch { return null; }
+      // server chết giữa chừng → trả null để loadBest rớt sang bản local, KHÔNG hạ backend ở đây
+      return null;
     }
   }
   async save(username: string, name: string, avatar: number, data: AccountData) {
-    try {
-      await this.withTimeout((signal) => fetch(this.url(username), {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, avatar, data }),
-        signal,
-      }));
-    } catch {
-      // mất server khi đang chơi: lưu local tạm, lần sau sync tiếp
-      resetBackendToLocal();
-      try { await new LocalAccountBackend().save(username, name, avatar, data); } catch { /* ignore */ }
-    }
+    // lỗi save thì ném ra cho syncNow bỏ qua (tick sau thử tiếp) — KHÔNG hạ backend vĩnh viễn
+    await this.withTimeout((signal) => fetch(this.url(username), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, avatar, data }),
+      signal,
+    }));
   }
   beaconSave(username: string, name: string, avatar: number, data: AccountData) {
     try {
@@ -92,17 +101,24 @@ class ServerAccountBackend implements AccountBackend {
 class LocalAccountBackend implements AccountBackend {
   readonly kind = 'local' as const;
   private key(u: string) { return `nongtrai-acct:${normalizeUsername(u)}`; }
-  async load(username: string) {
+  async load(username: string): Promise<LoadedAccount | null> {
     try {
       const raw = localStorage.getItem(this.key(username));
       if (!raw) return null;
       const parsed = JSON.parse(raw);
       if (!parsed?.data) return null;
-      return parsed as { name: string; avatar: number; data: AccountData };
+      return {
+        name: parsed.name as string, avatar: parsed.avatar as number, data: parsed.data as AccountData,
+        updatedAt: (parsed.updatedAt as number) ?? (parsed.data?.updatedAt as number) ?? null,
+        source: 'local',
+      };
     } catch { return null; }
   }
   async save(username: string, name: string, avatar: number, data: AccountData) {
-    try { localStorage.setItem(this.key(username), JSON.stringify({ name, avatar, data })); } catch { /* ignore */ }
+    try {
+      const now = Date.now();
+      localStorage.setItem(this.key(username), JSON.stringify({ name, avatar, data: { ...data, updatedAt: now }, updatedAt: now }));
+    } catch { /* ignore */ }
   }
   beaconSave(username: string, name: string, avatar: number, data: AccountData) {
     void this.save(username, name, avatar, data);
@@ -120,12 +136,6 @@ export async function getAccountBackend(): Promise<AccountBackend> {
   }
   return backend;
 }
-/** server chết giữa chừng → rớt về local ngay, game không kẹt */
-export function resetBackendToLocal() {
-  backend = new LocalAccountBackend();
-}
-/** backend đang dùng (để autosync không phải dò lại) */
-export function currentBackend(): AccountBackend | null { return backend; }
 
 // ---------- export toàn bộ state game ----------
 export function exportAccount(): AccountData {
@@ -142,8 +152,58 @@ export function exportAccount(): AccountData {
     daily: g.daily, junkAt: g.junkAt,
     redeemedCodes: g.redeemedCodes,
     outfit: g.outfit, ownedOutfits: g.ownedOutfits,
+    ownedCars: g.ownedCars, activeCar: g.activeCar,
     quality: g.quality, autoQuality: g.autoQuality, resMode: g.resMode, viewH: g.viewH, kem: g.kem,
+    stageColor: g.stageColor,
+    updatedAt: Date.now(),
   };
+}
+
+/**
+ * Đọc bản mới nhất giữa server và local (so updatedAt).
+ * - server restart / mạng chập chờn: bản local mới hơn vẫn thắng → không mất đồ.
+ * - không timestamp (save cũ): ưu tiên server có data, rồi tới local.
+ */
+export async function loadBest(username: string): Promise<LoadedAccount | null> {
+  const [sv, lc] = await Promise.all([
+    (async (): Promise<LoadedAccount | null> => {
+      try {
+        if (!(await lanServerAvailable())) return null;
+        return await new ServerAccountBackend().load(username);
+      } catch { return null; }
+    })(),
+    new LocalAccountBackend().load(username),
+  ]);
+  const t = (x: LoadedAccount | null) => x?.updatedAt ?? x?.data?.updatedAt ?? 0;
+  const hasData = (x: LoadedAccount | null) => !!x?.data;
+  if (hasData(sv) && hasData(lc)) return t(sv) >= t(lc) ? sv : lc;
+  if (hasData(sv)) return sv;
+  if (hasData(lc)) return lc;
+  return null;
+}
+
+/**
+ * Ghi write-through: local LUÔN (phao cứu sinh) + server nếu với tới được.
+ * Save lỗi thì tick sau thử tiếp — không bao giờ "hạ cấp" backend như trước
+ * (đó chính làbug làm mất đồ khi restart server giữa phiên chơi).
+ */
+export async function syncNow() {
+  const g = useGame.getState();
+  if (!g.started || !g.name || useVillage.getState().visiting) return;
+  const data = exportAccount();
+  try { await new LocalAccountBackend().save(g.name, g.name, g.avatar, data); } catch { /* ignore */ }
+  try {
+    if (await lanServerAvailable()) await new ServerAccountBackend().save(g.name, g.name, g.avatar, data);
+  } catch { /* offline thì thôi, lần sau sync tiếp */ }
+}
+
+/** Beacon khi ẩn tab/tắt trang: bắn cả 2 nơi, fire-and-forget */
+export function syncNowBeacon() {
+  const g = useGame.getState();
+  if (!g.started || !g.name) return;
+  const data = exportAccount();
+  try { new LocalAccountBackend().beaconSave(g.name, g.name, g.avatar, data); } catch { /* ignore */ }
+  try { new ServerAccountBackend().beaconSave(g.name, g.name, g.avatar, data); } catch { /* ignore */ }
 }
 
 // ---------- autosync: 10s/lần + khi ẩn tab/tắt trang ----------
@@ -151,28 +211,15 @@ let syncTimer: number | null = null;
 
 export function startAutoSync() {
   stopAutoSync();
-  const tick = async () => {
-    const g = useGame.getState();
-    if (!g.started || !g.name || useVillage.getState().visiting) return;
-    try {
-      const b = await getAccountBackend();
-      await b.save(g.name, g.name, g.avatar, exportAccount());
-    } catch { /* offline thì thôi, lần sau sync tiếp */ }
-  };
+  const tick = async () => { await syncNow(); };
   syncTimer = window.setInterval(() => { void tick(); }, 10000);
   const onHidden = () => {
     if (document.visibilityState !== 'hidden') return;
     const g = useGame.getState();
     if (!g.started || !g.name || useVillage.getState().visiting) return;
-    const b = currentBackend();
-    if (b) b.beaconSave(g.name, g.name, g.avatar, exportAccount());
+    syncNowBeacon();
   };
-  const onUnload = () => {
-    const g = useGame.getState();
-    if (!g.started || !g.name) return;
-    const b = currentBackend();
-    if (b) b.beaconSave(g.name, g.name, g.avatar, exportAccount());
-  };
+  const onUnload = () => { syncNowBeacon(); };
   document.addEventListener('visibilitychange', onHidden);
   window.addEventListener('beforeunload', onUnload);
   (startAutoSync as { _cleanup?: () => void })._cleanup = () => {

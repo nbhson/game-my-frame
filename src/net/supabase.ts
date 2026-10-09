@@ -40,7 +40,7 @@ export class SupabaseTransport implements NetTransport {
     });
     this.channel
       .on('presence', { event: 'sync' }, () => {
-        const state = this.channel!.presenceState() as Record<string, { v?: number; name: string; avatar: number; code?: string; x: number; y: number; dir: 1 | -1; moving: boolean; bubble?: string; map?: 'farm' | 'town' | 'interior'; emote?: string; visit?: string | null }[]>;
+        const state = this.channel!.presenceState() as Record<string, { v?: number; name: string; avatar: number; code?: string; x: number; y: number; dir: 1 | -1; moving: boolean; bubble?: string; map?: 'farm' | 'town' | 'mall' | 'interior'; emote?: string; visit?: string | null }[]>;
         const now = Date.now();
         const next = new Map<string, RemotePlayer>();
         for (const [id, metas] of Object.entries(state)) {
@@ -91,7 +91,7 @@ export class SupabaseTransport implements NetTransport {
     this.track();
   }
 
-  pushPosition(x: number, y: number, dir: 1 | -1, moving: boolean, bubble?: string, extra?: { map?: 'farm' | 'town' | 'interior'; emote?: string; visit?: string | null }) {
+  pushPosition(x: number, y: number, dir: 1 | -1, moving: boolean, bubble?: string, extra?: { map?: 'farm' | 'town' | 'mall' | 'interior'; emote?: string; visit?: string | null }) {
     this.track({ x, y, dir, moving, bubble, map: extra?.map, emote: extra?.emote, visit: extra?.visit });
   }
 
@@ -142,7 +142,7 @@ export class SupabaseTransport implements NetTransport {
     return () => { this.statusCbs.delete(cb); };
   }
 
-  private track(extra?: { x?: number; y?: number; dir?: 1 | -1; moving?: boolean; bubble?: string; map?: 'farm' | 'town' | 'interior'; emote?: string; visit?: string | null }) {
+  private track(extra?: { x?: number; y?: number; dir?: 1 | -1; moving?: boolean; bubble?: string; map?: 'farm' | 'town' | 'mall' | 'interior'; emote?: string; visit?: string | null }) {
     if (!this.channel) return;
     // giữ vị trí cuối để gửi bubble không làm teleport
     if (extra?.x != null) {

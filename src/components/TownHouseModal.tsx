@@ -1,4 +1,4 @@
-// ===== Nội thất các nhà ở công viên: vào nhà là có chuyện vui + hoạt động =====
+// ===== Nội thất các nhà ở thị trấn: vào nhà là có chuyện vui + hoạt động =====
 // Mỗi nhà: mô tả hài + sơ đồ nội thất emoji + 3 hoạt động (bấm là có XP/toast,
 // vài món tốn xu). Không ảnh hưởng kinh tế lớn, chủ yếu vui + có việc để làm.
 import { useGame } from '../game/store';
@@ -68,13 +68,13 @@ function useActs(house: string): { title: string; emoji: string; intro: string; 
         acts: [
           { emoji: '🔍', name: 'Lục kho ve chai', desc: 'Hên thì +5 xu, xui dính chổi', run: () => { const lucky = Math.random() < 0.4; if (lucky) { s.addXu(5); sfx.coin(); s.addXP(2); s.toast('Bán được cái nắp nồi cũ +5 xu! +2 XP'); } else { sfx.error(); v.sendEmote('😂'); s.addXP(1); s.toast(pick(JOKES_VECHAI) + ' (+1 XP)'); } } },
           { emoji: '🔧', name: 'Học chế đồ', desc: 'Chế ghế từ vỏ lon +2 XP', run: () => { sfx.click(); s.addXP(2); s.toast('Chú Tám dạy cuốn dây điện bằng… dây chuối! +2 XP'); } },
-          { emoji: '👻', name: 'Nghe chuyện ma', desc: 'Sợ nhưng vui +1 XP', run: () => { sfx.spray(); v.sendEmote('😱'); s.addXP(1); s.toast('Chuyện "ma lồng đèn ở bờ sông"… ủa mà đèn công viên mà! +1 XP'); } },
+          { emoji: '👻', name: 'Nghe chuyện ma', desc: 'Sợ nhưng vui +1 XP', run: () => { sfx.spray(); v.sendEmote('😱'); s.addXP(1); s.toast('Chuyện "ma lồng đèn ở bờ sông"… ủa mà đèn thị trấn mà! +1 XP'); } },
         ],
       };
     case 'hall':
     default:
       return {
-        title: 'Hội quán Công viên', emoji: '🏛️', intro: 'Bảng vàng treo đầy ảnh "Nông dân xuất sắc". Bác hội trưởng đang ngủ gật sau quầy, ngáy theo nhịp quạt.',
+        title: 'Hội quán Thị trấn', emoji: '🏛️', intro: 'Bảng vàng treo đầy ảnh "Nông dân xuất sắc". Bác hội trưởng đang ngủ gật sau quầy, ngáy theo nhịp quạt.',
         layout: '🏆 📜 🏆\n🪑 😴 🪑\n🚪 📢 🪴',
         acts: [
           { emoji: '🏆', name: 'Xem bảng vàng', desc: 'Học hỏi cao thủ +2 XP', run: () => { sfx.click(); s.addXP(2); s.toast('Bảng vàng: "Cụ Sáu trồng sâm 900 ngày không sót vụ nào!" +2 XP'); } },

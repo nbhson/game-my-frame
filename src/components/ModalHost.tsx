@@ -15,8 +15,11 @@ import BulkModal from './BulkModal';
 import WerewolfModal from './WerewolfModal';
 import GiftCodeModal from './GiftCodeModal';
 import OutfitModal from './OutfitModal';
+import CarShopModal from './CarShopModal';
 import SettingsModal from './SettingsModal';
 import TownHouseModal from './TownHouseModal';
+import LotteryModal from './LotteryModal';
+import RaceModal from './RaceModal';
 import { GameIcon } from './GameIcon';
 
 // Casino (sảnh + 5 bàn + logic bài) nặng — tải lười khi mở, nhẹ bundle lúc đăng nhập
@@ -35,13 +38,16 @@ export default function ModalHost() {
   else if (modal === 'quest') { icon = 'quest'; title = 'NHIỆM VỤ'; body = <QuestModal />; }
   else if (modal === 'help') { icon = 'quest'; title = 'HƯỚNG DẪN'; body = <HelpModal />; }
   else if (modal === 'village') { icon = 'field'; title = 'LÀNG NÔNG DÂN'; body = <VillageModal />; }
-  else if (modal === 'casino') { icon = 'coin'; title = '🎰 CASINO CÔNG VIÊN'; body = (<Suspense fallback={<div className="p-6 text-center font-bold">Đang mở Casino…</div>}><CasinoModal /></Suspense>); }
+  else if (modal === 'casino') { icon = 'coin'; title = '🎰 CASINO THỊ TRẤN'; body = (<Suspense fallback={<div className="p-6 text-center font-bold">Đang mở Casino…</div>}><CasinoModal /></Suspense>); }
   else if (modal === 'gift') { icon = 'gift'; title = 'NHẬP CODE NHẬN QUÀ'; body = <GiftCodeModal />; }
-  else if (modal === 'outfit') { icon = 'shop'; title = 'SHOP THỜI TRANG'; body = <OutfitModal />; }
+  else if (modal === 'outfit') { icon = 'shop'; title = '👗 THỜI TRANG & TỦ ĐỒ'; body = <OutfitModal />; }
+  else if (modal === 'carshop') { icon = 'shop'; title = '🚗 GARA ANH TÝ'; body = <CarShopModal />; }
+  else if (modal === 'lottery') { icon = 'coin'; title = '🎫 VÉ SỐ THỊ TRẤN'; body = <LotteryModal />; }
+  else if (modal === 'race') { icon = 'shop'; title = '🏁 TRƯỜNG ĐUA XE'; body = <RaceModal />; }
   else if (modal === 'settings') { icon = 'quest'; title = 'CÀI ĐẶT'; body = <SettingsModal />; }
   else if (typeof modal === 'object' && modal.name === 'house') {
     const hn = modal.house === 'cafe' ? 'QUÁN CÀ PHÊ MÈO' : modal.house === 'stage' ? 'SÂN KHẤU SỰ KIỆN'
-      : modal.house === 'house1' ? 'NHÀ CÔ BA' : modal.house === 'house2' ? 'NHÀ CHÚ TÁM' : 'HỘI QUÁN CÔNG VIÊN';
+      : modal.house === 'house1' ? 'NHÀ CÔ BA' : modal.house === 'house2' ? 'NHÀ CHÚ TÁM' : 'HỘI QUÁN THỊ TRẤN';
     icon = 'shop'; title = hn; body = <TownHouseModal house={modal.house} />;
   }
   else if (typeof modal === 'object' && modal.name === 'seed') { icon = 'sprout'; title = `GIEO HẠT (ô ${modal.plot + 1})`; body = <SeedModal plot={modal.plot} />; }
@@ -53,7 +59,7 @@ export default function ModalHost() {
     body = <PenModal pen={modal.pen} />;
   }
   else if (typeof modal === 'object' && modal.name === 'bulk') { icon = 'basket'; title = '⚡ LÀM HÀNG LOẠT'; body = <BulkModal />; }
-  else if (typeof modal === 'object' && modal.name === 'wolf') { icon = 'quest'; title = '🐺 MA SÓI CÔNG VIÊN'; body = <WerewolfModal />; }
+  else if (typeof modal === 'object' && modal.name === 'wolf') { icon = 'quest'; title = '🐺 MA SÓI'; body = <WerewolfModal />; }
 
   return (
     <AnimatePresence>

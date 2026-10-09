@@ -61,12 +61,16 @@ export function normalizeUsername(input: string): string {
  * cùng username thì cùng mã trên mọi máy/tab (server dùng y hệt).
  */
 export function codeFromName(name: string): string {
+  // ALPH có 31 ký tự (index 0..30) nên phải % 31 sau khi & 31 — giữ nguyên
+  // mọi mã đang dùng, chỉ gập index 31 (hiếm) về 'A' thay vì "undefined".
   const ALPH = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
   let h = 5381;
   const s = name.toLowerCase();
   for (let i = 0; i < s.length; i++) h = (((h << 5) + h + (s.codePointAt(i) ?? 0)) >>> 0);
   let out = '';
-  for (let i = 0; i < 6; i++) { out += ALPH[h & 31]; h = (h >>> 5) ^ (h >>> 11); }
+  // ALPH có 31 ký tự (index 0..30): index 31 (thỉnh thoảng rơi vào) gập về 'A'
+  // thay vì ALPH[31] = undefined chui vào mã. Mọi mã đang dùng giữ nguyên.
+  for (let i = 0; i < 6; i++) { out += ALPH[(h & 31) % ALPH.length]; h = (h >>> 5) ^ (h >>> 11); }
   return out;
 }
 

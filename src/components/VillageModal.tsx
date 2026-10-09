@@ -34,7 +34,7 @@ export default function VillageModal() {
       )}
       {/* trạng thái kết nối */}
       <div className="flex items-center gap-2 bg-white border-2 border-[#2b2117] rounded-lg p-2 mb-2 flex-wrap">
-        <span className="text-sm font-extrabold">Bạn bè online ({v.players.length + (v.demoBots ? 3 : 0)})</span>
+        <span className="text-sm font-extrabold">Bạn bè online ({v.players.length + (v.demoBots ? 4 : 0)})</span>
         <button onClick={() => v.reconnect()} className="pixel-btn !text-[10px] !px-2 !py-1.5 flex items-center gap-1" title="Ngắt rồi vào lại làng (tự chữa lỗi không thấy nhau)">
           <RefreshCw size={12} /> Kết nối lại
         </button>
@@ -53,7 +53,7 @@ export default function VillageModal() {
       <div className="flex gap-1.5 mb-2">
         {([['friends', 'Bạn bè', <Users key="i" size={14} />], ['chat', 'Chat', <MessageCircle key="i" size={14} />]] as [Tab, string, React.ReactNode][]).map(([k, l, ic]) => (
           <button key={k} onClick={() => setTab(k)} className={`px-3 py-2 border-[3px] border-[#2b2117] rounded-lg font-extrabold text-[13px] flex items-center gap-1.5 ${tab === k ? 'bg-[#2b2117] text-yellow-300' : 'bg-white'}`}>
-            {ic}{l} {k === 'friends' && `(${v.players.length + (v.demoBots ? 3 : 0)})`} {k === 'chat' && v.chat.length > 0 && `(${v.chat.length})`}
+            {ic}{l} {k === 'friends' && `(${v.players.length + (v.demoBots ? 4 : 0)})`} {k === 'chat' && v.chat.length > 0 && `(${v.chat.length})`}
           </button>
         ))}
       </div>
@@ -72,7 +72,7 @@ export default function VillageModal() {
             {v.players.map((p) => (
               <PlayerRow
                 key={p.id} name={p.name} avatar={p.avatar}
-                sub={(p.map === 'town' ? 'đang ở công viên' : 'đang ở nông trại')}
+                sub={(p.map === 'town' ? 'đang ở thị trấn' : p.map === 'mall' ? 'đang ở khu mua sắm' : 'đang ở nông trại')}
                 actionLabel="Thăm farm"
                 onAction={() => { void doVisit(p.code, p.name); }}
               />
@@ -81,7 +81,7 @@ export default function VillageModal() {
               <>
                 <PlayerRow name="Lan" avatar={1} sub="đang ở nông trại • demo bot" actionLabel="Chào" onAction={() => v.sendChat('Chào Lan!')} />
                 <PlayerRow name="Tèo" avatar={2} sub="đang ở nông trại • demo bot" actionLabel="Chào" onAction={() => v.sendChat('Chào Tèo!')} />
-                <PlayerRow name="Đào" avatar={3} sub="đang ở công viên • demo bot" actionLabel="Chào" onAction={() => v.sendChat('Chào Đào!')} />
+                <PlayerRow name="Đào" avatar={3} sub="đang ở thị trấn • demo bot" actionLabel="Chào" onAction={() => v.sendChat('Chào Đào!')} />
               </>
             )}
           </div>

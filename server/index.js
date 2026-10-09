@@ -8,7 +8,7 @@
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
-import { promises as fs } from 'fs';
+import { promises as fs, writeFileSync } from 'fs';
 import path from 'path';
 import os from 'os';
 import { fileURLToPath } from 'url';
@@ -24,16 +24,35 @@ const DB_FILE = path.join(DATA_DIR, 'db.json');
 // Toàn bộ farm của 1 username nằm ở đây: reload/tab khác/máy khác chỉ cần
 // nhập đúng username là lấy lại được.
 let db = { accounts: {} };
-let saveTimer = null;
+
+/**
+ * Ghi DB ĐỒNG BỘ trước khi trả response (await flushDb trong handler).
+ * Trước đây debounce 1s: mua xe xong restart server ngay là mất bản ghi
+ * trong RAM chưa kịp flush — đúng bug "mua xe rồi restart là mất".
+ * Quy mô LAN party (vài write/s, file nhỏ) thì ghi thẳng tay vô tư.
+ */
+async function flushDb() {
+  try {
+    await fs.writeFile(DB_FILE, JSON.stringify(db));
+  } catch (e) { console.error('[db] write failed:', e.message); }
+}
+// thoát server (Ctrl+C / restart) mà còn gì chưa ghi thì ghi nốt rồi mới tắt
+function flushDbSync() {
+  try { writeFileSync(DB_FILE, JSON.stringify(db)); } catch { /* ignore */ }
+}
+process.on('SIGINT', () => { flushDbSync(); process.exit(0); });
+process.on('SIGTERM', () => { flushDbSync(); process.exit(0); });
 
 /** Mã farm 6 ký tự, suy ra deterministically từ username (client dùng y hệt) */
+// ALPH có 31 ký tự (index 0..30) nên phải % 31 sau khi & 31 — giữ nguyên
+// mọi mã đang dùng, chỉ gập index 31 (hiếm) về 'A' thay vì "undefined".
 function codeFromName(name) {
   const ALPH = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
   let h = 5381;
   const s = String(name || '').toLowerCase();
   for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.codePointAt(i)) >>> 0;
   let out = '';
-  for (let i = 0; i < 6; i++) { out += ALPH[h & 31]; h = (h >>> 5) ^ (h >>> 11); }
+  for (let i = 0; i < 6; i++) { out += ALPH[(h & 31) % ALPH.length]; h = (h >>> 5) ^ (h >>> 11); }
   return out;
 }
 const keyOf = (u) => String(u || '').trim().toLowerCase().slice(0, 12);
@@ -60,11 +79,8 @@ async function loadDb() {
   }
 }
 function saveDbSoon() {
-  if (saveTimer) return;
-  saveTimer = setTimeout(() => {
-    saveTimer = null;
-    fs.writeFile(DB_FILE, JSON.stringify(db, null, 1)).catch((e) => console.error('[db] write failed:', e.message));
-  }, 1000);
+  // giữ tên hàm cũ cho mọi chỗ gọi, nhưng ghi ngay + chờ xong (không debounce nữa)
+  return flushDb();
 }
 
 // ---------- App ----------
@@ -97,15 +113,17 @@ function saveAccount(username, body = {}) {
   saveDbSoon();
   return acc;
 }
-app.put('/api/players/:username', (req, res) => {
+app.put('/api/players/:username', async (req, res) => {
   const acc = saveAccount(req.params.username, req.body);
   if (!acc) return res.status(400).json({ error: 'bad username' });
+  await saveDbSoon(); // ghi đĩa xong mới báo ok — restart ngay cũng không mất
   res.json({ ok: true, code: acc.code });
 });
 // sendBeacon (unload) chỉ POST được
-app.post('/api/players/:username', (req, res) => {
+app.post('/api/players/:username', async (req, res) => {
   const acc = saveAccount(req.params.username, req.body);
   if (!acc) return res.status(400).json({ error: 'bad username' });
+  await saveDbSoon();
   res.json({ ok: true, code: acc.code });
 });
 
@@ -119,7 +137,7 @@ app.get('/api/farms/:code', (req, res) => {
 
 // hái trộm khi chủ offline: trừ cây chín ở ô plot trong farm đã lưu
 // body { plot, crop } → { ok:true } nếu trừ được, { ok:false, reason } nếu ô đã trống/khác
-app.post('/api/farms/:code/steal', (req, res) => {
+app.post('/api/farms/:code/steal', async (req, res) => {
   const code = String(req.params.code || '').toUpperCase();
   const acc = Object.values(db.accounts).find((a) => a.code === code);
   if (!acc || !acc.data || !Array.isArray(acc.data.plots)) return res.status(404).json({ ok: false, reason: 'not found' });
@@ -131,7 +149,7 @@ app.post('/api/farms/:code/steal', (req, res) => {
   }
   acc.data.plots[plot] = { ...pl, state: 'soil', crop: null, progress: 0, watered: false, waterLeft: 0, pest: false };
   acc.updatedAt = Date.now();
-  saveDbSoon();
+  await saveDbSoon();
   res.json({ ok: true });
 });
 

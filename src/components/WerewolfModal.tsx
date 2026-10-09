@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ROLE_META, useWolf, type Role } from '../net/werewolf';
 import { gameMe } from '../net/village';
 
-/** Bàn MA SÓI công viên: 5–12 người, chia vai bí mật, đêm hành động – ngày bỏ phiếu */
+/** Bàn MA SÓI (hang sói ở khu mua sắm): 5–12 người, chia vai bí mật, đêm hành động – ngày bỏ phiếu */
 export default function WerewolfModal() {
   const w = useWolf();
   const [, setTick] = useState(0);
@@ -34,7 +34,7 @@ export default function WerewolfModal() {
         >
           Mở bàn mới (bạn làm chủ bàn)
         </button>
-        {rooms.length === 0 && <p className="text-center text-[12px] font-bold opacity-60">Chưa có bàn nào — mở bàn rồi rủ cả công viên!</p>}
+        {rooms.length === 0 && <p className="text-center text-[12px] font-bold opacity-60">Chưa có bàn nào — mở bàn rồi rủ cả khu!</p>}
         {rooms.map(([room, r]) => (
           <button
             key={room}
@@ -158,7 +158,7 @@ export default function WerewolfModal() {
               : w.lastCause === 'hang' && w.lastDead ? `⚖️ Đã treo cổ ${w.lastDead} (là ${w.lastRole ? ROLE_META[w.lastRole].name : '?'})!`
               : '🌅 Đêm qua bình yên… hoặc sói bị chặn đứng!'}
           </p>
-          <p className="text-[11px] font-bold opacity-70">Bàn luận trong chat công viên, sắp bỏ phiếu treo sói!</p>
+          <p className="text-[11px] font-bold opacity-70">Bàn luận trong chat, sắp bỏ phiếu treo sói!</p>
         </PhaseBox>
       )}
       {w.phase === 'vote' && (

@@ -53,7 +53,7 @@ export class SocketTransport implements NetTransport {
     this.socket?.emit('hello', { id: this.playerId, v: PRESENCE_PROTO, name: self.name, avatar: self.avatar, code: this.code });
   }
 
-  pushPosition(x: number, y: number, dir: 1 | -1, moving: boolean, bubble?: string, extra?: { map?: 'farm' | 'town' | 'interior'; emote?: string; visit?: string | null }) {
+  pushPosition(x: number, y: number, dir: 1 | -1, moving: boolean, bubble?: string, extra?: { map?: 'farm' | 'town' | 'mall' | 'interior'; emote?: string; visit?: string | null }) {
     this.socket?.emit('pos', { x: Math.round(x), y: Math.round(y), dir, moving, bubble, map: extra?.map, emote: extra?.emote, visit: extra?.visit, v: PRESENCE_PROTO });
   }
 

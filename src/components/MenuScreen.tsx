@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { LogIn } from 'lucide-react';
 import { useGame } from '../game/store';
-import { getAccountBackend, exportAccount } from '../net/account';
+import { getAccountBackend, loadBest, syncNow } from '../net/account';
 import { getLastAccount, normalizeUsername, setLastAccount } from '../net/session';
 import { sfx } from '../game/audio';
 import { GameIcon } from './GameIcon';
@@ -24,15 +24,17 @@ export default function MenuScreen() {
     try {
       const backend = await getAccountBackend();
       setMode(backend.kind === 'server' ? 'LAN server' : 'máy này');
-      const found = await backend.load(username);
+      // lấy bản mới nhất giữa server và máy này (so thời gian lưu)
+      const found = await loadBest(username);
       // tên hiển thị giữ đúng chữ hoa/thường người dùng gõ
       const display = name.trim().slice(0, 12);
       if (found) {
         loadAccount(found.name, found.avatar, found.data);
-        toast(`Chào mừng trở lại, ${found.name}! (Ngày ${found.data.day})`);
+        const from = found.source === 'server' ? 'LAN server' : 'máy này';
+        toast(`Chào mừng trở lại, ${found.name}! (Ngày ${found.data.day}, bản lưu mới nhất từ ${from})`);
       } else {
         loadAccount(display, avatar, null);
-        await backend.save(username, display, avatar, exportAccount());
+        await syncNow();
         toast(`Tạo nông trại mới cho ${display}!`);
       }
       setLastAccount(username);

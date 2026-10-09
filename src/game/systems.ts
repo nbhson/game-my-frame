@@ -2,7 +2,8 @@
 import type { Animal, InteractTarget, PondFish } from './types';
 import { ANIMALS, COOP_TYPES, CROPS, FISHES, plotCost, plotReq } from './data';
 import { BARN, COOP, PEN_MB, PIERS, SHOPD, POND, ROAD_H, ROAD_V, TOWN_GATE, isBlocked, pondInner, plotPos, RIVER_WATER_Y, roadHCenter, roadVCenter } from './world';
-import { FARM_GATE, TOWN_PROPS, farmGateCenter } from './town';
+import { FARM_GATE, TOWN_PROPS, farmGateCenter, mallGateCenter } from './town';
+import { MALL_PIERS, MALL_PROPS, mallTownGateCenter } from './mall';
 
 export interface InteractCtx {
   px: number; py: number;
@@ -237,13 +238,42 @@ export function nearestInteract(c: InteractCtx): InteractTarget | null {
     const d = Math.hypot(c.px - sx, c.py - sy);
     if (d < 110 && (!best || d < bd)) { best = { kind: 'shop', label: 'Mở Cửa hàng' }; bd = d; }
   }
-  // --- cổng công viên (ngoài cùng bên phải, cuối đường ngang) ---
+  // --- cổng thị trấn (ngoài cùng bên phải, cuối đường ngang) ---
   {
     const gx = TOWN_GATE.x + TOWN_GATE.w / 2, gy = TOWN_GATE.y + TOWN_GATE.h / 2;
     const d = Math.hypot(c.px - gx, c.py - gy);
-    if (d < 120 && (!best || d < bd)) { best = { kind: 'townGate', label: 'Vào Công viên' }; bd = d; }
+    if (d < 120 && (!best || d < bd)) { best = { kind: 'townGate', label: 'Vào Thị trấn' }; bd = d; }
   }
   void RIVER_WATER_Y;
+  return best;
+}
+
+/** Interact ở khu mua sắm & giải trí: cổng về thị trấn + props + bến sông câu cá */
+export function nearestMallInteract(c: { px: number; py: number; kem?: { x: number; y: number } | null }): InteractTarget | null {
+  let best: InteractTarget | null = null;
+  let bd = 120;
+  {
+    const g = mallTownGateCenter();
+    const d = Math.hypot(c.px - g.x, c.py - g.y);
+    if (d < 130) { best = { kind: 'townGate', label: 'Về Thị trấn' }; bd = d; }
+  }
+  for (const p of MALL_PROPS) {
+    const d = Math.hypot(c.px - p.x, c.py - p.y);
+    if (d < 100 && d < bd) { best = { kind: 'townProp', propId: p.id, label: p.label }; bd = d; }
+  }
+  // bến sông mall (câu cá, tính giải như sông farm)
+  MALL_PIERS.forEach((pier, pi) => {
+    const d = Math.hypot(c.px - pier.x, c.py - (pier.sitY + 20));
+    if (d < 105 && d < bd) {
+      best = { kind: 'river', index: 100 + pi, label: 'Ngồi câu cá (tốn mồi)' };
+      bd = d;
+    }
+  });
+  // Kem đi theo chủ ra cả khu mua sắm → vuốt ve được ở đây luôn
+  if (c.kem) {
+    const d = Math.hypot(c.px - c.kem.x, c.py - c.kem.y);
+    if (d < 95 && d < bd) { best = { kind: 'pet', uid: KEM_UID, label: 'Vuốt ve Kem' }; bd = d; }
+  }
   return best;
 }
 
@@ -283,7 +313,7 @@ export function nearestStealPlot(
   return best;
 }
 
-/** Interact trong công viên: cổng về farm + các điểm check-in */
+/** Interact trong thị trấn: cổng về farm + cổng lên khu mua sắm + các điểm check-in */
 export function nearestTownInteract(c: { px: number; py: number; kem?: { x: number; y: number } | null }): InteractTarget | null {
   let best: InteractTarget | null = null;
   let bd = 120;
@@ -292,11 +322,16 @@ export function nearestTownInteract(c: { px: number; py: number; kem?: { x: numb
     const d = Math.hypot(c.px - g.x, c.py - g.y);
     if (d < 130) { best = { kind: 'farmGate', label: 'Về Nông trại' }; bd = d; }
   }
+  {
+    const g = mallGateCenter();
+    const d = Math.hypot(c.px - g.x, c.py - g.y);
+    if (d < 130 && d < bd) { best = { kind: 'mallGate', label: 'Lên Khu Mua sắm & Giải trí' }; bd = d; }
+  }
   for (const p of TOWN_PROPS) {
     const d = Math.hypot(c.px - p.x, c.py - p.y);
     if (d < 100 && d < bd) { best = { kind: 'townProp', propId: p.id, label: p.label }; bd = d; }
   }
-  // Kem đi theo chủ ra cả công viên → vuốt ve được ở đây luôn
+  // Kem đi theo chủ ra cả thị trấn → vuốt ve được ở đây luôn
   if (c.kem) {
     const d = Math.hypot(c.px - c.kem.x, c.py - c.kem.y);
     if (d < 95 && d < bd) { best = { kind: 'pet', uid: KEM_UID, label: 'Vuốt ve Kem' }; bd = d; }

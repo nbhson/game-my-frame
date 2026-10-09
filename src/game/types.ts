@@ -51,7 +51,7 @@ export interface Stats {
 
 export type ModalKind =
   | null
-  | 'shop' | 'bag' | 'quest' | 'help' | 'village' | 'townChat' | 'townEmote' | 'casino' | 'gift' | 'outfit' | 'settings'
+  | 'shop' | 'bag' | 'quest' | 'help' | 'village' | 'townChat' | 'townEmote' | 'casino' | 'gift' | 'outfit' | 'settings' | 'lottery' | 'carshop' | 'race'
   | { name: 'seed'; plot: number }
   | { name: 'stock' }
   | { name: 'bait'; pier: number }
@@ -62,8 +62,8 @@ export type ModalKind =
 
 export type ShopTab = 'seed' | 'fish' | 'animal' | 'food' | 'sell';
 
-/** Bản đồ đang đứng: farm riêng, thị trấn chung, hay trong nhà */
-export type SceneKind = 'farm' | 'town' | 'interior';
+/** Bản đồ đang đứng: farm riêng, thị trấn chung, khu mua sắm & giải trí, hay trong nhà */
+export type SceneKind = 'farm' | 'town' | 'mall' | 'interior';
 
 /** Hành động đang mở trong nhà (overlay, không phải modal popup toàn màn hình) */
 export interface InActItem { id: string; label: string; desc: string; disabled?: boolean; tag?: string }
@@ -83,12 +83,12 @@ export interface InAct {
 export interface DailyQuestState { id: string; from: number; done: boolean; claimed: boolean }
 export interface DailyState { day: number; flags: Record<string, boolean>; cats: string[]; quests: DailyQuestState[] }
 
-/** Cảm xúc / hành động realtime ở công viên */
+/** Cảm xúc / hành động realtime ở thị trấn */
 export type TownEmote = 'wave' | 'dance' | 'sit' | 'laugh' | 'heart' | 'sleep' | 'angry' | 'clap'
   | 'hun' | 'hug' | 'fight' | 'tease' | 'handshake';
 
 export interface InteractTarget {
-  kind: 'plot' | 'pond' | 'river' | 'pen' | 'animal' | 'shop' | 'townGate' | 'farmGate' | 'townProp' | 'steal' | 'pet' | 'interior';
+  kind: 'plot' | 'pond' | 'river' | 'pen' | 'animal' | 'shop' | 'townGate' | 'farmGate' | 'mallGate' | 'townProp' | 'steal' | 'pet' | 'interior';
   index?: number; // plot index / pier index
   uid?: number; // animal uid / fish uid / pet uid
   pen?: 'pond' | 'coop' | 'barn';

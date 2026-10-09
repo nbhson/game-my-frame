@@ -11,6 +11,7 @@ import InteriorOverlay from './components/InteriorOverlay';
 import Toasts from './components/Toasts';
 import VisitBanner from './components/VisitBanner';
 import ContestBoard from './components/ContestBoard';
+import LotteryBoard from './components/LotteryBoard';
 
 export default function App() {
   const started = useGame((s) => s.started);
@@ -51,6 +52,7 @@ export default function App() {
         <InteriorOverlay />
         <VisitBanner />
         <ContestBoard />
+        <LotteryBoard />
       </div>
       <BottomBar target={target} />
       <ModalHost />

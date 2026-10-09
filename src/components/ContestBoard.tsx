@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react';
 import { CONTEST_MS, useContest } from '../net/contest';
-import { gameMe } from '../net/village';
+import { gameMe, useVillage } from '../net/village';
 import { useGame } from '../game/store';
 
-/** Bảng giải câu cá nổi ở công viên: mở giải / đếm ngược / BXH live / kết quả */
+/** Bảng giải câu cá nổi ở farm + thị trấn + khu mua sắm (sông mall là điểm thi chính) */
 export default function ContestBoard() {
   const scene = useGame((s) => s.scene);
+  const connected = useVillage((v) => v.connected);
   const c = useContest();
   const [, setTick] = useState(0);
 
   useEffect(() => {
-    // chốt giải đúng giờ kể cả khi đang ở farm (bảng chỉ hiện ở công viên)
+    // chốt giải đúng giờ ở mọi bản đồ (bảng hiện ở farm + thị trấn để bấm mở giải)
     const id = setInterval(() => {
       setTick((x) => x + 1);
       useContest.getState().tick(Date.now());
@@ -18,7 +19,7 @@ export default function ContestBoard() {
     return () => clearInterval(id);
   }, []);
 
-  if (scene !== 'town') return null;
+  if (scene !== 'town' && scene !== 'farm' && scene !== 'mall') return null;
   const now = Date.now();
   const left = Math.max(0, c.endsAt - now);
   const mm = Math.floor(left / 60000);
@@ -35,9 +36,10 @@ export default function ContestBoard() {
           <p className="text-[11px] opacity-70 font-bold">3 phút · tổng giá trị cá · 🥇600xu+3gem</p>
           <button
             onClick={() => c.start()}
-            className="mt-1 w-full py-1.5 rounded-lg bg-sky-500 border-2 border-black text-white font-black text-[13px] hover:bg-sky-400 active:scale-95"
+            className={`mt-1 w-full py-1.5 rounded-lg border-2 border-black text-white font-black text-[13px] active:scale-95 ${connected ? 'bg-sky-500 hover:bg-sky-400' : 'bg-stone-400 animate-pulse'}`}
+            title={connected ? 'Mở giải câu cá 3 phút' : 'Đang vào làng… bấm để nối lại + tự mở giải'}
           >
-            Mở giải ngay!
+            {connected ? 'Mở giải ngay!' : 'Đang vào làng… (bấm để thử)'}
           </button>
         </div>
       ) : (

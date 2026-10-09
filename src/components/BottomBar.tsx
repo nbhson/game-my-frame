@@ -1,24 +1,36 @@
 import { useEffect, useState } from 'react';
 import { Send, Tractor } from 'lucide-react';
 import { QUESTS } from '../game/data';
-import { useGame } from '../game/store';
+import { BULK_MIN_LEVEL, bulkLockedMsg, useGame } from '../game/store';
+import { INTERIORS } from '../game/interiors';
 import { TOWN_EMOTES } from '../game/town';
 import type { InteractTarget } from '../game/types';
-import { doInteractWith, goToFarm, playerRef } from './GameCanvas';
+import { doInteractWith, goToFarm, goToTown, playerRef } from './GameCanvas';
 import { useVillage, visiblePlayers } from '../net/village';
 import { GameIcon } from './GameIcon';
 
 export default function BottomBar({ target }: { target: InteractTarget | null }) {
   const scene = useGame((s) => s.scene);
-  if (scene === 'town' || scene === 'interior') return <TownBottomBar target={target} />;
+  const interiorId = useGame((s) => s.interiorId);
+  const area: 'farm' | 'town' | 'mall' = scene === 'interior' ? (interiorId && INTERIORS[interiorId]?.via) || 'town' : scene;
+  if (area === 'mall') return <TownBottomBar target={target} map="mall" />;
+  if (area === 'town') return <TownBottomBar target={target} map="town" />;
   return <FarmBottomBar target={target} />;
 }
 
 function FarmBottomBar({ target }: { target: InteractTarget | null }) {
   const inv = useGame((s) => s.inv);
   const questIdx = useGame((s) => s.questIdx);
+  const level = useGame((s) => s.level);
   const setModal = useGame((s) => s.setModal);
+  const toast = useGame((s) => s.toast);
   const cur = QUESTS[Math.min(questIdx, QUESTS.length - 1)];
+  const bulkLocked = level < BULK_MIN_LEVEL;
+
+  const openBulk = () => {
+    if (bulkLocked) { toast(bulkLockedMsg(level)); return; }
+    setModal({ name: 'bulk' });
+  };
 
   const seedTotal = Object.keys(inv).filter((k) => k.startsWith('seed:')).reduce((a, k) => a + inv[k], 0);
   const prodTotal = Object.keys(inv)
@@ -48,11 +60,11 @@ function FarmBottomBar({ target }: { target: InteractTarget | null }) {
           E
         </button>
         <button
-          onClick={() => setModal({ name: 'bulk' })}
-          className="h-11 md:h-[52px] px-3 shrink-0 rounded-lg bg-orange-400 border-[3px] border-black font-black text-[13px] md:text-sm text-white hover:bg-orange-300 active:scale-95 whitespace-nowrap"
-          title="Làm hàng loạt: gieo/tưới/phun/thu cả farm, cho ăn cả đàn 1 chạm"
+          onClick={openBulk}
+          className={`h-11 md:h-[52px] px-3 shrink-0 rounded-lg border-[3px] border-black font-black text-[13px] md:text-sm text-white active:scale-95 whitespace-nowrap ${bulkLocked ? 'bg-gray-500' : 'bg-orange-400 hover:bg-orange-300'}`}
+          title={bulkLocked ? `Mở khóa từ Lv${BULK_MIN_LEVEL} (bạn đang Lv${level})` : 'Làm hàng loạt: gieo/tưới/phun/thu cả farm, cho ăn cả đàn 1 chạm'}
         >
-          ⚡ Hàng loạt
+          {bulkLocked ? `🔒 Hàng loạt (Lv${BULK_MIN_LEVEL})` : '⚡ Hàng loạt'}
         </button>
       </div>
       {/* hàng nhiệm vụ: full width, gọn trên mobile */}
@@ -63,11 +75,12 @@ function FarmBottomBar({ target }: { target: InteractTarget | null }) {
   );
 }
 
-/** Bottom công viên: chat realtime + thả cảm xúc + về farm (khác hẳn farm) */
-function TownBottomBar({ target }: { target: InteractTarget | null }) {
+/** Bottom thị trấn + khu mua sắm: chat realtime + thả cảm xúc + về farm/town */
+function TownBottomBar({ target, map }: { target: InteractTarget | null; map: 'town' | 'mall' }) {
   const sendChat = useVillage((s) => s.sendChat);
   const sendEmote = useVillage((s) => s.sendEmote);
   const [draft, setDraft] = useState('');
+  const isMall = map === 'mall';
 
   const send = () => {
     if (!draft.trim()) return;
@@ -76,13 +89,22 @@ function TownBottomBar({ target }: { target: InteractTarget | null }) {
   };
 
   return (
-    <div className="bg-[#5b2a86] px-2 pt-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] flex flex-col gap-1.5">
-      {/* hàng 1: về farm + chat — luôn vừa màn hình */}
-      <div className="flex gap-1.5 items-center min-w-0">
+    <div className={`${isMall ? 'bg-[#a12258]' : 'bg-[#5b2a86]'} px-2 pt-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] flex flex-col gap-1`}>
+      {/* 1 hàng duy nhất: về farm/town + E + chat + cảm xúc cuộn ngang */}
+      <div className="flex gap-1.5 items-center overflow-x-auto no-scrollbar -mx-2 px-2 pb-0.5 md:mx-0 md:px-0" style={{ touchAction: 'pan-x' }}>
+        {isMall && (
+          <button
+            onClick={() => goToTown()}
+            className="h-11 md:h-[52px] px-2 md:px-3 shrink-0 rounded-lg bg-purple-500 border-[3px] border-black font-black text-white text-[13px] md:text-sm hover:bg-purple-400 active:scale-95 flex items-center gap-1"
+            title="Về thị trấn (cổng phía tây)"
+          >
+            🏘️<span className="hidden xs:inline sm:inline">Town</span>
+          </button>
+        )}
         <button
           onClick={() => goToFarm()}
           className="h-11 md:h-[52px] px-2 md:px-3 shrink-0 rounded-lg bg-green-500 border-[3px] border-black font-black text-white text-[13px] md:text-sm hover:bg-green-400 active:scale-95 flex items-center gap-1"
-          title="Về nông trại (cổng phía đông)"
+          title="Về nông trại"
         >
           <Tractor size={16} /><span className="hidden xs:inline sm:inline">Farm</span>
         </button>
@@ -94,22 +116,19 @@ function TownBottomBar({ target }: { target: InteractTarget | null }) {
           E
         </button>
         {/* chat realtime */}
-        <div className="flex gap-1 items-center flex-1 min-w-0">
+        <div className="flex gap-1 items-center flex-1 min-w-[130px]">
           <input
             value={draft}
             onChange={(e) => setDraft(e.target.value.slice(0, 80))}
             onKeyDown={(e) => { if (e.key === 'Enter') send(); e.stopPropagation(); }}
             onKeyUp={(e) => e.stopPropagation()}
-            placeholder={target ? `E: ${target.label} — hoặc chat…` : 'Chat cả park… (Enter)'}
+            placeholder={target ? `E: ${target.label} — hoặc chat…` : isMall ? 'Chat cả khu… (Enter)' : 'Chat cả park… (Enter)'}
             className="flex-1 min-w-0 border-[3px] border-black rounded-lg px-2 md:px-3 py-1.5 md:py-2 text-[13px] md:text-sm"
           />
           <button onClick={send} className="h-10 md:h-[44px] px-2.5 md:px-3 shrink-0 rounded-lg bg-sky-400 border-[3px] border-black font-black text-white hover:bg-sky-300 active:scale-95" title="Gửi chat">
             <Send size={16} />
           </button>
         </div>
-      </div>
-      {/* hàng 2: cảm xúc — cuộn ngang trên mobile thay vì wrap tràn */}
-      <div className="flex gap-1 overflow-x-auto no-scrollbar -mx-2 px-2 pb-0.5 md:flex-wrap md:mx-0 md:px-0 md:overflow-visible" style={{ touchAction: 'pan-x' }}>
         {TOWN_EMOTES.map((e) => (
           <button
             key={e.id}
@@ -121,20 +140,20 @@ function TownBottomBar({ target }: { target: InteractTarget | null }) {
           </button>
         ))}
       </div>
-      <PairHint />
+      <PairHint map={map} />
     </div>
   );
 }
 
 /** Gợi ý hành động đôi: đứng gần ai thì rủ cùng bấm emote để diễn hoạt ảnh chung */
-function PairHint() {
+function PairHint({ map }: { map: 'town' | 'mall' }) {
   const [, setTick] = useState(0);
   useEffect(() => {
     const id = setInterval(() => setTick((x) => x + 1), 1000);
     return () => clearInterval(id);
   }, []);
   const now = Date.now();
-  const near = visiblePlayers(now, 'town').filter(
+  const near = visiblePlayers(now, map).filter(
     (p) => Math.hypot(p.x - playerRef.x, p.y - playerRef.y) < 260,
   );
   if (!near.length) return null;

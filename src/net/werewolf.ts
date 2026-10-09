@@ -1,4 +1,4 @@
-// ===== MA SÓI CÔNG VIÊN (mini-game suy luận đông người, 5–12 người) =====
+// ===== MA SÓI THỊ TRẤN (mini-game suy luận đông người, 5–12 người) =====
 // Mô hình "chủ bàn điều phối": chủ bàn chia vai + dẫn đêm/ngày/bỏ phiếu theo giờ.
 // Vai trò BÍ MẬT ở mức UI: tin nhắn chia vai/hành động đêm đi qua kênh game ẩn
 // `🐺MS|` (chat không hiện), client chỉ hiển thị vai của chính mình.
@@ -240,7 +240,7 @@ function handleMsg(m: ChatMsg) {
     const [room, host] = rest;
     if (!room || !host) return;
     useWolf.setState({ openRooms: { ...s.openRooms, [room]: { host, at: Date.now() } } });
-    if (s.phase === 'idle') useGame.getState().toast(`🐺 ${host} mở bàn MA SÓI! Bấm nút 🐺 ở công viên để chơi!`);
+    if (s.phase === 'idle') useGame.getState().toast(`🐺 ${host} mở bàn MA SÓI! Bấm nút 🐺 (menu Chơi) để vào hang!`);
     return;
   }
   if (kind === 'JOIN') {
@@ -330,7 +330,7 @@ function handleMsg(m: ChatMsg) {
     const [room, d, ends] = rest;
     if (room !== s.room) return;
     useWolf.setState({ phase: 'day', day: Number(d) || 1, endsAt: Number(ends) || Date.now() + DAY_MS });
-    pushLog('☀️ Trời sáng! Bàn luận trong chat công viên rồi bỏ phiếu.');
+    pushLog('☀️ Trời sáng! Bàn luận trong chat rồi bỏ phiếu.');
     sfx.coin();
     return;
   }

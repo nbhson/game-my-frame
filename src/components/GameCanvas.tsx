@@ -1,18 +1,33 @@
 import { useEffect, useRef, useState } from 'react';
 import { useGame, VIEW_H_MAX } from '../game/store';
-import { useVillage, farmVisible, visiblePlayers } from '../net/village';
+import { useVillage, farmVisible, gameMe, visiblePlayers } from '../net/village';
 import type { InteractTarget } from '../game/types';
 import { FARM_GATE_SPAWN, PIERS, WORLD, isBlocked, plotPos } from '../game/world';
-import { FARM_GATE, TOWN, TOWN_PROPS, TOWN_SPAWN, isTownBlocked } from '../game/town';
-import { MAX_PLOTS } from '../game/data';
-import { KEM_UID, nearestInteract, nearestPet, nearestStealPlot, nearestTownInteract } from '../game/systems';
+import { FARM_GATE, MALL_GATE, TOWN, TOWN_PROPS, TOWN_SPAWN, isTownBlocked } from '../game/town';
+import { MALL, MALL_PIERS, MALL_PROPS, MALL_SPAWN, isMallBlocked, mallTownGateCenter } from '../game/mall';
+import { CARS, MAX_PLOTS } from '../game/data';
+import { KEM_UID, nearestInteract, nearestMallInteract, nearestPet, nearestStealPlot, nearestTownInteract } from '../game/systems';
 import { renderWorld, type VisitorDraw } from '../game/render';
 import { renderTown } from '../game/townRender';
+import { renderMall } from '../game/mallRender';
 import { INTERIORS, isInteriorBlocked, nearestInteriorInteract } from '../game/interiors';
 import { renderInterior } from '../game/interiorRender';
-import { openInteriorFurn } from '../game/interiorActions';
+import { openInteriorFurn, tickInteriorEvents } from '../game/interiorActions';
 import { startAutoSync, stopAutoSync } from '../net/account';
+import { checkRaceCp, finishRace, raceGridSlot, tickRace, useRace, RACE_LAPS } from '../net/race';
 import { sfx } from '../game/audio';
+
+/** Đưa cả người về đường đua khi giải bắt đầu (từ farm/nhà/town đều được) */
+function goRaceTrack() {
+  const s = useGame.getState();
+  if (s.scene === 'interior') exitInterior();
+  if (s.fishingSpot) s.cancelRiver(true);
+  if (s.scene === 'mall') return;
+  if (s.scene === 'farm') goToTown();
+  if (useGame.getState().scene === 'town') goToMall();
+}
+/** đã xếp ô xuất phát cho lượt đếm ngược hiện tại chưa */
+let raceGridDone = '';
 
 interface Props {
   target: InteractTarget | null;
@@ -79,24 +94,37 @@ export function doInteractWith(t: InteractTarget | null | undefined) {
   // --- chuyển map ---
   if (t.kind === 'townGate') { goToTown(); return; }
   if (t.kind === 'farmGate') { goToFarm(); return; }
+  if (t.kind === 'mallGate') { goToMall(); return; }
   if (t.kind === 'interior') {
     if (t.propId === 'door') { exitInterior(); return; }
     if (t.propId) { sfx.click(); openInteriorFurn(t.propId, playerRef.x, playerRef.y); }
     return;
   }
   if (t.kind === 'townProp') {
-    const p = TOWN_PROPS.find((x) => x.id === t.propId);
+    const p = TOWN_PROPS.find((x) => x.id === t.propId) ?? MALL_PROPS.find((x) => x.id === t.propId);
     sfx.click();
-    if (p?.id === 'casino') {
-      s.setModal('casino');
+    if (p?.id === 'casino' || p?.id === 'garage' || p?.id === 'mart') {
+      goToInterior(p.id === 'mart' ? 'shop' : p.id);
       return;
     }
-    if (p?.id === 'shop') {
-      goToInterior('shop');
+    if (p?.id === 'xoso' || p?.id === 'race' || p?.id === 'wolf') {
+      goToInterior(p.id === 'race' ? 'racehouse' : p.id === 'wolf' ? 'wolfhouse' : p.id);
+      return;
+    }
+    if (p?.id === 'lottery') {
+      s.setModal('lottery');
       return;
     }
     if (p?.id === 'hall' || p?.id === 'cafe' || p?.id === 'stage' || p?.id === 'house1' || p?.id === 'house2') {
       goToInterior(p.id);
+      return;
+    }
+    if (p?.id === 'garden') {
+      if (!s.daily.flags['garden']) {
+        s.setDailyFlag('garden');
+        s.addXP(2);
+        s.toast('Bạn ngồi vườn hoa hít hà hương đồng gió nội! (+2 XP)');
+      } else s.toast('Vườn hoa thơm ngát — mai quay lại hít tiếp nhé!');
       return;
     }
     if (p?.id === 'fountain') {
@@ -119,6 +147,11 @@ export function doInteractWith(t: InteractTarget | null | undefined) {
     s.toast('Đang thăm farm bạn — về farm mình để làm việc nhé!');
     return;
   }
+  // đang lái ô tô: xuống xe (X / Gara) rồi hẵng làm ruộng — lái xe chỉ để vi vu
+  if (s.activeCar) {
+    s.toast('Đang lái xe! Bấm X (hoặc vào Gara) để xuống xe rồi làm nhé 🚗');
+    return;
+  }
   sfx.click();
   if (t.kind === 'plot' && t.index != null) s.interactPlot(t.index);
   else if (t.kind === 'pond') s.interactPond(t.uid);
@@ -128,19 +161,40 @@ export function doInteractWith(t: InteractTarget | null | undefined) {
   else if (t.kind === 'shop') { s.setShopTab('seed'); s.setModal('shop'); }
 }
 
-/** Vào công viên: nhớ vị trí farm, spawn ở đầu công viên, rời visit nếu có */
+/** Vào thị trấn: nhớ vị trí farm/mall, spawn ở đầu thị trấn (hoặc về chỗ cũ nếu từ khu mua sắm sang), rời visit nếu có */
 export function goToTown() {
   const s = useGame.getState();
   const v = useVillage.getState();
+  if (s.scene === 'interior') exitInterior();
   if (s.scene === 'town') return;
   if (s.fishingSpot) s.cancelRiver(true);
   if (v.visiting) v.leaveVisit();
-  farmPos.x = playerRef.x; farmPos.y = playerRef.y;
+  if (s.scene === 'farm') { farmPos.x = playerRef.x; farmPos.y = playerRef.y; }
+  if (s.scene === 'mall') { mallPos.x = playerRef.x; mallPos.y = playerRef.y; }
+  const fromMall = s.scene === 'mall';
   s.setScene('town');
-  playerRef.x = TOWN_SPAWN.x; playerRef.y = TOWN_SPAWN.y;
+  if (fromMall && townPos.x != null && townPos.y != null) { playerRef.x = townPos.x; playerRef.y = townPos.y; }
+  else { playerRef.x = TOWN_SPAWN.x; playerRef.y = TOWN_SPAWN.y; }
   playerRef.tx = null; playerRef.ty = null; playerRef.moving = false;
   sfx.click();
-  s.toast('Tới Công viên rồi! Gặp gỡ, chat, thả cảm xúc cùng cả làng');
+  s.toast(fromMall ? 'Về tới Thị trấn!' : 'Tới Thị trấn rồi! Gặp gỡ, chat, thả cảm xúc cùng cả làng');
+}
+
+/** Lên Khu mua sắm & Giải trí (chỉ đi từ thị trấn): nhớ chỗ town, spawn ở cổng khu mới */
+export function goToMall() {
+  const s = useGame.getState();
+  const v = useVillage.getState();
+  if (s.scene === 'interior') exitInterior();
+  if (s.scene === 'mall') return;
+  if (s.scene !== 'town') return;
+  if (s.fishingSpot) s.cancelRiver(true);
+  if (v.visiting) v.leaveVisit();
+  townPos.x = playerRef.x; townPos.y = playerRef.y;
+  s.setScene('mall');
+  playerRef.x = MALL_SPAWN.x; playerRef.y = MALL_SPAWN.y;
+  playerRef.tx = null; playerRef.ty = null; playerRef.moving = false;
+  sfx.click();
+  s.toast('Tới Khu Mua sắm & Giải trí! Gara, casino, vé số, sông câu cá, trường đua, hang sói!');
 }
 
 /** Về nông trại: quay lại đúng chỗ cũ */
@@ -148,6 +202,8 @@ export function goToFarm() {
   const s = useGame.getState();
   if (s.scene === 'farm') return;
   if (s.scene === 'interior') exitInterior();
+  if (s.scene === 'mall') { mallPos.x = playerRef.x; mallPos.y = playerRef.y; }
+  if (s.scene === 'town') { townPos.x = playerRef.x; townPos.y = playerRef.y; }
   if (s.fishingSpot) s.cancelRiver(true);
   s.setScene('farm');
   playerRef.x = farmPos.x ?? FARM_GATE_SPAWN.x;
@@ -159,42 +215,60 @@ export function goToFarm() {
 
 // nhớ vị trí farm trước khi qua town để quay lại đúng chỗ
 const farmPos: { x: number | null; y: number | null } = { x: null, y: null };
-// nhớ vị trí town trước khi vào nhà để ra đúng chỗ
+// nhớ vị trí town trước khi vào nhà / sang khu mua sắm để về đúng chỗ
 const townPos: { x: number | null; y: number | null } = { x: null, y: null };
+// nhớ vị trí khu mua sắm trước khi vào nhà / về town / về farm
+const mallPos: { x: number | null; y: number | null } = { x: null, y: null };
 
-/** Vào nhà: nhớ chỗ town, teleport vào cửa phòng, khóa câu Cá */
+/** Vào nhà: nhớ chỗ map ngoài, teleport vào cửa phòng, khóa câu cá */
 export function goToInterior(id: string) {
   const s = useGame.getState();
   const d = INTERIORS[id];
   if (!d) return;
-  if (s.scene !== 'town') return;
+  if (s.scene !== 'town' && s.scene !== 'mall') return;
   if (s.fishingSpot) s.cancelRiver(true);
-  townPos.x = playerRef.x; townPos.y = playerRef.y;
+  // gara cho lái xe vào thẳng trong (showroom lái thử); nhà khác thì xuống xe ở cửa
+  if (s.activeCar && id !== 'garage') s.driveCar(null);
+  if (s.scene === 'mall') { mallPos.x = playerRef.x; mallPos.y = playerRef.y; }
+  else { townPos.x = playerRef.x; townPos.y = playerRef.y; }
   s.setScene('interior');
   s.setInteriorId(id);
   s.setInAct(null);
+  // dấu hành trình: ghé nhà nào đóng dấu nhà đó (nhận thưởng ở bảng hội quán)
+  s.setDailyFlag('visit:' + id);
   playerRef.x = d.spawn.x; playerRef.y = d.spawn.y;
   playerRef.tx = null; playerRef.ty = null; playerRef.moving = false;
   sfx.click();
   s.toast(`Vào ${d.name}! Đi lại + bấm E vào đồ đạc để tương tác`);
 }
 
-/** Ra khỏi nhà: về đúng chỗ town lúc vào */
+/** Ra khỏi nhà: về đúng map + đúng chỗ lúc vào */
 export function exitInterior() {
   const s = useGame.getState();
   if (s.scene !== 'interior') return;
   const d = INTERIORS[s.interiorId ?? ''];
-  s.setScene('town');
+  const via = d?.via ?? 'town';
+  s.setScene(via);
   s.setInteriorId(null);
   s.setInAct(null);
-  if (townPos.x != null && townPos.y != null) { playerRef.x = townPos.x; playerRef.y = townPos.y; }
+  const saved = via === 'mall' ? mallPos : townPos;
+  if (saved.x != null && saved.y != null) { playerRef.x = saved.x; playerRef.y = saved.y; }
   else if (d) {
-    const p = TOWN_PROPS.find((x) => x.id === d.id);
+    const p = (via === 'mall' ? MALL_PROPS : TOWN_PROPS).find((x) => x.id === d.id)
+      ?? (via === 'mall' ? MALL_PROPS : TOWN_PROPS).find((x) => (via === 'mall' ? mallPropToInterior(x.id) : x.id) === d.id);
     if (p) { playerRef.x = p.x; playerRef.y = p.y; }
   }
   playerRef.tx = null; playerRef.ty = null; playerRef.moving = false;
   sfx.click();
-  s.toast('Ra ngoài công viên!');
+  s.toast(via === 'mall' ? 'Ra ngoài khu mua sắm!' : 'Ra ngoài thị trấn!');
+}
+
+/** prop ngoài map -> interior tương ứng (mart=shop, race=racehouse, wolf=wolfhouse) */
+function mallPropToInterior(propId: string): string {
+  if (propId === 'mart') return 'shop';
+  if (propId === 'race') return 'racehouse';
+  if (propId === 'wolf') return 'wolfhouse';
+  return propId;
 }
 
 /** Bắt đầu ngồi câu ở bến: chọn mồi (nếu có 2 loại thì mở bảng chọn) */
@@ -208,12 +282,16 @@ function startRiverAt(pier: number) {
 }
 
 export function sitAndFish(pier: number, baitId: string) {
-  const p = PIERS[pier];
+  const st = useGame.getState();
+  const inMall = st.scene === 'mall' || pier >= 100;
+  const p = inMall ? MALL_PIERS[pier >= 100 ? pier - 100 : pier] : PIERS[pier];
   if (!p) return;
+  // ngồi câu thì phải xuống xe trước
+  if (useGame.getState().activeCar) useGame.getState().driveCar(null);
   // ngồi xuống bến
   playerRef.x = p.x; playerRef.y = p.sitY;
   playerRef.tx = null; playerRef.ty = null; playerRef.moving = false;
-  useGame.getState().startRiverFishing(pier, baitId);
+  useGame.getState().startRiverFishing(pier, baitId, inMall ? 'mall' : 'farm');
 }
 
 export default function GameCanvas({ target, onTarget }: Props) {
@@ -267,7 +345,7 @@ export default function GameCanvas({ target, onTarget }: Props) {
       if (st.modal) return;
       // đang mở panel hành động trong nhà: overlay tự xử lý E/Space, game nhường phím
       if (st.inAct) return;
-      // Zoom khung nhìn: + gần lại, − xa rộng ra (lưu lại, áp dụng cả farm + công viên)
+      // Zoom khung nhìn: + gần lại, − xa rộng ra (lưu lại, áp dụng cả farm + thị trấn)
       if (k === '=' || k === '+') { st.setViewH(st.viewH - 70); return; }
       if (k === '-' || k === '_') { st.setViewH(st.viewH + 70); return; }
       // Mini-game giật cá: dãy mũi tên thay cho E (cá giá trị cao → dãy dài hơn, 3s)
@@ -283,6 +361,12 @@ export default function GameCanvas({ target, onTarget }: Props) {
       if (k === 'h') st.setModal('help');
       if (k === 'v') st.setModal('village');
       if (k === 'g') st.setModal('gift');
+      // X: đang lái thì xuống xe; chưa lái thì mở Gara (có xe) / chỉ đường ra Gara (chưa có xe)
+      if (k === 'x') {
+        if (st.activeCar) st.driveCar(null);
+        else if (st.ownedCars.length) st.setModal('carshop');
+        else st.toast('Chưa có xe! Ghé Gara Anh Tý ở Khu mua sắm (đi thị trấn rồi lên đông-bắc) nhé 🚗');
+      }
     };
     const keyup = (e: KeyboardEvent) => { keys.current[e.key.toLowerCase()] = false; };
     window.addEventListener('keydown', keydown);
@@ -324,8 +408,9 @@ export default function GameCanvas({ target, onTarget }: Props) {
       // hệ quả của cover-scale: vẽ trong đơn vị logic
       ctx.setTransform(zoom.current, 0, 0, zoom.current, 0, 0);
 
-      // --- movement (khóa khi mở modal/panel hoặc đang ngồi câu; town đi tự do) ---
-      if (!st.modal && !st.fishingSpot && !st.inAct) {
+      // --- movement (khóa khi mở modal/panel, đang ngồi câu, hoặc đang đếm ngược xuất phát) ---
+      const racePhase = useRace.getState().phase;
+      if (!st.modal && !st.fishingSpot && !st.inAct && racePhase !== 'count') {
         let mx = 0, my = 0;
         const K = keys.current;
         if (K['arrowup'] || K['w']) my -= 1;
@@ -333,10 +418,12 @@ export default function GameCanvas({ target, onTarget }: Props) {
         if (K['arrowleft'] || K['a']) mx -= 1;
         if (K['arrowright'] || K['d']) mx += 1;
         mx += joyRef.x; my += joyRef.y;
+        // đang lái ô tô: chạy theo tốc độ xe (nhanh hơn đi bộ nhiều);
         // cà phê trứng: chạy nhanh 60s
-        const SPD = st.speedUntil && Date.now() < st.speedUntil ? 330 : 260;
+        const car = st.activeCar ? CARS[st.activeCar] : null;
+        const SPD = car ? car.speed : st.speedUntil && Date.now() < st.speedUntil ? 330 : 260;
         const iid = st.scene === 'interior' ? st.interiorId : null;
-        const blocked = (x: number, y: number) => (st.scene === 'town' ? isTownBlocked(x, y) : st.scene === 'interior' && iid ? isInteriorBlocked(iid, x, y) : isBlocked(x, y));
+        const blocked = (x: number, y: number) => (st.scene === 'town' ? isTownBlocked(x, y) : st.scene === 'mall' ? isMallBlocked(x, y) : st.scene === 'interior' && iid ? isInteriorBlocked(iid, x, y) : isBlocked(x, y));
         if (mx || my) {
           playerRef.tx = null; playerRef.ty = null;
           const l = Math.hypot(mx, my) || 1;
@@ -361,6 +448,29 @@ export default function GameCanvas({ target, onTarget }: Props) {
         } else playerRef.moving = false;
       } else playerRef.moving = false;
 
+      // --- đua xe thật: đếm ngược thì lùa về vạch xuất phát, đang đua thì chấm chốt ---
+      {
+        const rz = useRace.getState();
+        if (rz.phase === 'count') {
+          const key = `${rz.host}|${rz.goAt}`;
+          goRaceTrack();
+          if (useGame.getState().scene === 'mall' && raceGridDone !== key) {
+            raceGridDone = key;
+            const slot = Math.max(0, rz.racers.indexOf(gameMe().name));
+            const g = raceGridSlot(slot);
+            playerRef.x = g.x; playerRef.y = g.y;
+            playerRef.tx = null; playerRef.ty = null; playerRef.moving = false;
+          }
+        } else {
+          if (rz.phase !== 'racing') raceGridDone = '';
+          if (rz.phase === 'racing' && useGame.getState().scene === 'mall') {
+            const next = checkRaceCp(playerRef.x, playerRef.y);
+            if (next && next.lap >= RACE_LAPS) finishRace();
+          }
+        }
+        tickRace(nowMs);
+      }
+
       // --- viewport: khung nhìn theo cài đặt (viewH); ra bờ sông / đang ngồi câu thì
       // thu xa để thấy sông rộng + cả người + cần + phao, kẹp trong max (mượt bằng lerp) ---
       {
@@ -369,7 +479,7 @@ export default function GameCanvas({ target, onTarget }: Props) {
         const fs0 = st.fishingSpot;
         // ra bờ sông thì thu xa 1.15x — riêng khi đã ngồi câu thì giữ đúng zoom của
         // người chơi (không ép zoom-out) để framing bên dưới tính chính xác
-        let targetH = st.scene === 'town' || fs0 ? base : (playerRef.y > 980 ? Math.min(VIEW_H_MAX, base * 1.15) : base);
+        let targetH = st.scene === 'town' || st.scene === 'mall' || fs0 ? base : (playerRef.y > 980 ? Math.min(VIEW_H_MAX, base * 1.15) : base);
         // đang ngồi câu: đảm bảo span (đầu người → phao + margin) lọt trong 70% màn hình
         // ở mọi resolution / mức zoom (kể cả zoom gần nhất 620)
         if (fs0) {
@@ -387,14 +497,15 @@ export default function GameCanvas({ target, onTarget }: Props) {
       {
         // trong nhà: giữa phòng (phòng nhỏ hơn viewport thì clampCam tự giữa)
         const idef = st.scene === 'interior' ? INTERIORS[st.interiorId ?? ''] : undefined;
-        cam.current.x = clampCam(playerRef.x - view.current.w / 2, idef ? idef.w : st.scene === 'town' ? TOWN.w : WORLD.w, view.current.w);
+        const mapW = idef ? idef.w : st.scene === 'town' ? TOWN.w : st.scene === 'mall' ? MALL.w : WORLD.w;
+        cam.current.x = clampCam(playerRef.x - view.current.w / 2, mapW, view.current.w);
       }
       // đang ngồi câu: căn khung theo điểm câu (đáy span ở 80% màn hình) + cho phép
       // tràn nhẹ 10% qua mép nam để cần + phao + sông luôn full hình ở mọi resolution
       {
         const fs = st.fishingSpot;
         const idef = st.scene === 'interior' ? INTERIORS[st.interiorId ?? ''] : undefined;
-        const mapH = idef ? idef.h : st.scene === 'town' ? TOWN.h : WORLD.h;
+        const mapH = idef ? idef.h : st.scene === 'town' ? TOWN.h : st.scene === 'mall' ? MALL.h : WORLD.h;
         if (idef) {
           cam.current.y = clampCam(playerRef.y - view.current.h / 2, idef.h, view.current.h);
         } else if (fs && view.current.h < mapH) {
@@ -407,7 +518,7 @@ export default function GameCanvas({ target, onTarget }: Props) {
         } else {
           // 2.5D Hay Day: player nằm ở 60% chiều cao màn hình + cho camera ngó lên trên
           // vùng trời (cam.y âm) để nửa trên luôn là background như ảnh mẫu
-          cam.current.y = clampCamY(playerRef.x, playerRef.y, st.scene === 'town' ? TOWN.h : WORLD.h, view.current.h);
+          cam.current.y = clampCamY(playerRef.x, playerRef.y, st.scene === 'town' ? TOWN.h : st.scene === 'mall' ? MALL.h : WORLD.h, view.current.h);
         }
       }
 
@@ -417,6 +528,9 @@ export default function GameCanvas({ target, onTarget }: Props) {
 
       // Hết 3s chưa bấm xong dãy mũi tên → cá chạy (reelRiver xử lý fail)
       if (st.fishingSpot && st.biteUntil && nowMs > st.biteUntil) st.reelRiver();
+
+      // sự kiện theo giờ trong nhà (giờ diễn mèo, giờ vàng slot, đèn yêu cầu)
+      if (st.scene === 'interior' && st.interiorId) tickInteriorEvents(playerRef.x, playerRef.y);
 
       // phát vị trí cho làng (để bạn bè thấy mình đi lại, kèm map + emote)
       village.pushPosition(playerRef.x, playerRef.y, playerRef.dir, playerRef.moving);
@@ -460,6 +574,8 @@ export default function GameCanvas({ target, onTarget }: Props) {
         ? nearestInteriorInteract(st.interiorId, playerRef.x, playerRef.y)
         : st.scene === 'town'
         ? nearestTownInteract({ px: playerRef.x, py: playerRef.y, kem })
+        : st.scene === 'mall'
+        ? nearestMallInteract({ px: playerRef.x, py: playerRef.y, kem })
         : village.visiting && visitSnap
           ? visitSteal ?? (visitPet && visitPet.d < 95 ? visitPet.target : null)
             ?? (visitKem < 95 ? { kind: 'pet', uid: KEM_UID, label: 'Vuốt ve Kem' } : null)
@@ -482,6 +598,8 @@ export default function GameCanvas({ target, onTarget }: Props) {
       const lt = village.lastThief;
       const visitors: VisitorDraw[] = (st.scene === 'town'
         ? visiblePlayers(nowMs, 'town')
+        : st.scene === 'mall'
+        ? visiblePlayers(nowMs, 'mall')
         : farmVisible(nowMs, village.visiting?.code ?? null)
       ).map((p) => {
         const barked = !!lt && p.name === lt.name && nowMs - lt.at < 5000;
@@ -510,7 +628,11 @@ export default function GameCanvas({ target, onTarget }: Props) {
         renderInterior(ctx, view.current.w, view.current.h, cam.current, st.interiorId, {
           player: { x: playerRef.x, y: playerRef.y, dir: playerRef.dir, moving: playerRef.moving, name: st.name },
           avatar: st.avatar, outfit: st.outfit,
+          carColor: st.activeCar ? CARS[st.activeCar]?.color ?? null : null,
+          carKind: st.activeCar ? CARS[st.activeCar]?.kind ?? null : null,
+          carId: st.activeCar ?? null,
           stageColor: st.stageColor,
+          night: st.dayTime < 0.2 || st.dayTime > 0.8,
         }, t);
       } else if (st.scene === 'town') {
         renderTown(ctx, view.current.w, view.current.h, cam.current, {
@@ -522,7 +644,30 @@ export default function GameCanvas({ target, onTarget }: Props) {
           selfEmoteAt: village.selfEmoteAt || undefined,
           kemPos, petFx: st.petFx,
           outfit: st.outfit,
+          carColor: st.activeCar ? CARS[st.activeCar]?.color ?? null : null,
+          carKind: st.activeCar ? CARS[st.activeCar]?.kind ?? null : null,
+          carId: st.activeCar ?? null,
           quality: effQ,
+        }, t);
+      } else if (st.scene === 'mall') {
+        const mallSit = fs && fs.at === 'mall'
+          ? { x: fs.x, y: fs.y, bx: fs.bx, by: fs.by, bite: biting, combo: st.biteCombo, progress: st.biteProgress, fishId: st.biteCatchId }
+          : null;
+        renderMall(ctx, view.current.w, view.current.h, cam.current, {
+          player: { x: playerRef.x, y: playerRef.y, dir: playerRef.dir, moving: playerRef.moving, tx: playerRef.tx, ty: playerRef.ty, name: st.name },
+          avatar: st.avatar, dayTime: st.dayTime, weather: st.weather,
+          visitors,
+          selfBubble: village.selfBubble || undefined,
+          selfEmote: village.selfEmote || undefined,
+          selfEmoteAt: village.selfEmoteAt || undefined,
+          kemPos, petFx: st.petFx,
+          outfit: st.outfit,
+          carColor: st.activeCar ? CARS[st.activeCar]?.color ?? null : null,
+          carKind: st.activeCar ? CARS[st.activeCar]?.kind ?? null : null,
+          carId: st.activeCar ?? null,
+          quality: effQ,
+          sit: mallSit,
+          catchPop: st.catchPop,
         }, t);
       } else {
         const snap = village.visiting?.snap;
@@ -542,6 +687,9 @@ export default function GameCanvas({ target, onTarget }: Props) {
           sit: fs ? { x: fs.x, y: fs.y, bx: fs.bx, by: fs.by, bite: biting, combo: st.biteCombo, progress: st.biteProgress, fishId: st.biteCatchId } : null,
           catchPop: st.catchPop,
           outfit: st.outfit,
+          carColor: st.activeCar ? CARS[st.activeCar]?.color ?? null : null,
+          carKind: st.activeCar ? CARS[st.activeCar]?.kind ?? null : null,
+          carId: st.activeCar ?? null,
           plotFx: st.plotFx,
           quality: effQ,
           thiefBite: st.thiefBiteUntil,
@@ -579,6 +727,8 @@ export default function GameCanvas({ target, onTarget }: Props) {
   const autoQuality = useGame((s) => s.autoQuality);
   const autoLevel = useGame((s) => s.autoLevel);
   const resMode = useGame((s) => s.resMode);
+  // đang thăm farm bạn thì banner chiếm top-center → FPS lùi xuống dưới banner
+  const visiting = useVillage((v) => !!v.visiting);
   useEffect(() => {
     const cv = canvasRef.current, wrap = wrapRef.current;
     if (!cv || !wrap) return;
@@ -596,17 +746,17 @@ export default function GameCanvas({ target, onTarget }: Props) {
     const sx = ((e.clientX - r.left) / r.width) * view.current.w;
     const sy = ((e.clientY - r.top) / r.height) * view.current.h;
     const st = useGame.getState();
-    const inTown = st.scene === 'town';
-    const idef = st.scene === 'interior' ? INTERIORS[st.interiorId ?? ''] : undefined;
-    const MW = idef ? idef.w : inTown ? TOWN.w : WORLD.w;
-    const MH = idef ? idef.h : inTown ? TOWN.h : WORLD.h;
+    const scene = st.scene;
+    const idef = scene === 'interior' ? INTERIORS[st.interiorId ?? ''] : undefined;
+    const MW = idef ? idef.w : scene === 'town' ? TOWN.w : scene === 'mall' ? MALL.w : WORLD.w;
+    const MH = idef ? idef.h : scene === 'town' ? TOWN.h : scene === 'mall' ? MALL.h : WORLD.h;
     const wx = Math.max(20, Math.min(MW - 20, sx + cam.current.x));
     const wy = Math.max(60, Math.min(MH - 20, sy + cam.current.y));
     // đang câu: click = thu cần (khi cá cắn phải bấm dãy mũi tên)
     if (st.fishingSpot) { st.reelRiver(); return; }
-    const blocked = idef && st.interiorId ? isInteriorBlocked(st.interiorId, wx, wy) : inTown ? isTownBlocked(wx, wy) : isBlocked(wx, wy);
+    const blocked = idef && st.interiorId ? isInteriorBlocked(st.interiorId, wx, wy) : scene === 'town' ? isTownBlocked(wx, wy) : scene === 'mall' ? isMallBlocked(wx, wy) : isBlocked(wx, wy);
     if (!blocked) { playerRef.tx = wx; playerRef.ty = wy; }
-  if (inTown || idef) return;
+  if (scene === 'town' || scene === 'mall' || idef) return;
   // đang thăm farm bạn: click trúng ô chín + đứng gần → hái trộm (coi chừng chó!)
   const visiting = useVillage.getState().visiting;
   if (visiting) {
@@ -644,8 +794,11 @@ export default function GameCanvas({ target, onTarget }: Props) {
       {target && !fishingSpot && <InteractHint target={target} />}
       <RiverHint />
       <Joystick />
-      {/* HUD hiệu năng gọn: fps + cấp đang chạy (auto thì thêm chữ Auto) */}
-      <div className="absolute left-2 top-2 z-[6] pointer-events-none select-none rounded-md border-2 border-black/60 bg-black/45 px-1.5 py-0.5 text-[10px] font-bold text-white/90">
+      {/* HUD hiệu năng: để TOP-CENTER cho chắc chắn thấy ở mọi bản đồ —
+          top-2 left-2 bị bảng vé số đè, top-2 right-2 bị bảng đua top đè,
+          bottom-2 left bị joystick đè (mobile), bottom-2 right bị nút E đè (mobile),
+          bottom-center thì canvas tràn là bị thanh chat đè mất */}
+      <div className={`absolute left-1/2 -translate-x-1/2 z-[6] pointer-events-none select-none rounded-md border-2 border-black/60 bg-black/45 px-1.5 py-0.5 text-[10px] font-bold text-white/90 whitespace-nowrap ${visiting ? 'top-11 md:top-12' : 'top-2'}`}>
         {perf.fps > 0 ? `${perf.fps}fps · ` : ''}{perf.q === 'low' ? 'Thấp' : perf.q === 'medium' ? 'TB' : 'Cao'}{autoQuality ? ' · Auto' : ''}
       </div>
       <div className="absolute right-3 bottom-3 flex gap-2 md:hidden" style={{ marginBottom: 'env(safe-area-inset-bottom)' }}>

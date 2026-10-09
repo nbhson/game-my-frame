@@ -16,6 +16,26 @@ function Coin({ v }: { v: number | string }) {
   return (<span className="inline-flex items-center gap-0.5">{v}<GameIcon name="coin" size={13} /></span>);
 }
 
+/** Giây → chữ gọn (75s / 12 phút / 1.2 giờ) vì cây/cá giờ chín rất lâu */
+export function fmtDur(s: number): string {
+  if (s < 120) return `${s}s`;
+  if (s < 3600) return `${Math.round(s / 60)} phút`;
+  const h = s / 3600;
+  return `${h >= 10 ? Math.round(h) : Math.round(h * 10) / 10} giờ`;
+}
+
+/** Cụm nút mua nhanh 1 / 5 / 10 / 30 */
+function BulkBuy({ onBuy }: { onBuy: (n: number) => void }) {
+  return (
+    <div className="flex gap-1 justify-center flex-wrap">
+      <button className="pixel-btn !text-[10px] !px-2 !py-2" onClick={() => onBuy(1)}>Mua</button>
+      {[5, 10, 30].map((n) => (
+        <button key={n} className="pixel-btn !text-[10px] !px-2 !py-2 !bg-sky-300" title={`Mua luôn ${n} cái`} onClick={() => onBuy(n)}>x{n}</button>
+      ))}
+    </div>
+  );
+}
+
 export default function ShopModal() {
   const s = useGame();
   const tab = s.shopTab;
@@ -47,7 +67,7 @@ export default function ShopModal() {
             {Object.values(CROPS).map((c) => {
               const lock = s.level < c.lv;
               return (
-                <Card key={c.id} icon={c.id} title={<>{c.name} {lock && (<span className="inline-flex items-center gap-0.5"><GameIcon name="lock" size={12} />Lv{c.lv}</span>)}</>} desc={<>{c.desc} • {c.grow}s • Bán <Coin v={c.sell} /> • +{c.xp}XP</>} price={<><GameIcon name="seed" size={14} /> <Coin v={c.seedPrice} /></>}>
+                <Card key={c.id} icon={c.id} title={<>{c.name} {lock && (<span className="inline-flex items-center gap-0.5"><GameIcon name="lock" size={12} />Lv{c.lv}</span>)}</>} desc={<>{c.desc} • {fmtDur(c.grow)} • Bán <Coin v={c.sell} /> • +{c.xp}XP</>} price={<><GameIcon name="seed" size={14} /> <Coin v={c.seedPrice} /></>}>
                   <button disabled={lock} className="pixel-btn !text-[10px] !px-2 !py-2" onClick={() => s.buySeed(c.id)}>Mua</button>
                 </Card>
               );
@@ -67,7 +87,7 @@ export default function ShopModal() {
             {Object.values(FISHES).map((ff) => {
               const lock = s.level < ff.lv;
               return (
-                <Card key={ff.id} icon={ff.id} title={<>{ff.name} {lock && (<span className="inline-flex items-center gap-0.5"><GameIcon name="lock" size={12} />Lv{ff.lv}</span>)}</>} desc={<>{ff.desc} • {ff.grow}s • Bán <Coin v={ff.sell} /> • +{ff.xp}XP • Mua là thả thẳng xuống ao</>} price={<Coin v={ff.babyPrice} />}>
+                <Card key={ff.id} icon={ff.id} title={<>{ff.name} {lock && (<span className="inline-flex items-center gap-0.5"><GameIcon name="lock" size={12} />Lv{ff.lv}</span>)}</>} desc={<>{ff.desc} • {fmtDur(ff.grow)} • Bán <Coin v={ff.sell} /> • +{ff.xp}XP • Mua là thả thẳng xuống ao</>} price={<Coin v={ff.babyPrice} />}>
                   <button disabled={lock} className="pixel-btn !text-[10px] !px-2 !py-2" onClick={() => s.buyFish(ff.id)}>Mua + thả ao</button>
                 </Card>
               );
@@ -102,34 +122,19 @@ export default function ShopModal() {
       {tab === 'food' && (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           <Card icon="feed" title="Cám thường" desc="Cho mọi vật nuôi & cá. Hết cám thường sẽ tự dùng cám cao cấp" price={<Coin v={FEED_PRICE} />}>
-            <div className="flex gap-1 justify-center">
-              <button className="pixel-btn !text-[10px] !px-2 !py-2" onClick={() => s.buyFeed('feed', 1)}>Mua</button>
-              <button className="pixel-btn !text-[10px] !px-2 !py-2" onClick={() => s.buyFeed('feed', 5)}>x5</button>
-            </div>
+            <BulkBuy onBuy={(n) => s.buyFeed('feed', n)} />
           </Card>
           <Card icon="feedPro" title={<>Cám cao cấp <GameIcon name="lock" size={12} />Lv8</>} desc="No căng + tăng tốc ra sản phẩm / cá lớn vọt" price={<Coin v={FEED_PRO_PRICE} />}>
-            <div className="flex gap-1 justify-center">
-              <button disabled={s.level < 8} className="pixel-btn !text-[10px] !px-2 !py-2" onClick={() => s.buyFeed('feedPro', 1)}>Mua</button>
-              <button disabled={s.level < 8} className="pixel-btn !text-[10px] !px-2 !py-2" onClick={() => s.buyFeed('feedPro', 5)}>x5</button>
-            </div>
+            <BulkBuy onBuy={(n) => { if (s.level < 8) { s.toast('Cám cao cấp mở từ Lv8!'); return; } s.buyFeed('feedPro', n); }} />
           </Card>
           <Card icon="bait" title="Mồi thường" desc="Câu ở sông. Cá rẻ dễ dính" price={<Coin v={BAIT_PRICE} />}>
-            <div className="flex gap-1 justify-center">
-              <button className="pixel-btn !text-[10px] !px-2 !py-2" onClick={() => s.buyBait('bait', 1)}>Mua</button>
-              <button className="pixel-btn !text-[10px] !px-2 !py-2" onClick={() => s.buyBait('bait', 5)}>x5</button>
-            </div>
+            <BulkBuy onBuy={(n) => s.buyBait('bait', n)} />
           </Card>
           <Card icon="baitPro" title={<>Mồi ngon <GameIcon name="lock" size={12} />Lv10</>} desc="Tỉ lệ cá hiếm x5, ít dính rác" price={<Coin v={BAIT_PRO_PRICE} />}>
-            <div className="flex gap-1 justify-center">
-              <button disabled={s.level < 10} className="pixel-btn !text-[10px] !px-2 !py-2" onClick={() => s.buyBait('baitPro', 1)}>Mua</button>
-              <button disabled={s.level < 10} className="pixel-btn !text-[10px] !px-2 !py-2" onClick={() => s.buyBait('baitPro', 5)}>x5</button>
-            </div>
+            <BulkBuy onBuy={(n) => { if (s.level < 10) { s.toast('Mồi ngon mở từ Lv10!'); return; } s.buyBait('baitPro', n); }} />
           </Card>
           <Card icon="pesticide" title="Thuốc trừ sâu" desc="Cây bị sâu sẽ ngừng lớn — bấm E vào cây để phun" price={<Coin v={PEST_PRICE} />}>
-            <div className="flex gap-1 justify-center">
-              <button className="pixel-btn !text-[10px] !px-2 !py-2" onClick={() => s.buyPesticide(1)}>Mua</button>
-              <button className="pixel-btn !text-[10px] !px-2 !py-2" onClick={() => s.buyPesticide(5)}>x5</button>
-            </div>
+            <BulkBuy onBuy={(n) => s.buyPesticide(n)} />
           </Card>
           <Card icon="gem" title="Đổi gem" desc="5 gem = 500 xu" price={<span className="inline-flex items-center gap-0.5">5<GameIcon name="gem" size={13} /></span>}>
             <button className="pixel-btn !text-[10px] !px-2 !py-2" onClick={() => s.exchangeGem()}>Đổi</button>
