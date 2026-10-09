@@ -127,6 +127,10 @@ export const PRODUCT_NAMES: Record<string, [string, string]> = {
   pesticide: ['Thuốc trừ sâu', ''],
   ung: ['Ủng cũ', ''],
   rong: ['Rong biển', ''],
+  // --- món ăn nấu trong Nhà cô Ba (bán được giá cao hơn tổng nguyên liệu) ---
+  flan: ['Bánh flan', '🍮'],
+  saladtron: ['Salad trộn', '🥗'],
+  thitkho: ['Thịt kho trứng', '🍲'],
 };
 
 export function itemName(pid: string): [string, string] {
@@ -163,6 +167,9 @@ export function sellPrice(pid: string): number {
   if (pid === 'pesticide') return 10;
   if (pid === 'ung') return 3;
   if (pid === 'rong') return 2;
+  if (pid === 'flan') return 300;
+  if (pid === 'saladtron') return 430;
+  if (pid === 'thitkho') return 740;
   return 1;
 }
 

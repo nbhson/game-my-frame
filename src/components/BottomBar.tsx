@@ -10,7 +10,7 @@ import { GameIcon } from './GameIcon';
 
 export default function BottomBar({ target }: { target: InteractTarget | null }) {
   const scene = useGame((s) => s.scene);
-  if (scene === 'town') return <TownBottomBar target={target} />;
+  if (scene === 'town' || scene === 'interior') return <TownBottomBar target={target} />;
   return <FarmBottomBar target={target} />;
 }
 

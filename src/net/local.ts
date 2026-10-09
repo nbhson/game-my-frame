@@ -13,7 +13,7 @@ interface Wire {
   avatar?: number;
   code?: string;
   x?: number; y?: number; dir?: 1 | -1; moving?: boolean; bubble?: string;
-  map?: 'farm' | 'town'; emote?: string;
+  map?: 'farm' | 'town' | 'interior'; emote?: string;
   visit?: string | null;
   text?: string;
   snap?: FarmSnapshot;
@@ -38,7 +38,7 @@ export class LocalTransport implements NetTransport {
   private lastFarmPush = 0;
   private lastSnap: FarmSnapshot | null = null;
   /** trạng thái presence cuối của mình (để trả lời hello + re-broadcast tự chữa) */
-  private lastSelf: { x: number; y: number; dir: 1 | -1; moving: boolean; bubble?: string; map?: 'farm' | 'town'; emote?: string; visit?: string | null } | null = null;
+  private lastSelf: { x: number; y: number; dir: 1 | -1; moving: boolean; bubble?: string; map?: 'farm' | 'town' | 'interior'; emote?: string; visit?: string | null } | null = null;
 
   constructor(private playerId: string, codeOverride?: string) {
     this.code = codeOverride ?? codeFromId(playerId);
@@ -94,7 +94,7 @@ export class LocalTransport implements NetTransport {
     this.sendHello();
   }
 
-  pushPosition(x: number, y: number, dir: 1 | -1, moving: boolean, bubble?: string, extra?: { map?: 'farm' | 'town'; emote?: string; visit?: string | null }) {
+  pushPosition(x: number, y: number, dir: 1 | -1, moving: boolean, bubble?: string, extra?: { map?: 'farm' | 'town' | 'interior'; emote?: string; visit?: string | null }) {
     this.lastSelf = { x, y, dir, moving, bubble, map: extra?.map, emote: extra?.emote, visit: extra?.visit };
     this.send({ kind: 'pos', from: this.self.id, v: PRESENCE_PROTO, name: this.self.name, avatar: this.self.avatar, code: this.code, x, y, dir, moving, bubble, map: extra?.map, emote: extra?.emote, visit: extra?.visit });
   }
@@ -240,3 +240,4 @@ export class LocalTransport implements NetTransport {
   private emitPlayers() { this.playerCbs.forEach((cb) => cb([...this.players.values()])); }
   private emitStatus(ok: boolean) { this.statusCbs.forEach((cb) => cb(ok)); }
 }
+

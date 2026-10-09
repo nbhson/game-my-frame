@@ -63,14 +63,24 @@ export function animalPos(a: Animal, t: number): { x: number; y: number; flip: b
   return { x, y, flip: p1.x >= p0.x, moving };
 }
 
-/** Vị trí bơi của 1 con cá trong ao vuông (tự do — không chia ngăn) */
+/** Vị trí bơi của 1 con cá trong ao vuông (tự do — không chia ngăn).
+ *  Mỗi con một quỹ đạo Lissajous riêng: tâm lệch + bán kính + tốc độ +
+ *  chiều bơi + tần số y khác nhau (hash ổn định theo uid nên mọi máy thấy giống nhau). */
 export function fishPos(f: PondFish, t: number) {
   const pc = pondInner();
-  const a = t * (0.35 + ((f.uid * 37) % 20) / 60) + f.uid * 2.4;
+  const dir = hash01(f.uid * 3 + 11) > 0.5 ? 1 : -1; // chiều bơi riêng (thuận/ngược)
+  const sp = 0.22 + hash01(f.uid * 5 + 1) * 0.33; // tốc độ riêng
+  const a = t * sp * dir + hash01(f.uid * 7 + 2) * Math.PI * 2; // pha riêng
+  // tâm quỹ đạo lệch khỏi giữa ao (giữ trong ao: |dx| <= 0.85*hw)
+  const cx = pc.x + (hash01(f.uid * 17 + 5) - 0.5) * pc.hw * 0.5;
+  const cy = pc.y + (hash01(f.uid * 19 + 6) - 0.5) * pc.hh * 0.4;
+  const rx = pc.hw * (0.3 + hash01(f.uid * 11 + 3) * 0.4); // 0.3..0.7 hw
+  const ry = pc.hh * (0.28 + hash01(f.uid * 13 + 4) * 0.34); // 0.28..0.62 hh
+  const k = 1.05 + hash01(f.uid * 23 + 7) * 0.6; // tỉ số tần số y riêng (đường bơi khác hẳn nhau)
   return {
-    x: pc.x + Math.cos(a) * pc.hw * 0.8,
-    y: pc.y + Math.sin(a * 1.3) * pc.hh * 0.65,
-    flip: Math.sin(a) > 0,
+    x: cx + Math.cos(a) * rx,
+    y: cy + Math.sin(a * k) * ry,
+    flip: (-Math.sin(a) * dir) > 0, // mặt hướng theo vận tốc x
   };
 }
 

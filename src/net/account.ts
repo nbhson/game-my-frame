@@ -1,7 +1,7 @@
 // ===== Account theo username: TOÀN BỘ farm nằm trong DB =====
 // Nhập đúng username → lấy lại farm, bất kể reload/tab khác/máy khác.
 // Backend tự chọn: LAN server (DB `server/data/db.json`) → localStorage theo user.
-import type { Animal, CoopCap, GraphicsQuality, PondFish, Plot, Stats, WeatherKind } from '../game/types';
+import type { Animal, CoopCap, DailyState, GraphicsQuality, PondFish, Plot, ResMode, Stats, WeatherKind } from '../game/types';
 import { useGame } from '../game/store';
 import { useVillage } from './village';
 import { lanServerAvailable } from './socket';
@@ -22,10 +22,14 @@ export interface AccountData {
   stats: Stats;
   questIdx: number;
   uidSeq: number;
+  baLove?: number; loveClaim?: number[]; fundTotal?: number; fundClaim?: number[];
+  daily?: DailyState; junkAt?: number;
   redeemedCodes?: string[];
   outfit?: Record<string, string>;
   ownedOutfits?: string[];
   quality?: GraphicsQuality;
+  autoQuality?: boolean;
+  resMode?: ResMode;
   viewH?: number;
   kem?: boolean;
 }
@@ -134,9 +138,11 @@ export function exportAccount(): AccountData {
     inv: g.inv, plots: g.plots, fishes: g.fishes, animals: g.animals,
     pondSlots: g.pondSlots, coopCap: g.coopCap,
     stats: g.stats, questIdx: g.questIdx, uidSeq: g.uidSeq,
+    baLove: g.baLove, loveClaim: g.loveClaim, fundTotal: g.fundTotal, fundClaim: g.fundClaim,
+    daily: g.daily, junkAt: g.junkAt,
     redeemedCodes: g.redeemedCodes,
     outfit: g.outfit, ownedOutfits: g.ownedOutfits,
-    quality: g.quality, viewH: g.viewH, kem: g.kem,
+    quality: g.quality, autoQuality: g.autoQuality, resMode: g.resMode, viewH: g.viewH, kem: g.kem,
   };
 }
 

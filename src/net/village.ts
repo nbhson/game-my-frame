@@ -114,6 +114,8 @@ function snapshotOfGame(): FarmPayload {
       inv: g.inv, plots: g.plots, fishes: g.fishes, animals: g.animals,
       pondSlots: g.pondSlots, coopCap: g.coopCap,
       stats: g.stats, questIdx: g.questIdx, uidSeq: g.uidSeq,
+      baLove: g.baLove, loveClaim: g.loveClaim, fundTotal: g.fundTotal, fundClaim: g.fundClaim,
+      daily: g.daily, junkAt: g.junkAt,
       quality: g.quality,
     },
   };
@@ -449,7 +451,7 @@ export const useVillage = create<VillageState>()((set, get) => ({
 }));
 
 /** players để vẽ = online thật + bots (nếu bật), lọc theo map đang đứng */
-export function visiblePlayers(now: number, map?: 'farm' | 'town'): RemotePlayer[] {
+export function visiblePlayers(now: number, map?: 'farm' | 'town' | 'interior'): RemotePlayer[] {
   const { players, demoBots } = useVillage.getState();
   const want = map ?? useGame.getState().scene;
   const sameMap = (p: RemotePlayer) => (p.map ?? 'farm') === want;
@@ -480,3 +482,4 @@ export function townCount(): number {
   const { players } = useVillage.getState();
   return players.filter((p) => (p.map ?? 'farm') === 'town').length;
 }
+

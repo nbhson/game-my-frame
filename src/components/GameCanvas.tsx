@@ -8,6 +8,9 @@ import { MAX_PLOTS } from '../game/data';
 import { KEM_UID, nearestInteract, nearestPet, nearestStealPlot, nearestTownInteract } from '../game/systems';
 import { renderWorld, type VisitorDraw } from '../game/render';
 import { renderTown } from '../game/townRender';
+import { INTERIORS, isInteriorBlocked, nearestInteriorInteract } from '../game/interiors';
+import { renderInterior } from '../game/interiorRender';
+import { openInteriorFurn } from '../game/interiorActions';
 import { startAutoSync, stopAutoSync } from '../net/account';
 import { sfx } from '../game/audio';
 
@@ -28,6 +31,45 @@ export const joyRef = { x: 0, y: 0 };
 export const kemRef = { x: 660, y: 630, flip: true };
 let kemInit = false;
 
+/** So sánh target rẻ (thay JSON.stringify mỗi frame): đủ kind/index/uid/pen/propId/label */
+function sameTarget(a: InteractTarget | null, b: InteractTarget | null): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return a.kind === b.kind && (a.index ?? -1) === (b.index ?? -1)
+    && (a.uid ?? -1) === (b.uid ?? -1) && (a.pen ?? '') === (b.pen ?? '')
+    && (a.propId ?? '') === (b.propId ?? '') && a.label === b.label;
+}
+
+/** DPR theo cấp đồ họa hiệu dụng: Thấp khóa 1x, TB tối đa 1.25x, Cao tối đa 1.5x */
+export function dprFor(q: string): number {
+  const dpr = window.devicePixelRatio || 1;
+  return q === 'low' ? 1 : q === 'medium' ? Math.min(1.25, dpr) : Math.min(1.5, dpr);
+}
+
+/** Cấp hiệu dụng = Auto ? autoLevel : quality (tay chọn) */
+export function effQuality(): string {
+  const s = useGame.getState();
+  return s.autoQuality ? s.autoLevel : s.quality;
+}
+
+/** Tỉ lệ điểm ảnh render thêm sau DPR: auto = low 0.6 / medium 0.85 / high 1 */
+export function resScaleFor(mode: string, effQ: string): number {
+  if (mode === 'low') return 0.5;
+  if (mode === 'med') return 0.75;
+  if (mode === 'full') return 1;
+  return effQ === 'low' ? 0.6 : effQ === 'medium' ? 0.85 : 1;
+}
+
+/** Dựng lại kích thước canvas theo CSS khung + DPR + scale. Trả về dpr hiệu dụng (đã nhân scale). */
+export function applyCanvasSize(cv: HTMLCanvasElement, cssW: number, cssH: number): number {
+  const s = useGame.getState();
+  const effQ = s.autoQuality ? s.autoLevel : s.quality;
+  const dpr = dprFor(effQ) * resScaleFor(s.resMode, effQ);
+  cv.width = Math.max(2, Math.round(cssW * dpr));
+  cv.height = Math.max(2, Math.round(cssH * dpr));
+  return dpr;
+}
+
 export function doInteractWith(t: InteractTarget | null | undefined) {
   const s = useGame.getState();
   // đang ngồi câu: E = thu cần (khi cá cắn phải bấm dãy mũi tên, E không giật được)
@@ -37,6 +79,11 @@ export function doInteractWith(t: InteractTarget | null | undefined) {
   // --- chuyển map ---
   if (t.kind === 'townGate') { goToTown(); return; }
   if (t.kind === 'farmGate') { goToFarm(); return; }
+  if (t.kind === 'interior') {
+    if (t.propId === 'door') { exitInterior(); return; }
+    if (t.propId) { sfx.click(); openInteriorFurn(t.propId, playerRef.x, playerRef.y); }
+    return;
+  }
   if (t.kind === 'townProp') {
     const p = TOWN_PROPS.find((x) => x.id === t.propId);
     sfx.click();
@@ -45,11 +92,11 @@ export function doInteractWith(t: InteractTarget | null | undefined) {
       return;
     }
     if (p?.id === 'shop') {
-      s.setModal('outfit');
+      goToInterior('shop');
       return;
     }
     if (p?.id === 'hall' || p?.id === 'cafe' || p?.id === 'stage' || p?.id === 'house1' || p?.id === 'house2') {
-      s.setModal({ name: 'house', house: p.id });
+      goToInterior(p.id);
       return;
     }
     if (p?.id === 'fountain') {
@@ -100,6 +147,7 @@ export function goToTown() {
 export function goToFarm() {
   const s = useGame.getState();
   if (s.scene === 'farm') return;
+  if (s.scene === 'interior') exitInterior();
   if (s.fishingSpot) s.cancelRiver(true);
   s.setScene('farm');
   playerRef.x = farmPos.x ?? FARM_GATE_SPAWN.x;
@@ -111,6 +159,43 @@ export function goToFarm() {
 
 // nhớ vị trí farm trước khi qua town để quay lại đúng chỗ
 const farmPos: { x: number | null; y: number | null } = { x: null, y: null };
+// nhớ vị trí town trước khi vào nhà để ra đúng chỗ
+const townPos: { x: number | null; y: number | null } = { x: null, y: null };
+
+/** Vào nhà: nhớ chỗ town, teleport vào cửa phòng, khóa câu Cá */
+export function goToInterior(id: string) {
+  const s = useGame.getState();
+  const d = INTERIORS[id];
+  if (!d) return;
+  if (s.scene !== 'town') return;
+  if (s.fishingSpot) s.cancelRiver(true);
+  townPos.x = playerRef.x; townPos.y = playerRef.y;
+  s.setScene('interior');
+  s.setInteriorId(id);
+  s.setInAct(null);
+  playerRef.x = d.spawn.x; playerRef.y = d.spawn.y;
+  playerRef.tx = null; playerRef.ty = null; playerRef.moving = false;
+  sfx.click();
+  s.toast(`Vào ${d.name}! Đi lại + bấm E vào đồ đạc để tương tác`);
+}
+
+/** Ra khỏi nhà: về đúng chỗ town lúc vào */
+export function exitInterior() {
+  const s = useGame.getState();
+  if (s.scene !== 'interior') return;
+  const d = INTERIORS[s.interiorId ?? ''];
+  s.setScene('town');
+  s.setInteriorId(null);
+  s.setInAct(null);
+  if (townPos.x != null && townPos.y != null) { playerRef.x = townPos.x; playerRef.y = townPos.y; }
+  else if (d) {
+    const p = TOWN_PROPS.find((x) => x.id === d.id);
+    if (p) { playerRef.x = p.x; playerRef.y = p.y; }
+  }
+  playerRef.tx = null; playerRef.ty = null; playerRef.moving = false;
+  sfx.click();
+  s.toast('Ra ngoài công viên!');
+}
 
 /** Bắt đầu ngồi câu ở bến: chọn mồi (nếu có 2 loại thì mở bảng chọn) */
 function startRiverAt(pier: number) {
@@ -142,6 +227,10 @@ export default function GameCanvas({ target, onTarget }: Props) {
   // kích thước khung chứa (px css) + dpr: nguồn duy nhất để suy ra view/zoom
   const screen = useRef({ cssW: 960, cssH: 600, dpr: 1 });
   const fishingSpot = useGame((s) => s.fishingSpot);
+  // HUD hiệu năng: fps + cấp đang chạy (cập nhật 1s/lần, rẻ)
+  const [perf, setPerf] = useState({ fps: 0, q: 'medium' });
+  const perfRef = useRef(setPerf);
+  perfRef.current = setPerf;
 
   // giữ onTarget mới nhất
   const onTargetRef = useRef(onTarget);
@@ -156,6 +245,10 @@ export default function GameCanvas({ target, onTarget }: Props) {
     startAutoSync();
     let raf = 0;
     let last = performance.now();
+    // --- auto quality theo FPS thật: <42 hạ 1 cấp (3s cooldown), >57 bền 8s tăng 1 cấp ---
+    let acc = 0, n = 0, lastAdj = 0, goodSince = 0, lastPerfPush = 0;
+    // --- interact scan throttle: quét lại khi quá 120ms hoặc đi xa 8px ---
+    let scanAt = 0, scanX = 0, scanY = 0;
 
     const keydown = (e: KeyboardEvent) => {
       // đang gõ chat/input: nhường phím cho ô nhập
@@ -168,9 +261,12 @@ export default function GameCanvas({ target, onTarget }: Props) {
       if (k === 'escape') {
         if (st.fishingSpot) st.cancelRiver();
         st.setModal(null);
+        st.setInAct(null);
         return;
       }
       if (st.modal) return;
+      // đang mở panel hành động trong nhà: overlay tự xử lý E/Space, game nhường phím
+      if (st.inAct) return;
       // Zoom khung nhìn: + gần lại, − xa rộng ra (lưu lại, áp dụng cả farm + công viên)
       if (k === '=' || k === '+') { st.setViewH(st.viewH - 70); return; }
       if (k === '-' || k === '_') { st.setViewH(st.viewH + 70); return; }
@@ -198,11 +294,38 @@ export default function GameCanvas({ target, onTarget }: Props) {
       const t = now / 1000;
       const st = useGame.getState();
       const nowMs = Date.now();
+      const effQ = (st.autoQuality ? st.autoLevel : st.quality) as 'low' | 'medium' | 'high';
+      // --- đo FPS + tự chỉnh cấp (chỉ khi bật Auto) ---
+      acc += dt; n++;
+      if (acc >= 1) {
+        const fps = n / acc;
+        acc = 0; n = 0;
+        if (nowMs - lastPerfPush > 1000) {
+          lastPerfPush = nowMs;
+          perfRef.current({ fps: Math.round(fps), q: effQ });
+        }
+        if (st.autoQuality) {
+          const order: ('low' | 'medium' | 'high')[] = ['low', 'medium', 'high'];
+          const idx = order.indexOf(st.autoLevel);
+          if (fps < 42 && idx > 0 && nowMs - lastAdj > 3000) {
+            st.setAutoLevel(order[idx - 1]);
+            lastAdj = nowMs; goodSince = 0;
+          } else if (fps > 57 && idx < 2) {
+            if (!goodSince) goodSince = nowMs;
+            if (nowMs - goodSince > 8000 && nowMs - lastAdj > 3000) {
+              st.setAutoLevel(order[idx + 1]);
+              lastAdj = nowMs; goodSince = 0;
+            }
+          } else if (fps <= 57) {
+            goodSince = 0;
+          }
+        }
+      }
       // hệ quả của cover-scale: vẽ trong đơn vị logic
       ctx.setTransform(zoom.current, 0, 0, zoom.current, 0, 0);
 
-      // --- movement (khóa khi mở modal hoặc đang ngồi câu; town đi tự do) ---
-      if (!st.modal && !st.fishingSpot) {
+      // --- movement (khóa khi mở modal/panel hoặc đang ngồi câu; town đi tự do) ---
+      if (!st.modal && !st.fishingSpot && !st.inAct) {
         let mx = 0, my = 0;
         const K = keys.current;
         if (K['arrowup'] || K['w']) my -= 1;
@@ -210,8 +333,10 @@ export default function GameCanvas({ target, onTarget }: Props) {
         if (K['arrowleft'] || K['a']) mx -= 1;
         if (K['arrowright'] || K['d']) mx += 1;
         mx += joyRef.x; my += joyRef.y;
-        const SPD = 260;
-        const blocked = (x: number, y: number) => (st.scene === 'town' ? isTownBlocked(x, y) : isBlocked(x, y));
+        // cà phê trứng: chạy nhanh 60s
+        const SPD = st.speedUntil && Date.now() < st.speedUntil ? 330 : 260;
+        const iid = st.scene === 'interior' ? st.interiorId : null;
+        const blocked = (x: number, y: number) => (st.scene === 'town' ? isTownBlocked(x, y) : st.scene === 'interior' && iid ? isInteriorBlocked(iid, x, y) : isBlocked(x, y));
         if (mx || my) {
           playerRef.tx = null; playerRef.ty = null;
           const l = Math.hypot(mx, my) || 1;
@@ -236,12 +361,22 @@ export default function GameCanvas({ target, onTarget }: Props) {
         } else playerRef.moving = false;
       } else playerRef.moving = false;
 
-      // --- viewport: khung nhìn theo cài đặt (viewH); ra bờ sông thì THU NHỎ lại
-      // (thu xa để thấy sông rộng + cả trên/dưới, kẹp trong max; mượt bằng lerp mỗi frame) ---
+      // --- viewport: khung nhìn theo cài đặt (viewH); ra bờ sông / đang ngồi câu thì
+      // thu xa để thấy sông rộng + cả người + cần + phao, kẹp trong max (mượt bằng lerp) ---
       {
         const sc = screen.current;
         const base = st.viewH || 1050;
-        const targetH = st.scene === 'town' ? base : (playerRef.y > 980 ? Math.min(VIEW_H_MAX, base * 1.15) : base);
+        const fs0 = st.fishingSpot;
+        // ra bờ sông thì thu xa 1.15x — riêng khi đã ngồi câu thì giữ đúng zoom của
+        // người chơi (không ép zoom-out) để framing bên dưới tính chính xác
+        let targetH = st.scene === 'town' || fs0 ? base : (playerRef.y > 980 ? Math.min(VIEW_H_MAX, base * 1.15) : base);
+        // đang ngồi câu: đảm bảo span (đầu người → phao + margin) lọt trong 70% màn hình
+        // ở mọi resolution / mức zoom (kể cả zoom gần nhất 620)
+        if (fs0) {
+          const fTop = Math.min(fs0.y, fs0.by) - 170;
+          const fBottom = Math.max(fs0.y, fs0.by) + 120;
+          targetH = Math.min(VIEW_H_MAX, Math.max(targetH, (fBottom - fTop) / 0.7));
+        }
         const k = Math.min(1, dt * 2.5);
         view.current.h += (targetH - view.current.h) * k;
         if (Math.abs(view.current.h - targetH) < 0.5) view.current.h = targetH;
@@ -249,8 +384,32 @@ export default function GameCanvas({ target, onTarget }: Props) {
         zoom.current = (sc.cssH / view.current.h) * sc.dpr;
       }
 
-      cam.current.x = clampCam(playerRef.x - view.current.w / 2, st.scene === 'town' ? TOWN.w : WORLD.w, view.current.w);
-      cam.current.y = clampCam(playerRef.y - view.current.h / 2, st.scene === 'town' ? TOWN.h : WORLD.h, view.current.h);
+      {
+        // trong nhà: giữa phòng (phòng nhỏ hơn viewport thì clampCam tự giữa)
+        const idef = st.scene === 'interior' ? INTERIORS[st.interiorId ?? ''] : undefined;
+        cam.current.x = clampCam(playerRef.x - view.current.w / 2, idef ? idef.w : st.scene === 'town' ? TOWN.w : WORLD.w, view.current.w);
+      }
+      // đang ngồi câu: căn khung theo điểm câu (đáy span ở 80% màn hình) + cho phép
+      // tràn nhẹ 10% qua mép nam để cần + phao + sông luôn full hình ở mọi resolution
+      {
+        const fs = st.fishingSpot;
+        const idef = st.scene === 'interior' ? INTERIORS[st.interiorId ?? ''] : undefined;
+        const mapH = idef ? idef.h : st.scene === 'town' ? TOWN.h : WORLD.h;
+        if (idef) {
+          cam.current.y = clampCam(playerRef.y - view.current.h / 2, idef.h, view.current.h);
+        } else if (fs && view.current.h < mapH) {
+          const fBottom = Math.max(fs.y, fs.by) + 120;
+          const minY = -view.current.h * 0.45;
+          const maxY = mapH - view.current.h + view.current.h * 0.1;
+          cam.current.y = Math.max(minY, Math.min(maxY, fBottom - view.current.h * 0.8));
+        } else if (fs) {
+          cam.current.y = (mapH - view.current.h) / 2;
+        } else {
+          // 2.5D Hay Day: player nằm ở 60% chiều cao màn hình + cho camera ngó lên trên
+          // vùng trời (cam.y âm) để nửa trên luôn là background như ảnh mẫu
+          cam.current.y = clampCamY(playerRef.x, playerRef.y, st.scene === 'town' ? TOWN.h : WORLD.h, view.current.h);
+        }
+      }
 
       // --- tick simulation (tạm dừng khi đang thăm farm bạn; town vẫn tick farm ngầm) ---
       const village = useVillage.getState();
@@ -285,8 +444,11 @@ export default function GameCanvas({ target, onTarget }: Props) {
       } else kemInit = false;
       const kemPos = kem ? { x: kem.x, y: kem.y, moving: kemMoving, flip: kemRef.flip, sitting: !kemMoving } : null;
 
-      // --- interact scan ---
-      // farm mình: tương tác đủ thứ; farm bạn: chỉ tìm ô chín để hái trộm (coi chừng chó!); town: luôn tương tác props/cổng
+      // --- interact scan (throttle 120ms / 8px di chuyển — trước đây quét full + JSON.stringify mỗi frame) ---
+      // đứng yên vẫn quét lại mỗi 120ms để bắt kịp cây chín/pet đi ngang
+      const moved = Math.hypot(playerRef.x - scanX, playerRef.y - scanY);
+      if (targetRef.current == null || nowMs - scanAt > 120 || moved > 8) {
+        scanAt = nowMs; scanX = playerRef.x; scanY = playerRef.y;
       const visitSnap = village.visiting?.snap;
       // farm bạn: ưu tiên ô chín để hái trộm, rồi pet nhà bạn, rồi Kem đi theo mình
       const visitSteal = village.visiting && visitSnap ? nearestStealPlot(visitSnap.plots, playerRef.x, playerRef.y) : null;
@@ -294,7 +456,9 @@ export default function GameCanvas({ target, onTarget }: Props) {
       const visitKem = !visitSteal && (!visitPet || visitPet.d >= 95) && kem
         ? Math.hypot(playerRef.x - kem.x, playerRef.y - kem.y)
         : Infinity;
-      const near = st.scene === 'town'
+      const near = st.scene === 'interior' && st.interiorId
+        ? nearestInteriorInteract(st.interiorId, playerRef.x, playerRef.y)
+        : st.scene === 'town'
         ? nearestTownInteract({ px: playerRef.x, py: playerRef.y, kem })
         : village.visiting && visitSnap
           ? visitSteal ?? (visitPet && visitPet.d < 95 ? visitPet.target : null)
@@ -306,10 +470,11 @@ export default function GameCanvas({ target, onTarget }: Props) {
             now: nowMs, t, kem,
           });
       const prev = targetRef.current;
-      if (JSON.stringify(prev) !== JSON.stringify(near)) {
+      if (!sameTarget(prev, near)) {
         targetRef.current = near;
         onTargetRef.current(near);
       }
+      } // end interact scan throttle
 
       // --- render (farm / town) ---
       // town: ai cũng thấy nhau; farm: riêng tư (chỉ chủ + khách cùng thăm)
@@ -340,7 +505,14 @@ export default function GameCanvas({ target, onTarget }: Props) {
       }
       const fs = st.fishingSpot;
       const biting = !!fs && st.biteAt != null && st.biteUntil != null && nowMs >= st.biteAt && nowMs <= st.biteUntil;
-      if (st.scene === 'town') {
+      if (st.scene === 'interior' && st.interiorId && INTERIORS[st.interiorId]) {
+        // trong nhà: phòng riêng, không vẽ khách + không câu cá
+        renderInterior(ctx, view.current.w, view.current.h, cam.current, st.interiorId, {
+          player: { x: playerRef.x, y: playerRef.y, dir: playerRef.dir, moving: playerRef.moving, name: st.name },
+          avatar: st.avatar, outfit: st.outfit,
+          stageColor: st.stageColor,
+        }, t);
+      } else if (st.scene === 'town') {
         renderTown(ctx, view.current.w, view.current.h, cam.current, {
           player: { x: playerRef.x, y: playerRef.y, dir: playerRef.dir, moving: playerRef.moving, tx: playerRef.tx, ty: playerRef.ty, name: st.name },
           avatar: st.avatar, dayTime: st.dayTime, weather: st.weather,
@@ -350,7 +522,7 @@ export default function GameCanvas({ target, onTarget }: Props) {
           selfEmoteAt: village.selfEmoteAt || undefined,
           kemPos, petFx: st.petFx,
           outfit: st.outfit,
-          quality: st.quality,
+          quality: effQ,
         }, t);
       } else {
         const snap = village.visiting?.snap;
@@ -371,7 +543,7 @@ export default function GameCanvas({ target, onTarget }: Props) {
           catchPop: st.catchPop,
           outfit: st.outfit,
           plotFx: st.plotFx,
-          quality: st.quality,
+          quality: effQ,
           thiefBite: st.thiefBiteUntil,
           petFx: st.petFx,
         }, t);
@@ -386,11 +558,11 @@ export default function GameCanvas({ target, onTarget }: Props) {
       if (!wrap) return;
       const cssW = Math.max(320, wrap.clientWidth);
       const cssH = Math.max(320, wrap.clientHeight);
-      // DPR theo cấp đồ họa: Thấp khóa 1x, TB tối đa 1.25x, Cao tối đa 1.5x
-      const q = useGame.getState().quality;
-      const dpr = q === 'low' ? 1 : q === 'medium' ? Math.min(1.25, window.devicePixelRatio || 1) : Math.min(1.5, window.devicePixelRatio || 1);
-      cv.width = Math.round(cssW * dpr);
-      cv.height = Math.round(cssH * dpr);
+      // DPR hiệu dụng = DPR(cấp đồ họa) x scale(độ phân giải); canvas nhỏ hơn CSS rồi upscale
+      const dpr = applyCanvasSize(cv, cssW, cssH);
+      const ctx2 = cv.getContext('2d');
+      // upscale thì bật smoothing cho đỡ vỡ chữ/đường, còn lại giữ nét pixel
+      if (ctx2) ctx2.imageSmoothingEnabled = dpr < (window.devicePixelRatio || 1);
       cv.style.width = '100%'; cv.style.height = '100%';
       screen.current = { cssW, cssH, dpr };
     };
@@ -402,18 +574,21 @@ export default function GameCanvas({ target, onTarget }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // đổi cấp đồ họa → dựng lại canvas (DPR) ngay, không cần reload
+  // đổi cấp đồ họa (tay hay auto) / độ phân giải → dựng lại canvas ngay, không cần reload
   const quality = useGame((s) => s.quality);
+  const autoQuality = useGame((s) => s.autoQuality);
+  const autoLevel = useGame((s) => s.autoLevel);
+  const resMode = useGame((s) => s.resMode);
   useEffect(() => {
     const cv = canvasRef.current, wrap = wrapRef.current;
     if (!cv || !wrap) return;
     const cssW = Math.max(320, wrap.clientWidth);
     const cssH = Math.max(320, wrap.clientHeight);
-    const dpr = quality === 'low' ? 1 : quality === 'medium' ? Math.min(1.25, window.devicePixelRatio || 1) : Math.min(1.5, window.devicePixelRatio || 1);
-    cv.width = Math.round(cssW * dpr);
-    cv.height = Math.round(cssH * dpr);
+    const dpr = applyCanvasSize(cv, cssW, cssH);
+    const ctx2 = cv.getContext('2d');
+    if (ctx2) ctx2.imageSmoothingEnabled = dpr < (window.devicePixelRatio || 1);
     screen.current = { cssW, cssH, dpr };
-  }, [quality]);
+  }, [quality, autoQuality, autoLevel, resMode]);
 
   const onPointer = (e: React.PointerEvent) => {
     const cv = canvasRef.current!;
@@ -422,14 +597,16 @@ export default function GameCanvas({ target, onTarget }: Props) {
     const sy = ((e.clientY - r.top) / r.height) * view.current.h;
     const st = useGame.getState();
     const inTown = st.scene === 'town';
-    const MW = inTown ? TOWN.w : WORLD.w, MH = inTown ? TOWN.h : WORLD.h;
+    const idef = st.scene === 'interior' ? INTERIORS[st.interiorId ?? ''] : undefined;
+    const MW = idef ? idef.w : inTown ? TOWN.w : WORLD.w;
+    const MH = idef ? idef.h : inTown ? TOWN.h : WORLD.h;
     const wx = Math.max(20, Math.min(MW - 20, sx + cam.current.x));
     const wy = Math.max(60, Math.min(MH - 20, sy + cam.current.y));
     // đang câu: click = thu cần (khi cá cắn phải bấm dãy mũi tên)
     if (st.fishingSpot) { st.reelRiver(); return; }
-    const blocked = inTown ? isTownBlocked(wx, wy) : isBlocked(wx, wy);
+    const blocked = idef && st.interiorId ? isInteriorBlocked(st.interiorId, wx, wy) : inTown ? isTownBlocked(wx, wy) : isBlocked(wx, wy);
     if (!blocked) { playerRef.tx = wx; playerRef.ty = wy; }
-  if (inTown) return;
+  if (inTown || idef) return;
   // đang thăm farm bạn: click trúng ô chín + đứng gần → hái trộm (coi chừng chó!)
   const visiting = useVillage.getState().visiting;
   if (visiting) {
@@ -467,6 +644,10 @@ export default function GameCanvas({ target, onTarget }: Props) {
       {target && !fishingSpot && <InteractHint target={target} />}
       <RiverHint />
       <Joystick />
+      {/* HUD hiệu năng gọn: fps + cấp đang chạy (auto thì thêm chữ Auto) */}
+      <div className="absolute left-2 top-2 z-[6] pointer-events-none select-none rounded-md border-2 border-black/60 bg-black/45 px-1.5 py-0.5 text-[10px] font-bold text-white/90">
+        {perf.fps > 0 ? `${perf.fps}fps · ` : ''}{perf.q === 'low' ? 'Thấp' : perf.q === 'medium' ? 'TB' : 'Cao'}{autoQuality ? ' · Auto' : ''}
+      </div>
       <div className="absolute right-3 bottom-3 flex gap-2 md:hidden" style={{ marginBottom: 'env(safe-area-inset-bottom)' }}>
         <button
           className="w-14 h-14 rounded-full text-xl font-black bg-yellow-300 border-[3px] border-[#2b2117] shadow-pixel active:scale-95 touch-manipulation select-none"
@@ -498,7 +679,7 @@ function RiverHint() {
   const biting = biteAt != null && biteUntil != null && now >= biteAt && now <= biteUntil;
   if (!biting) {
     return (
-      <div className="absolute bottom-20 left-1/2 -translate-x-1/2 border-[3px] border-[#2b2117] rounded-full px-5 py-2 font-extrabold shadow-pixel whitespace-nowrap z-30 bg-[#fff8dc] animate-pulse pointer-events-none max-w-[94vw] overflow-hidden text-ellipsis">
+      <div className="absolute top-14 left-1/2 -translate-x-1/2 border-[3px] border-[#2b2117] rounded-full px-5 py-2 font-extrabold shadow-pixel whitespace-nowrap z-30 bg-[#fff8dc] animate-pulse pointer-events-none max-w-[94vw] overflow-hidden text-ellipsis">
         Đang đợi cá… (E: thu cần)
       </div>
     );
@@ -551,6 +732,15 @@ function RiverHint() {
 function clampCam(c: number, worldSize: number, viewSize: number): number {
   if (viewSize >= worldSize) return (worldSize - viewSize) / 2;
   return Math.max(0, Math.min(worldSize - viewSize, c));
+}
+// 2.5D: camera Y ngó lên vùng trời (âm tới 45% viewH) để nửa trên là background;
+// ở khu nam (chuồng/sông, y>850) neo player thấp (~42%) + cho tràn nhẹ 6% qua mép
+// nam để sông + bến luôn lọt khung ở mọi mức zoom
+function clampCamY(_px: number, py: number, worldH: number, viewH: number): number {
+  const minY = -viewH * 0.45;
+  const maxY = Math.max(minY, worldH - viewH + viewH * 0.06);
+  const anchor = py > 850 ? 0.42 : 0.6;
+  return Math.max(minY, Math.min(maxY, py - viewH * anchor));
 }
 
 function InteractHint({ target }: { target: InteractTarget }) {

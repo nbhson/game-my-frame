@@ -17,7 +17,7 @@ export interface RemotePlayer {
   bubble?: string;
   bubbleAt?: number;
   /** bản đồ đang đứng: farm riêng hay công viên chung */
-  map?: 'farm' | 'town';
+  map?: 'farm' | 'town' | 'interior';
   /** cảm xúc realtime ở công viên */
   emote?: string;
   emoteAt?: number;
@@ -87,7 +87,7 @@ export interface NetTransport {
   connect(self: SelfInfo): void;
   disconnect(): void;
   updateSelf(self: SelfInfo): void;
-  pushPosition(x: number, y: number, dir: 1 | -1, moving: boolean, bubble?: string, extra?: { map?: 'farm' | 'town'; emote?: string; visit?: string | null }): void;
+  pushPosition(x: number, y: number, dir: 1 | -1, moving: boolean, bubble?: string, extra?: { map?: 'farm' | 'town' | 'interior'; emote?: string; visit?: string | null }): void;
   pushFarm(snap: FarmPayload): void;
   fetchFarm(code: string): Promise<FarmSnapshot | null>;
   sendChat(text: string): void;
@@ -99,3 +99,4 @@ export interface NetTransport {
   /** nhận báo trộm (chủ farm) */
   onFarmEvent?(cb: (ev: StealWire) => void): () => void;
 }
+

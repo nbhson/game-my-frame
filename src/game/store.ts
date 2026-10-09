@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Animal, AnimalType, CoopCap, GraphicsQuality, ModalKind, Plot, PondFish, SceneKind, ShopTab, Stats, WeatherKind } from './types';
+import type { Animal, AnimalType, CoopCap, DailyState, GraphicsQuality, InAct, ModalKind, Plot, PondFish, ResMode, SceneKind, ShopTab, Stats, WeatherKind } from './types';
 import {
   ANIMALS, BITE_MAX, BITE_MIN, BITE_WINDOW, CROPS, DAY_LENGTH, FEED_PRO_PRICE, FEED_PRICE,
   BAIT_PRO_PRICE, BAIT_PRICE, DEFAULT_OUTFIT, FISHES, MAX_CAP, MAX_PLOTS, MAX_POND, OUTFITS, QUESTS,
@@ -51,8 +51,23 @@ interface GameState {
   // ui state (persist một phần, modal/toast không persist)
   modal: ModalKind;
   shopTab: ShopTab;
-  // bản đồ đang đứng: farm riêng hay thị trấn chung (không persist, luôn boot ở farm)
+  // bản đồ đang đứng: farm riêng, thị trấn chung, hay trong nhà (không persist, luôn boot ở farm)
   scene: SceneKind;
+  /** đang ở nhà nào (khi scene === 'interior'), transient */
+  interiorId: string | null;
+  /** overlay hành động trong nhà (timing/hold/dialog/list), transient */
+  inAct: InAct | null;
+  // ---- nội thất 6 nhà (persist): tình cảm cô Ba, quỹ làng, việc ngày, bới ve chai ----
+  baLove: number;
+  loveClaim: number[];
+  fundTotal: number;
+  fundClaim: number[];
+  daily: DailyState;
+  junkAt: number;
+  // buff chạy nhanh từ cà phê (epoch ms hết hạn, transient)
+  speedUntil: number | null;
+  // màu đèn sân khấu hiện tại (transient, vui là chính)
+  stageColor: string;
   // câu sông: transient, không persist
   fishingSpot: FishSpot | null;
   biteAt: number | null;
@@ -71,6 +86,12 @@ interface GameState {
   ownedOutfits: string[];
   // cấp đồ họa: high (đủ hiệu ứng) / medium / low (máy yếu) — persist + sync
   quality: GraphicsQuality;
+  // tự động chỉnh đồ họa theo FPS thật (mặc định BẬT để hết lag; tắt khi muốn cố định tay)
+  autoQuality: boolean;
+  // mức đang dùng khi auto (transient, không lưu) — render đọc effective = auto ? autoLevel : quality
+  autoLevel: GraphicsQuality;
+  // độ phân giải render (nhân với DPR): auto = theo cấp hiệu dụng (low 0.6 / med 0.85 / high 1)
+  resMode: ResMode;
   // bị chó cắn khi hái trộm (epoch ms hết hạn, transient — vẽ GÂU! trên đầu)
   thiefBiteUntil: number | null;
   // đang xoa đầu / vuốt ve thú cưng: { uid pet, at } — animation 2 chiều 2.6s
@@ -87,15 +108,32 @@ interface GameState {
     plots: Plot[]; fishes: PondFish[]; animals: Animal[];
     pondSlots?: number; coopCap?: CoopCap;
     stats: Stats; questIdx: number; uidSeq: number;
+    baLove?: number; loveClaim?: number[]; fundTotal?: number; fundClaim?: number[];
+    daily?: DailyState; junkAt?: number;
     redeemedCodes?: string[];
     outfit?: Record<string, string>; ownedOutfits?: string[];
     quality?: GraphicsQuality; viewH?: number; kem?: boolean;
+    autoQuality?: boolean; resMode?: ResMode;
   } | null) => void;
   toast: (msg: string) => void;
   dismissToast: (id: number) => void;
   setModal: (m: ModalKind) => void;
   setShopTab: (t: ShopTab) => void;
   setScene: (s: SceneKind) => void;
+  setInteriorId: (id: string | null) => void;
+  setInAct: (a: InAct | null) => void;
+  /** đảm bảo daily đúng ngày hiện tại (reset flag/ngày khi sang ngày mới) */
+  touchDaily: () => void;
+  setDailyFlag: (k: string) => void;
+  addCatGift: (cat: string) => void;
+  setDailyQuests: (q: DailyState['quests']) => void;
+  addLove: (n: number) => void;
+  claimLove: (i: number) => void;
+  addFund: (n: number) => void;
+  claimFund: (i: number) => void;
+  setJunkAt: (t: number) => void;
+  setSpeed: (until: number | null) => void;
+  setStageColor: (c: string) => void;
   addXP: (n: number) => void;
   addXu: (n: number) => void;
   addGem: (n: number) => void;
@@ -122,6 +160,12 @@ interface GameState {
   wearOutfit: (id: string) => void;
   /** Đổi cấp đồ họa (áp dụng ngay, lưu máy + tài khoản) */
   setQuality: (q: GraphicsQuality) => void;
+  /** Bật/tắt tự động chỉnh đồ họa theo FPS */
+  setAutoQuality: (v: boolean) => void;
+  /** Mức auto dò được (game loop tự gọi khi FPS thấp/cao) */
+  setAutoLevel: (q: GraphicsQuality) => void;
+  /** Độ phân giải render (áp dụng ngay, lưu máy + tài khoản) */
+  setResMode: (m: ResMode) => void;
   /** Độ cao khung nhìn (world units): nhỏ = gần to, lớn = xa rộng. Mặc định 1050. */
   viewH: number;
   setViewH: (h: number) => void;
@@ -261,10 +305,14 @@ export const useGame = create<GameState>()(
       questIdx: 0, uidSeq: 1,
       redeemedCodes: [],
       modal: null, shopTab: 'seed', scene: 'farm',
+      interiorId: null, inAct: null,
+      baLove: 0, loveClaim: [], fundTotal: 0, fundClaim: [],
+      daily: { day: 1, flags: {}, cats: [], quests: [] },
+      junkAt: 0, speedUntil: null, stageColor: '#ffd24d',
       fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null,
       biteCatchId: null, biteCombo: null, biteProgress: 0,
       catchPop: null, outfit: { ...DEFAULT_OUTFIT }, ownedOutfits: Object.keys(DEFAULT_OUTFIT).map((k) => DEFAULT_OUTFIT[k as OutfitSlot]),
-      quality: 'high', thiefBiteUntil: null,
+      quality: 'high', autoQuality: true, autoLevel: 'medium', resMode: 'auto', thiefBiteUntil: null,
       viewH: defaultViewH(),
       kem: false,
       petFx: null,
@@ -291,12 +339,20 @@ export const useGame = create<GameState>()(
             pondSlots: Math.min(MAX_POND, Math.max(START_POND, data.pondSlots ?? (data.fishes?.length >= 6 ? 6 : START_POND))),
             animals: data.animals, coopCap: cap,
             stats: data.stats, questIdx: data.questIdx, uidSeq: uidRef.v,
+            baLove: data.baLove ?? 0, fundTotal: data.fundTotal ?? 0,
+            loveClaim: Array.isArray(data.loveClaim) ? data.loveClaim : [],
+            fundClaim: Array.isArray(data.fundClaim) ? data.fundClaim : [],
+            daily: data.daily ?? { day: data.day, flags: {}, cats: [], quests: [] },
+            junkAt: data.junkAt ?? 0,
             redeemedCodes: Array.isArray(data.redeemedCodes) ? data.redeemedCodes.map((c) => String(c).toLowerCase()) : [],
             outfit: { ...DEFAULT_OUTFIT, ...(data.outfit ?? {}) },
             ownedOutfits: Array.isArray(data.ownedOutfits) && data.ownedOutfits.length > 0
               ? [...new Set([...Object.values(DEFAULT_OUTFIT), ...data.ownedOutfits])]
               : Object.values(DEFAULT_OUTFIT),
             quality: data.quality === 'low' || data.quality === 'medium' ? data.quality : 'high',
+            autoQuality: data.autoQuality !== false,
+            autoLevel: data.quality === 'low' ? 'low' : 'medium',
+            resMode: data.resMode === 'full' || data.resMode === 'med' || data.resMode === 'low' ? data.resMode : 'auto',
             viewH: clampViewH(data.viewH ?? VIEW_H_DEFAULT),
             kem: !!data.kem,
             modal: null, fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null, biteCatchId: null, biteCombo: null, biteProgress: 0, catchPop: null, petFx: null, plotFx: [], scene: 'farm',
@@ -312,7 +368,7 @@ export const useGame = create<GameState>()(
             stats: freshStats(), questIdx: 0, uidSeq: 1,
             redeemedCodes: [],
             outfit: { ...DEFAULT_OUTFIT }, ownedOutfits: Object.values(DEFAULT_OUTFIT),
-            quality: 'high', viewH: defaultViewH(), kem: false,
+            quality: 'high', autoQuality: true, autoLevel: 'medium', resMode: 'auto', viewH: defaultViewH(), kem: false,
             modal: null, fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null, biteCatchId: null, biteCombo: null, biteProgress: 0, catchPop: null, petFx: null, plotFx: [], scene: 'farm',
           });
         }
@@ -327,6 +383,31 @@ export const useGame = create<GameState>()(
       setModal: (m) => set({ modal: m }),
       setShopTab: (t) => set({ shopTab: t }),
       setScene: (scene) => set({ scene, modal: null }),
+      setInteriorId: (id) => set({ interiorId: id }),
+      setInAct: (a) => set({ inAct: a }),
+      touchDaily: () => {
+        const s = get();
+        if (s.daily.day !== s.day) set({ daily: { day: s.day, flags: {}, cats: [], quests: [] } });
+      },
+      setDailyFlag: (k) => {
+        get().touchDaily();
+        set((s) => ({ daily: { ...s.daily, flags: { ...s.daily.flags, [k]: true } } }));
+      },
+      addCatGift: (cat) => {
+        get().touchDaily();
+        set((s) => ({ daily: { ...s.daily, cats: [...s.daily.cats, cat] } }));
+      },
+      setDailyQuests: (q) => {
+        get().touchDaily();
+        set((s) => ({ daily: { ...s.daily, quests: q } }));
+      },
+      addLove: (n) => set((s) => ({ baLove: s.baLove + n })),
+      claimLove: (i) => set((s) => ({ loveClaim: [...s.loveClaim, i] })),
+      addFund: (n) => set((s) => ({ fundTotal: s.fundTotal + n })),
+      claimFund: (i) => set((s) => ({ fundClaim: [...s.fundClaim, i] })),
+      setJunkAt: (t) => set({ junkAt: t }),
+      setSpeed: (until) => set({ speedUntil: until }),
+      setStageColor: (c) => set({ stageColor: c }),
 
       addXP: (n) => {
         let { xp, level, xu, gem } = get();
@@ -442,7 +523,8 @@ export const useGame = create<GameState>()(
           if (f.grown) return f;
           const F = FISHES[f.type];
           if (!F) return f;
-          const hunger = Math.max(0, f.hunger - dt * 3);
+          // no 15 phút: 100 -> 0 trong 900s
+          const hunger = Math.max(0, f.hunger - dt * (100 / 900));
           let age = f.age;
           if (hunger > 20) age += dt;
           if (age >= F.grow) { get().toast(`${F.name} đã lớn!`); sfx.catch_(); return { ...f, hunger, age, grown: true }; }
@@ -453,7 +535,8 @@ export const useGame = create<GameState>()(
         const animals = s.animals.map((a) => {
           const A = ANIMALS[a.type];
           if (!A) return a;
-          const hunger = Math.max(0, a.hunger - dt * 2.2);
+          // no 15 phút: 100 -> 0 trong 900s
+          const hunger = Math.max(0, a.hunger - dt * (100 / 900));
           const adult = (now - a.bornAt) / 1000 >= A.grow;
           let { productT, ready } = a;
           if (adult && hunger > 30 && !ready) {
@@ -940,9 +1023,23 @@ export const useGame = create<GameState>()(
         sfx.click();
       },
       setQuality: (q) => {
-        set({ quality: q });
+        // chọn tay = tắt Auto để giữ đúng ý người chơi
+        set({ quality: q, autoQuality: false });
         sfx.click();
         get().toast(q === 'high' ? 'Đồ họa: Cao (lung linh nhất)' : q === 'medium' ? 'Đồ họa: Trung bình' : 'Đồ họa: Thấp (mượt nhất)');
+      },
+      setAutoQuality: (v) => {
+        set({ autoQuality: v });
+        sfx.click();
+        get().toast(v ? 'Đồ họa: Tự động (game tự chỉnh theo FPS)' : 'Đã tắt Tự động — giữ mức tay đang chọn');
+      },
+      setAutoLevel: (q) => {
+        if (get().autoLevel !== q) set({ autoLevel: q });
+      },
+      setResMode: (m) => {
+        set({ resMode: m });
+        sfx.click();
+        get().toast(m === 'low' ? 'Độ phân giải: Siêu nhẹ 50% (mượt nhất, hơi mờ)' : m === 'med' ? 'Độ phân giải: Nhẹ 75%' : m === 'full' ? 'Độ phân giải: Chuẩn 100% (nét nhất)' : 'Độ phân giải: Tự động theo cấp đồ họa');
       },
       setViewH: (h) => set({ viewH: clampViewH(h) }),
       setThiefBite: () => set({ thiefBiteUntil: Date.now() + 2500 }),
@@ -1132,8 +1229,11 @@ export const useGame = create<GameState>()(
           stats: freshStats(), questIdx: 0, uidSeq: 1,
           redeemedCodes: [],
           outfit: { ...DEFAULT_OUTFIT }, ownedOutfits: Object.values(DEFAULT_OUTFIT),
-          quality: 'high', kem: false,
+          quality: 'high', autoQuality: true, autoLevel: 'medium', resMode: 'auto', kem: false,
           modal: null, fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null, biteCatchId: null, biteCombo: null, biteProgress: 0, catchPop: null, petFx: null, plotFx: [], toasts: [], scene: 'farm',
+          interiorId: null, inAct: null, baLove: 0, loveClaim: [], fundTotal: 0, fundClaim: [],
+          daily: { day: 1, flags: {}, cats: [], quests: [] },
+          junkAt: 0, speedUntil: null, stageColor: '#ffd24d',
         });
       },
     }),
@@ -1150,8 +1250,10 @@ export const useGame = create<GameState>()(
         coopCap: s.coopCap,
         stats: s.stats, questIdx: s.questIdx, uidSeq: s.uidSeq,
         redeemedCodes: s.redeemedCodes,
+        baLove: s.baLove, loveClaim: s.loveClaim, fundTotal: s.fundTotal, fundClaim: s.fundClaim,
+        daily: s.daily, junkAt: s.junkAt,
         outfit: s.outfit, ownedOutfits: s.ownedOutfits,
-        quality: s.quality, viewH: s.viewH, kem: s.kem,
+        quality: s.quality, autoQuality: s.autoQuality, resMode: s.resMode, viewH: s.viewH, kem: s.kem,
       }),
     }
   )

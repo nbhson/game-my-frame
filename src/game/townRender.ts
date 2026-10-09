@@ -88,6 +88,14 @@ function blush(ctx: CanvasRenderingContext2D, x: number, y: number, w = 6, h = 3
   ell(ctx, x, y, w, h);
 }
 function grassTuft(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, t: number, seed: number) {
+  // Thấp: 2 nét đơn, bỏ viền + highlight
+  if (TQ_LOW) {
+    const sway = Math.sin(t * 1.8 + seed * 1.7) * 1.8;
+    ctx.strokeStyle = '#4d9240'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(x - 4 * s, y); ctx.lineTo(x - 4 * s + sway, y - 9 * s); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x + 4 * s, y); ctx.lineTo(x + 4 * s + sway, y - 8 * s); ctx.stroke();
+    return;
+  }
   const sway = Math.sin(t * 1.8 + seed * 1.7) * 1.8;
   ctx.lineCap = 'round';
   for (const [ox, hh] of [[-5, -9], [0, -12], [5, -8]] as [number, number][]) {
@@ -152,16 +160,21 @@ function pmod(a: number, n: number): number {
 
 // ---------- nền cỏ: gradient + mảng loang + quầng nắng + hoa cỏ ----------
 function drawTownBase(ctx: CanvasRenderingContext2D, cam: { x: number; y: number }, W: number, H: number, t: number) {
-  const bg = ctx.createLinearGradient(0, 0, 0, H);
-  bg.addColorStop(0, '#93d668');
-  bg.addColorStop(0.55, '#7cc74f');
-  bg.addColorStop(1, '#6fb844');
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, W, H);
-  const T = 48;
+  // Thấp: fill phẳng, bỏ gradient toàn màn hình
+  if (TQ_LOW) { ctx.fillStyle = '#7cc74f'; ctx.fillRect(0, 0, W, H); }
+  else {
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#93d668');
+    bg.addColorStop(0.55, '#7cc74f');
+    bg.addColorStop(1, '#6fb844');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+  }
+  const T = TQ_LOW ? 96 : 48;
   const x0 = Math.floor(cam.x / T) * T, y0 = Math.floor(cam.y / T) * T;
   for (let gx = x0; gx < cam.x + W + T; gx += T) {
     for (let gy = y0; gy < cam.y + H + T; gy += T) {
+      if (TQ_LOW) continue; // bỏ caro + mảng loang hẳn ở chế độ Thấp
       const odd = (Math.round(gx / T) + Math.round(gy / T)) % 2 === 0;
       ctx.fillStyle = odd ? 'rgba(255,255,255,.06)' : 'rgba(30,90,30,.06)';
       ctx.fillRect(gx - cam.x, gy - cam.y, T, T);
@@ -174,8 +187,8 @@ function drawTownBase(ctx: CanvasRenderingContext2D, cam: { x: number; y: number
       }
     }
   }
-  // quầng nắng trôi chậm
-  for (let k = 0; k < 3; k++) {
+  // quầng nắng trôi chậm (Thấp: tắt)
+  for (let k = 0; k < (TQ_LOW ? 0 : 3); k++) {
     const sx = ((k * 640 + t * 12) % (TOWN.w + 400)) - 200 - cam.x;
     const sy = ((k * 410 + 150) % TOWN.h) - cam.y;
     if (sx < -200 || sx > W + 200) continue;
@@ -185,8 +198,9 @@ function drawTownBase(ctx: CanvasRenderingContext2D, cam: { x: number; y: number
     ctx.fillStyle = g2;
     ctx.beginPath(); ctx.arc(sx, sy, 220, 0, 7); ctx.fill();
   }
-  // hoa cỏ rải rác (né quảng trường + nhà + đường)
+  // hoa cỏ rải rác (né quảng trường + nhà + đường; Thấp: chỉ 1/4 + cỏ gọn)
   for (let i = 0; i < 130; i++) {
+    if (TQ_LOW && i % 4 !== 0) continue;
     const fx = (i * 211.7) % TOWN.w, fy = (i * 349.3) % TOWN.h;
     if (Math.hypot(fx - PLAZA.x, fy - PLAZA.y) < PLAZA.r + 26) continue;
     if (fy > 590 && fy < 700) continue;
@@ -198,12 +212,14 @@ function drawTownBase(ctx: CanvasRenderingContext2D, cam: { x: number; y: number
     if (inside) continue;
     const X = fx - cam.x, Y = fy - cam.y;
     if (X < -24 || Y < -24 || X > W + 24 || Y > H + 24) continue;
+    if (TQ_LOW) { grassTuft(ctx, X, Y, 0.9, t, i); continue; }
     if (i % 5 === 0) {
       flower(ctx, X, Y - 8, 6.5, ['#ff8fb0', '#ffffff', '#ffeb3b', '#ce93d8'][i % 4]);
       grassTuft(ctx, X + 8, Y, 1, t, i);
     } else grassTuft(ctx, X, Y, hash2(i, 7) > 0.5 ? 1 : 0.8, t, i);
   }
-  // bồ công anh bay — world-lock, trôi theo gió trong map
+  // bồ công anh bay — Thấp: tắt
+  if (TQ_LOW) return;
   for (let i = 0; i < 6; i++) {
     const px = pmod(i * 397 + t * (18 + i * 4), TOWN.w) - cam.x;
     if (px < -40 || px > W + 40) continue;
@@ -227,10 +243,15 @@ function stonePath(ctx: CanvasRenderingContext2D, cam: { x: number; y: number },
   rr(ctx, X - 5, Y - 5, w + 10, h + 10, 12);
   ctx.fillStyle = '#8d8d94'; ctx.fill();
   ctx.lineWidth = 3; ctx.strokeStyle = OUT; ctx.stroke();
-  const g = ctx.createLinearGradient(0, Y, 0, Y + h);
-  g.addColorStop(0, '#ece7db'); g.addColorStop(0.5, '#ddd6c4'); g.addColorStop(1, '#c4bba6');
-  rr(ctx, X, Y, w, h, 8); ctx.fillStyle = g; ctx.fill();
+  rr(ctx, X, Y, w, h, 8);
+  if (TQ_LOW) { ctx.fillStyle = '#d8d2c2'; ctx.fill(); }
+  else {
+    const g = ctx.createLinearGradient(0, Y, 0, Y + h);
+    g.addColorStop(0, '#ece7db'); g.addColorStop(0.5, '#ddd6c4'); g.addColorStop(1, '#c4bba6');
+    ctx.fillStyle = g; ctx.fill();
+  }
   ctx.lineWidth = 2.2; ctx.strokeStyle = OUT; ctx.stroke();
+  if (TQ_LOW) { void t; void seed; return; }
   ctx.save();
   rr(ctx, X, Y, w, h, 8); ctx.clip();
   glint(ctx, X, Y, w, h);
